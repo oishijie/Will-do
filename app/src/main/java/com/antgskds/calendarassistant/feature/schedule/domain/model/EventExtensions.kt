@@ -22,7 +22,6 @@ object EventTags {
     const val FLIGHT  = "flight"
     const val TICKET  = "ticket"
     const val SENDER  = "sender"
-    const val COURSE  = "course"
 }
 
 fun normalizeEventTag(tag: String?): String = tag?.trim()?.lowercase().orEmpty()
@@ -45,7 +44,6 @@ fun inferEventTagFromDescription(description: String?, fallbackTag: String = Eve
         "food", "取餐", "外卖" -> EventTags.FOOD
         "ticket", "取票" -> EventTags.TICKET
         "sender", "寄件" -> EventTags.SENDER
-        "course", "课程" -> EventTags.COURSE
         else -> null
     }
     return headerTag ?: normalizeEventTag(fallbackTag).ifBlank { EventTags.GENERAL }
@@ -124,7 +122,6 @@ val Event.idString: String get() = (id ?: 0L).toString()
 
 /** 是否是交通类事件 */
 val Event.isTransit: Boolean get() = inferEventTagFromDescription(description, tag).let { it == EventTags.FLIGHT || it == EventTags.TRAIN }
-val Event.isCourse: Boolean get() = inferEventTagFromDescription(description, tag) == EventTags.COURSE
 
 // ── 构造辅助 ──────────────────────────────────────────────────────────
 

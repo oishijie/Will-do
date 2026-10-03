@@ -140,12 +140,6 @@ class App : Application() {
         EventAttachmentManager(applicationContext)
     }
 
-    val accountingApi: com.antgskds.calendarassistant.feature.accounting.domain.AccountingApi by lazy {
-        com.antgskds.calendarassistant.feature.accounting.application.AccountingRepository(
-            com.antgskds.calendarassistant.feature.schedule.data.db.EventsDatabase.getInstance(applicationContext)
-        )
-    }
-
     private val noteRepository: NoteRepository by lazy {
         NoteRepository(com.antgskds.calendarassistant.feature.schedule.data.db.EventsDatabase.getInstance(applicationContext).notesDao())
     }
@@ -202,10 +196,6 @@ class App : Application() {
             weatherOperationApi = weatherOperationApi,
             diagnosticLogExporter = diagnosticLogCenter,
             backupCoordinator = backupCenter,
-            accountingService = com.antgskds.calendarassistant.shared.api.AgentAccountingService(
-                accounting = accountingApi,
-                ingest = ingestCommandApi,
-            ),
         )
     }
 
@@ -298,20 +288,11 @@ class App : Application() {
     // ══════════════════════════════════════════════════════════════════════
 
     val recognitionCenter: RecognitionOrchestrator by lazy {
-        RecognitionOrchestrator(domainEventBus = domainEventBus, ingestProvider = { ingestCommandApi }, notificationApi = notificationCenter,
-            capsuleProvider = { capsuleCommandApi }, automaticAccountingEnabled = { settingsQueryApi.settings.value.automaticAccountingEnabled })
-    }
-
-    val accountingNotificationPriority by lazy {
-        com.antgskds.calendarassistant.feature.accounting.domain.AccountingNotificationPriorityPolicy()
+        RecognitionOrchestrator(domainEventBus = domainEventBus)
     }
 
     val imagePinController by lazy {
         com.antgskds.calendarassistant.feature.imagepin.ImagePinController(this, settingsQueryApi, capsuleCommandApi, appScope)
-    }
-
-    val accountingMessageCoordinator by lazy {
-        com.antgskds.calendarassistant.feature.accounting.application.AccountingMessageCoordinator(this, accountingNotificationPriority) { recognitionApi }
     }
 
     val recognitionApi: com.antgskds.calendarassistant.shared.operation.RecognitionApi get() = recognitionCenter
@@ -339,8 +320,7 @@ class App : Application() {
             appScope = appScope,
             notificationCenter = notificationCenter,
             settingsProvider = { settingsQueryApi.settings.value },
-            regexAiReviewCoordinator = regexAiReviewCoordinator,
-            accountingApi = accountingApi
+            regexAiReviewCoordinator = regexAiReviewCoordinator
         )
     }
 
@@ -467,19 +447,6 @@ class App : Application() {
         )
     }
 
-    /** 开发者诊断只调用公开入口，不直接访问无障碍服务内部状态。 */
-    suspend fun startPaymentDiagnostics() = kotlinx.coroutines.withContext(Dispatchers.Main) {
-        val service = com.antgskds.calendarassistant.platform.accessibility.TextAccessibilityService.instance
-        checkNotNull(service) { "请先开启 Will do 无障碍服务" }.startPaymentDiagnostics()
-    }
-
-    suspend fun exportPaymentDiagnostics() = kotlinx.coroutines.withContext(Dispatchers.Main) {
-        val service = com.antgskds.calendarassistant.platform.accessibility.TextAccessibilityService.instance
-        val path = service?.exportPaymentDiagnostics()
-            ?: com.antgskds.calendarassistant.platform.accessibility.PaymentAccessibilityDiagnostics.exportLatest(applicationContext)
-        android.widget.Toast.makeText(applicationContext, "诊断已导出：$path", android.widget.Toast.LENGTH_LONG).show()
-    }
-
     // 短信内容观察者
     private var smsObserver: SmsContentObserver? = null
 
@@ -565,7 +532,6 @@ class App : Application() {
         AppLogger.i(TAG, "schedule events refreshed count=${scheduleCenter.events.value.size}")
         scheduleCenter.onScheduleChanged = {
             widgetCenter.requestRefresh(com.antgskds.calendarassistant.platform.widget.WidgetType.SCHEDULE)
-            widgetCenter.requestRefresh(com.antgskds.calendarassistant.platform.widget.WidgetType.COURSE)
         }
 
         appScope.launch(Dispatchers.IO) {
@@ -659,7 +625,7 @@ class App : Application() {
             this,
             Manifest.permission.READ_SMS
         ) == PackageManager.PERMISSION_GRANTED
-        if ((enabled || com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy.enabled(this)) && hasReadSmsPermission) {
+        if (enabled && hasReadSmsPermission) {
             smsObserver?.register()
         } else {
             smsObserver?.unregister()

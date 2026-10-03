@@ -1,6 +1,6 @@
 package com.antgskds.calendarassistant.feature.home.ui.render.material
 
-import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,16 +8,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.antgskds.calendarassistant.feature.home.ui.contract.HomeShellUiAction
 import com.antgskds.calendarassistant.feature.home.ui.contract.HomeShellUiState
-import com.antgskds.calendarassistant.shared.ui.layout.PushSlideLayout
 import com.antgskds.calendarassistant.app.ui.theme.material.background.AppBackgroundStyleTheme
 
 @Composable
 fun MaterialHomeScreen(
     state: HomeShellUiState,
-    onAction: (HomeShellUiAction) -> Unit,
-    sidebar: @Composable () -> Unit,
     content: @Composable () -> Unit,
     chrome: @Composable BoxScope.() -> Unit,
     overlay: @Composable BoxScope.() -> Unit,
@@ -25,33 +21,27 @@ fun MaterialHomeScreen(
     AppBackgroundStyleTheme(
         enabled = state.backgroundEnabled,
         miuiBlurEnabled = state.backgroundMiuiBlurEnabled,
-        cardAlphaPercent = state.backgroundCardAlphaPercent,
+        cardAlphaPercent = state.backgroundCardAlphaPercent
     ) {
-        Box(modifier = Modifier) {
-            BackHandler(enabled = !state.useNavigationRail && state.isSidebarOpen) {
-                onAction(HomeShellUiAction.SetSidebarOpen(false))
-            }
-
+        Box(modifier = Modifier.fillMaxSize()) {
             if (state.useNavigationRail) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     content()
                 }
             } else {
-                PushSlideLayout(
-                    isOpen = state.isSidebarOpen,
-                    onOpenChange = { isOpen ->
-                        onAction(HomeShellUiAction.SetSidebarOpen(isOpen))
-                    },
-                    enableGesture = state.sidebarGestureEnabled,
-                    contentContainerColor = if (state.backgroundEnabled) {
-                        Color.Transparent
-                    } else {
-                        MaterialTheme.colorScheme.background
-                    },
-                    sidebar = sidebar,
-                    bottomBar = {},
-                    content = content,
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            if (state.backgroundEnabled) {
+                                Color.Transparent
+                            } else {
+                                MaterialTheme.colorScheme.background
+                            }
+                        )
+                ) {
+                    content()
+                }
             }
 
             chrome()

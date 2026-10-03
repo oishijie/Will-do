@@ -2565,9 +2565,7 @@ fun ScheduleCard(
 
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    val canEdit = remember(item.tag) {
-        item.tag != EventTags.COURSE
-    }
+    val canEdit = true
     val renderEvent = remember(item) { item.toRenderEvent() }
 
     var isEditing by remember { mutableStateOf(false) }
@@ -2641,10 +2639,8 @@ fun ScheduleCard(
         EventTimelinePresenter.present(context, renderEvent).renderModel
     }
 
-    val hasAction = remember(item.tag, isExpired, item.isCompleted, item.isCheckedIn, hasPendingStatus) {
-        item.tag != EventTags.COURSE && (
-            hasPendingStatus || (!isExpired && !item.isCompleted && !item.isCheckedIn)
-        )
+    val hasAction = remember(isExpired, item.isCompleted, item.isCheckedIn, hasPendingStatus) {
+        hasPendingStatus || (!isExpired && !item.isCompleted && !item.isCheckedIn)
     }
 
     val displayTitle = if (isExpired) item.title else model.title

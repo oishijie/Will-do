@@ -8,8 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,8 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import com.antgskds.calendarassistant.feature.accounting.ui.AccountingPreviewData
-import com.antgskds.calendarassistant.feature.accounting.ui.LocalAccountingEntries
 import com.antgskds.calendarassistant.feature.home.domain.HomeAgendaMapper
 import com.antgskds.calendarassistant.feature.home.domain.HomeAgendaRow
 import com.antgskds.calendarassistant.feature.home.ui.contract.HomePageUiAction
@@ -62,34 +58,25 @@ internal fun HomeTodayContent(
     notificationEnabled: Boolean,
     onSelectDate: (LocalDate) -> Unit,
     onOpenWeatherDetail: () -> Unit,
-    onOpenAccounting: (LocalDate, Boolean) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onAction: (HomePageUiAction) -> Unit,
     onEditItem: (ScheduleDisplayItem) -> Unit,
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit,
-    scheduleContent: @Composable () -> Unit,
     onCalendarViewModeChange: (HomeCalendarViewMode) -> Unit,
 ) {
-    val entries = LocalAccountingEntries.current
-    val bills = remember(entries) { AccountingPreviewData.bills(entries) }
-    val billDates = remember(bills) { bills.map { it.date }.toSet() }
-    val expenses = remember(bills) {
-        bills.filter { it.counted && it.direction == "EXPENSE" }.groupBy { it.date }
-            .mapValues { (_, items) -> items.sumOf { it.cents } }
-    }
     val reverse = state.settings.homeAgendaReverseOrder
     val onlyScheduled = state.settings.homeAgendaOnlyScheduled
     val rangeEnd = state.today.plusDays(state.agendaFutureDays.toLong())
-    val rows = remember(state.agendaItems, billDates, reverse, onlyScheduled, state.today, rangeEnd) {
-        HomeAgendaMapper.rows(state.agendaItems, billDates, "", reverse, onlyScheduled, state.today..rangeEnd)
+    val rows = remember(state.agendaItems, reverse, onlyScheduled, state.today, rangeEnd) {
+        HomeAgendaMapper.rows(state.agendaItems, "", reverse, onlyScheduled, state.today..rangeEnd)
     }
     // Keep outgoing search content unchanged while clearing the field animates back to the previous scene.
     var lastSearchQuery by rememberSaveable { mutableStateOf("") }
     val displayedSearchQuery = searchQuery.ifBlank { lastSearchQuery }
     SideEffect { if (searchQuery.isNotBlank()) lastSearchQuery = searchQuery }
     val searchRows = remember(state.agendaItems, displayedSearchQuery, reverse) {
-        HomeAgendaMapper.rows(state.agendaItems, emptySet(), displayedSearchQuery, reverse)
+        HomeAgendaMapper.rows(state.agendaItems, displayedSearchQuery, reverse)
     }
     val agendaState = rememberLazyListState(initialFirstVisibleItemIndex = HomeAgendaMapper.anchorIndex(rows, state.selectedDate))
     val searchState = rememberLazyListState()
@@ -181,20 +168,17 @@ internal fun HomeTodayContent(
                         notificationEnabled = notificationEnabled,
                         onSelectDate = selectManually,
                         onOpenWeatherDetail = onOpenWeatherDetail,
-                        onOpenAccounting = onOpenAccounting,
                         onOpenAccessibilitySettings = onOpenAccessibilitySettings,
                         onOpenNotificationSettings = onOpenNotificationSettings,
                         onAction = onAction,
                         onEditItem = onEditItem,
                         onRequestDeleteItem = onRequestDeleteItem,
-                        scheduleContent = scheduleContent,
                         onCalendarViewModeChange = onCalendarViewModeChange,
                     )
                 } else {
                     val query = if (target == HomeTodayScene.SEARCH) displayedSearchQuery else ""
                     HomeAgendaList(
                         rows = if (target == HomeTodayScene.SEARCH) searchRows else rows,
-                        expenses = expenses,
                         listState = if (target == HomeTodayScene.SEARCH) searchState else agendaState,
                         state = state,
                         searching = target == HomeTodayScene.SEARCH,
@@ -209,7 +193,6 @@ internal fun HomeTodayContent(
                             pendingScrollDates.add(date)
                             onSelectDate(date)
                         },
-                        onOpenAccounting = onOpenAccounting,
                         onAction = onAction,
                         onEditItem = onEditItem,
                         onRequestDeleteItem = onRequestDeleteItem,
@@ -224,7 +207,6 @@ internal fun HomeTodayContent(
 @Composable
 private fun HomeAgendaList(
     rows: List<HomeAgendaRow>,
-    expenses: Map<LocalDate, Long>,
     listState: LazyListState,
     state: HomePageUiState,
     searching: Boolean,
@@ -235,7 +217,6 @@ private fun HomeAgendaList(
     contentBottomPadding: Dp,
     uiSize: Int,
     onSelectDate: (LocalDate) -> Unit,
-    onOpenAccounting: (LocalDate, Boolean) -> Unit,
     onAction: (HomePageUiAction) -> Unit,
     onEditItem: (ScheduleDisplayItem) -> Unit,
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit,
@@ -416,23 +397,6 @@ private fun HomeAgendaList(
                         Spacer(Modifier.width(60.dp))
                     }
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                        if (row.startsDay) {
-                            val expense = expenses[row.date] ?: 0L
-                            Row(
-                                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
-                                    haptics.click()
-                                    onOpenAccounting(row.date, false)
-                                }.padding(bottom = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Text(
-                                    if (expense > 0) "支出 " + AccountingPreviewData.money(expense) else "暂无消费记录",
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                            }
-                        }
                         row.item?.let { item ->
                             HomeAgendaEventItem(item, state, uiSize, onAction, onEditItem, onRequestDeleteItem)
                         } ?: Text("暂无日程", style = MaterialTheme.typography.bodyMedium,

@@ -87,15 +87,6 @@ object RulePatchProvider {
                 aiTag = RuleMatchingEngine.RULE_SENDER,
                 aiPrompt = "寄件码|品牌|地点",
                 aiTitlePrompt = "寄件 品牌"
-            ),
-            EventRuleEntity(
-                ruleId = RuleMatchingEngine.RULE_COURSE,
-                name = "课程",
-                isEnabled = true,
-                appliesToSchedule = false,
-                aiTag = RuleMatchingEngine.RULE_COURSE,
-                aiPrompt = "课程元数据",
-                aiTitlePrompt = "课程名称"
             )
         )
     }

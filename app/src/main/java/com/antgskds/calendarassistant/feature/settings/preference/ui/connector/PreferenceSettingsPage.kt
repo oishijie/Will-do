@@ -75,21 +75,18 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 enum class PreferenceSection {
-    ACCOUNTING,
     DISPLAY,
     QUICK_MEMO,
     OPERATION,
     NOTIFICATION,
     AI,
     SCHEDULE,
-    COURSE,
     SCREENSHOT,
 }
 
 data class PreferenceItemVisibility(
     val showUiSize: Boolean = true,
     val showTomorrowEvents: Boolean = true,
-    val showBottomBarEditor: Boolean = true,
     val showWidgetSettings: Boolean = true,
     val showHapticFeedback: Boolean = true,
     val showNetworkSpeedCapsule: Boolean = true,
@@ -104,12 +101,8 @@ fun PreferenceSettingsPage(
     visibleSections: Set<PreferenceSection> = PreferenceSection.entries.toSet(),
     itemVisibility: PreferenceItemVisibility = PreferenceItemVisibility(),
     footerContent: @Composable ColumnScope.() -> Unit = {},
-    onNavigateToBottomBarEditor: () -> Unit = {},
     onNavigateToWidgetSettings: () -> Unit = {},
     onNavigateToScheduleColors: () -> Unit = {},
-    onNavigateToSemesterConfig: () -> Unit = {},
-    onNavigateToCourseManage: () -> Unit = {},
-    onNavigateToTimeTableManage: () -> Unit = {},
 ) {
     MaterialPreferenceSettingsScreen(
         controller = remember(viewModel) { PreferenceUiControllerAdapter(viewModel) },
@@ -117,12 +110,8 @@ fun PreferenceSettingsPage(
         visibleSections = visibleSections,
         itemVisibility = itemVisibility,
         footerContent = footerContent,
-        onNavigateToBottomBarEditor = onNavigateToBottomBarEditor,
         onNavigateToWidgetSettings = onNavigateToWidgetSettings,
         onNavigateToScheduleColors = onNavigateToScheduleColors,
-        onNavigateToSemesterConfig = onNavigateToSemesterConfig,
-        onNavigateToCourseManage = onNavigateToCourseManage,
-        onNavigateToTimeTableManage = onNavigateToTimeTableManage,
     )
 }
 
@@ -133,12 +122,8 @@ fun MaterialPreferenceSettingsScreen(
     visibleSections: Set<PreferenceSection> = PreferenceSection.entries.toSet(),
     itemVisibility: PreferenceItemVisibility = PreferenceItemVisibility(),
     footerContent: @Composable ColumnScope.() -> Unit = {},
-    onNavigateToBottomBarEditor: () -> Unit = {},
     onNavigateToWidgetSettings: () -> Unit = {},
     onNavigateToScheduleColors: () -> Unit = {},
-    onNavigateToSemesterConfig: () -> Unit = {},
-    onNavigateToCourseManage: () -> Unit = {},
-    onNavigateToTimeTableManage: () -> Unit = {},
 ) {
     val settings by controller.settings.collectAsState()
     val syncStatus by controller.syncStatus.collectAsState()
@@ -381,40 +366,6 @@ fun MaterialPreferenceSettingsScreen(
         }
     }
 
-    var requestingAccountingPermission by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var accountingPermissionsGranted by remember { mutableStateOf(
-        com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy.permissionsGranted(context)) }
-    fun finishAccountingPermissionRequest() {
-        requestingAccountingPermission = false
-        accountingPermissionsGranted = com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy.permissionsGranted(context)
-        if (accountingPermissionsGranted && controller.settings.value.automaticAccountingEnabled) {
-            controller.updateAccountingMessages(true)
-        } else if (!accountingPermissionsGranted) {
-            Toast.makeText(context, "未取得通知使用权和短信权限，通知与短信记账未开启", Toast.LENGTH_SHORT).show()
-        }
-    }
-    val accountingSmsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        finishAccountingPermissionRequest()
-    }
-    val accountingNotificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (!SmsNotificationListenerService.isEnabled(context) || !controller.settings.value.automaticAccountingEnabled) {
-            requestingAccountingPermission = false
-        } else if (hasSmsPermission()) {
-            finishAccountingPermissionRequest()
-        } else {
-            accountingSmsLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
-        }
-    }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                accountingPermissionsGranted = com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy.permissionsGranted(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
     CompositionLocalProvider(LocalAppHapticsEnabled provides settings.hapticFeedbackEnabled) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -452,20 +403,6 @@ fun MaterialPreferenceSettingsScreen(
                         onCheckedChange = { controller.updatePreference(showTomorrow = it) },
                         cardTitleStyle = cardTitleStyle,
                         cardSubtitleStyle = cardSubtitleStyle
-                    )
-                    AppSettingsDivider()
-                }
-                if (itemVisibility.showBottomBarEditor) {
-                    ActionSettingItem(
-                        title = "底栏编辑",
-                        subtitle = "自定义首页底栏顺序和默认启动页",
-                        value = "",
-                        icon = Icons.Default.ChevronRight,
-                        enabled = true,
-                        onClick = onNavigateToBottomBarEditor,
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle,
-                        cardValueStyle = cardValueStyle
                     )
                     AppSettingsDivider()
                 }
@@ -898,51 +835,6 @@ fun MaterialPreferenceSettingsScreen(
 
             }
 
-            if (PreferenceSection.ACCOUNTING in visibleSections) {
-                Text("记账", style = sectionTitleStyle)
-                SettingsCard {
-                    SwitchSettingItem(
-                        title = "自动记账（Beta）",
-                        subtitle = "自动捕获支付信息",
-                        checked = settings.automaticAccountingEnabled,
-                        onCheckedChange = {
-                            requestingAccountingPermission = false
-                            controller.updateAutomaticAccounting(it)
-                        },
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle,
-                    )
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = settings.automaticAccountingEnabled,
-                        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-                    ) {
-                        Column {
-                            AppSettingsDivider()
-                            SwitchSettingItem(
-                                title = "通知与短信记账",
-                                subtitle = "自动捕获通知和短信中的账单",
-                                checked = settings.accountingMessagesEnabled && accountingPermissionsGranted,
-                                onCheckedChange = { enabled ->
-                                    if (!enabled) controller.updateAccountingMessages(false)
-                                    else if (!requestingAccountingPermission) {
-                                        requestingAccountingPermission = true
-                                        when {
-                                            !SmsNotificationListenerService.isEnabled(context) ->
-                                                accountingNotificationLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                                            !hasSmsPermission() -> accountingSmsLauncher.launch(
-                                                arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
-                                            else -> finishAccountingPermissionRequest()
-                                        }
-                                    }
-                                },
-                                cardTitleStyle = cardTitleStyle,
-                                cardSubtitleStyle = cardSubtitleStyle,
-                            )
-                        }
-                    }
-                }
-            }
             // ================== 随口记板块 ==================
             if (PreferenceSection.QUICK_MEMO in visibleSections) {
             Text("随口记", style = sectionTitleStyle)
@@ -1302,7 +1194,7 @@ fun MaterialPreferenceSettingsScreen(
             SettingsCard {
                     SwitchSettingItem(
                         title = "日历同步",
-                        subtitle = "将课程和日程同步到系统日历",
+                        subtitle = "将日程同步到系统日历",
                         checked = syncStatus.isEnabled,
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
@@ -1409,74 +1301,6 @@ fun MaterialPreferenceSettingsScreen(
                         cardValueStyle = cardValueStyle
                     )
                 }
-            }
-
-            }
-
-            // ================== 课表板块 ==================
-            if (PreferenceSection.COURSE in visibleSections && com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settings)) {
-            Text("课表", style = sectionTitleStyle)
-            SettingsCard {
-                    SwitchSettingItem(
-                        title = "主页下滑进入课表",
-                        subtitle = "开启后可在主页下滑进入课表",
-                        checked = settings.courseFeatureEnabled,
-                        onCheckedChange = { isChecked ->
-                            controller.updatePreference(courseFeatureEnabled = isChecked)
-                        },
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle
-                    )
-
-                    AnimatedVisibility(
-                        visible = settings.courseFeatureEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column {
-                            AppSettingsDivider()
-
-                            ActionSettingItem(
-                                title = "学期配置",
-                                subtitle = "设置第一周、当前周次和学期总周数",
-                                value = "",
-                                icon = Icons.Default.ChevronRight,
-                                enabled = true,
-                                onClick = onNavigateToSemesterConfig,
-                                cardTitleStyle = cardTitleStyle,
-                                cardSubtitleStyle = cardSubtitleStyle,
-                                cardValueStyle = cardValueStyle
-                            )
-
-                            AppSettingsDivider()
-
-                            ActionSettingItem(
-                                title = "管理所有课程",
-                                subtitle = "添加、修改或删除课程",
-                                value = "",
-                                icon = Icons.Default.ChevronRight,
-                                enabled = true,
-                                onClick = onNavigateToCourseManage,
-                                cardTitleStyle = cardTitleStyle,
-                                cardSubtitleStyle = cardSubtitleStyle,
-                                cardValueStyle = cardValueStyle
-                            )
-
-                            AppSettingsDivider()
-
-                            ActionSettingItem(
-                                title = "作息时间设置",
-                                subtitle = "设置每日节次时间段",
-                                value = "",
-                                icon = Icons.Default.ChevronRight,
-                                enabled = true,
-                                onClick = onNavigateToTimeTableManage,
-                                cardTitleStyle = cardTitleStyle,
-                                cardSubtitleStyle = cardSubtitleStyle,
-                                cardValueStyle = cardValueStyle
-                            )
-                        }
-                    }
             }
 
             }

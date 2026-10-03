@@ -79,19 +79,13 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Will do 超级岛与自动记账支持" />
+            android:value="Will do 超级岛支持" />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
         <meta-data
             android:name="xposedscope"
-            android:value="com.antgskds.calendarassistant;com.android.systemui;com.tencent.mm;com.eg.android.AlipayGphone" />
-
-        <!-- 支付应用 Hook 入口：Provider 内用 Binder UID 验证来源，关闭总开关即拒绝采集。 -->
-        <provider
-            android:name=".platform.accounting.PaymentCaptureProvider"
-            android:authorities="com.antgskds.calendarassistant.payment.capture"
-            android:exported="true" />
+            android:value="com.antgskds.calendarassistant;com.android.systemui" />
 
         <!-- Flyme 实况通知支持 -->
         <meta-data
@@ -227,11 +221,6 @@
 
         <activity
             android:name=".platform.widget.WeatherWidgetConfigureActivity"
-            android:exported="true"
-            android:theme="@style/Theme.CalendarAssistant" />
-
-        <activity
-            android:name=".platform.widget.CourseWidgetConfigureActivity"
             android:exported="true"
             android:theme="@style/Theme.CalendarAssistant" />
 
@@ -408,24 +397,6 @@
                 android:resource="@xml/weather_widget_info" />
         </receiver>
 
-        <receiver
-            android:name=".platform.widget.CourseWidgetProvider"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="android.intent.action.DATE_CHANGED" />
-                <action android:name="android.intent.action.TIME_SET" />
-                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="com.antgskds.calendarassistant.widget.COURSE_SEGMENT_UP" />
-                <action android:name="com.antgskds.calendarassistant.widget.COURSE_SEGMENT_DOWN" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/course_widget_info" />
-        </receiver>
-
         <!-- Shizuku Provider (静默提权核心组件) -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
@@ -488,7 +459,7 @@
             android:name=".platform.receiver.SmsNotificationListenerService"
             android:enabled="true"
             android:exported="false"
-            android:label="通知读取（取件与记账）"
+            android:label="通知读取（取件）"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

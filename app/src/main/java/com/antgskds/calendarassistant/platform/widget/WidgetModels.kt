@@ -4,8 +4,7 @@ import com.antgskds.calendarassistant.platform.widget.model.WidgetThemeMode
 
 enum class WidgetType(val storageKey: String, val displayName: String) {
     SCHEDULE("schedule", "日程小组件"),
-    WEATHER("weather", "天气小组件"),
-    COURSE("course", "课表小组件");
+    WEATHER("weather", "天气小组件");
 
     companion object {
         fun fromStorageKey(value: String?): WidgetType? = entries.firstOrNull { it.storageKey == value }
@@ -24,19 +23,8 @@ data class WidgetAppearanceConfig(
 
 data class WidgetInstanceConfig(
     val type: WidgetType,
-    val appearance: WidgetAppearanceConfig = WidgetAppearanceConfig(),
-    val courseSegment: CourseWidgetSegment = CourseWidgetSegment.MORNING
+    val appearance: WidgetAppearanceConfig = WidgetAppearanceConfig()
 )
-
-enum class CourseWidgetSegment(val storageKey: String, val displayName: String) {
-    MORNING("morning", "上午"),
-    AFTERNOON("afternoon", "下午"),
-    NIGHT("night", "晚上");
-
-    companion object {
-        fun fromStorageKey(value: String?): CourseWidgetSegment = entries.firstOrNull { it.storageKey == value } ?: MORNING
-    }
-}
 
 enum class WidgetSize(val defaultWidthDp: Int, val defaultHeightDp: Int) {
     CELL_2X1(150, 70),

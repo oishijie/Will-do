@@ -21,8 +21,6 @@ import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.schedule.domain.model.isRetiredNoteTag
 import com.antgskds.calendarassistant.feature.schedule.data.sync.SystemCalendarSyncManager
 import com.antgskds.calendarassistant.feature.schedule.data.ScheduleStoreGateway
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
-import com.antgskds.calendarassistant.feature.schedule.domain.course.Course
 import com.antgskds.calendarassistant.feature.backup.data.model.ImportResult
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.settings.data.SettingsRepository
@@ -256,11 +254,7 @@ class LegacyDataMigrationCoordinator(
 
                 val tag = normalizeTag(resolveTag(master.ruleId))
                 if (isRemovedNoteTag(tag)) return@forEach
-
-                if (tag == EventTags.COURSE) {
-                    buildCourseCandidateFromLegacyMaster(master, settings)?.let { candidates += it }
-                    return@forEach
-                }
+                if (isRetiredCourseTag(tag)) return@forEach
 
                 val reminders = parseLegacyReminderMinutes(master.remindersJson)
                 val source = resolveSource(master.source)
@@ -369,10 +363,7 @@ class LegacyDataMigrationCoordinator(
             if (content.isBlank()) return@forEach
 
             if (name.startsWith("courses")) {
-                val courses = runCatching { json.decodeFromString<List<Course>>(content) }.getOrNull().orEmpty()
-                courses.forEach { course ->
-                    candidates += CourseEventMapper.toParentEvent(course, settings)
-                }
+                // 课表功能已下线：旧课表导出文件不再迁移。
                 return@forEach
             }
 
@@ -426,24 +417,6 @@ class LegacyDataMigrationCoordinator(
             }
         }
 
-        val courseEventsData = runCatching { json.decodeFromString<LegacyCourseEventsBackupData>(trimmed) }.getOrNull()
-        if (courseEventsData != null && courseEventsData.courseEvents.isNotEmpty()) {
-            val importedSettings = settings.copy(
-                semesterStartDate = courseEventsData.semesterStartDate.ifBlank { settings.semesterStartDate },
-                totalWeeks = courseEventsData.totalWeeks.takeIf { it > 0 } ?: settings.totalWeeks,
-                timeTableJson = courseEventsData.timeTableJson.ifBlank { settings.timeTableJson },
-                timeTableConfigJson = courseEventsData.timeTableConfigJson.ifBlank { settings.timeTableConfigJson }
-            )
-            return courseEventsData.courseEvents.mapNotNull { legacy ->
-                convertLegacyMyEventToCandidate(legacy, importedSettings, forceArchived = false, nowSeconds = nowSeconds)
-            }
-        }
-
-        val courses = runCatching { json.decodeFromString<List<Course>>(trimmed) }.getOrNull()
-        if (!courses.isNullOrEmpty()) {
-            return courses.map { course -> CourseEventMapper.toParentEvent(course, settings) }
-        }
-
         val legacyList = runCatching { json.decodeFromString<List<LegacyMyEvent>>(trimmed) }.getOrNull()
         if (!legacyList.isNullOrEmpty()) {
             return legacyList.mapNotNull { legacy ->
@@ -465,24 +438,8 @@ class LegacyDataMigrationCoordinator(
 
         val tag = normalizeTag(legacy.tag)
         if (isRemovedNoteTag(tag)) return null
-        if (tag == EventTags.COURSE) {
-            if (!legacy.isRecurringParent) return null
-            val meta = CourseEventMapper.parseMeta(legacy.description) ?: return null
-            val course = Course(
-                id = meta.uid.ifBlank { legacy.id.ifBlank { CourseEventMapper.stableImportId(title, meta.teacher, legacy.location, meta.dayOfWeek, meta.startNode, meta.endNode, meta.startWeek, meta.endWeek, meta.weekType) } },
-                name = title,
-                location = legacy.location,
-                teacher = meta.teacher,
-                color = legacy.color,
-                dayOfWeek = meta.dayOfWeek,
-                startNode = meta.startNode,
-                endNode = meta.endNode,
-                startWeek = meta.startWeek,
-                endWeek = meta.endWeek,
-                weekType = meta.weekType
-            )
-            return CourseEventMapper.toParentEvent(course, settings)
-        }
+        // 课表功能已下线：备份/恢复中的课程事件一律过滤，不写入本地库。
+        if (isRetiredCourseTag(tag)) return null
 
         if (legacy.isRecurringParent) {
             // 旧模型里母事件通常与子实例并存；迁移时优先使用子实例避免重复。
@@ -766,37 +723,6 @@ class LegacyDataMigrationCoordinator(
         }
     }
 
-    private fun buildCourseCandidateFromLegacyMaster(master: LegacyMaster, settings: MySettings): Event? {
-        val meta = CourseEventMapper.parseMeta(master.description) ?: return null
-        val id = meta.uid.ifBlank {
-            CourseEventMapper.stableImportId(
-                name = master.title,
-                teacher = meta.teacher,
-                room = master.location,
-                dayOfWeek = meta.dayOfWeek,
-                startNode = meta.startNode,
-                endNode = meta.endNode,
-                startWeek = meta.startWeek,
-                endWeek = meta.endWeek,
-                weekType = meta.weekType
-            )
-        }
-        val course = Course(
-            id = id,
-            name = master.title,
-            location = master.location,
-            teacher = meta.teacher,
-            color = master.colorArgb,
-            dayOfWeek = meta.dayOfWeek,
-            startNode = meta.startNode,
-            endNode = meta.endNode,
-            startWeek = meta.startWeek,
-            endWeek = meta.endWeek,
-            weekType = meta.weekType
-        )
-        return CourseEventMapper.toParentEvent(course, settings)
-    }
-
     private fun parseLegacyReminderMinutes(raw: String): List<Int> {
         if (raw.isBlank()) return emptyList()
         return runCatching {
@@ -917,10 +843,15 @@ class LegacyDataMigrationCoordinator(
             "flight" -> EventTags.FLIGHT
             "ticket" -> EventTags.TICKET
             "sender" -> EventTags.SENDER
-            "course", "__removed_course__" -> EventTags.COURSE
             "note", "便签" -> REMOVED_NOTE_TAG
             else -> normalized
         }
+    }
+
+    /** 已下线的课表 tag：旧版本遗留标记与课程 tag 都按过滤处理。 */
+    private fun isRetiredCourseTag(tag: String?): Boolean {
+        val normalized = tag?.trim()?.lowercase().orEmpty()
+        return normalized == "course" || normalized == "__removed_course__"
     }
 
     private fun isRemovedNoteTag(tag: String?): Boolean {
@@ -983,7 +914,6 @@ class LegacyDataMigrationCoordinator(
     private fun normalizeTag(tag: String?): String {
         return when (tag?.trim()?.lowercase().orEmpty()) {
             "", "general" -> EventTags.GENERAL
-            "__removed_course__", "course" -> EventTags.COURSE
             "note", "便签" -> REMOVED_NOTE_TAG
             else -> tag?.trim()?.lowercase().orEmpty()
         }
@@ -1467,16 +1397,6 @@ class LegacyDataMigrationCoordinator(
     )
 
     @Serializable
-    private data class LegacyCourseEventsBackupData(
-        val version: Int = 2,
-        val courseEvents: List<LegacyMyEvent> = emptyList(),
-        val semesterStartDate: String = "",
-        val totalWeeks: Int = 20,
-        val timeTableJson: String = "",
-        val timeTableConfigJson: String = ""
-    )
-
-    @Serializable
     private data class LegacyEventsBackupData(
         val events: List<LegacyMyEvent> = emptyList(),
         val archivedEvents: List<LegacyMyEvent> = emptyList()
@@ -1560,9 +1480,7 @@ class LegacyDataMigrationCoordinator(
             "events.room.bak",
             "archives.json",
             "archives.json.bak",
-            "archives.room.bak",
-            "courses.json",
-            "courses.json.bak"
+            "archives.room.bak"
         )
     }
 }

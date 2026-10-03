@@ -1,32 +1,4 @@
-# 课程与随口记 API
-
-## 课程
-
-课程对象：
-
-```json
-{
-  "name":"课程名",
-  "dayOfWeek":1,
-  "startNode":1,
-  "endNode":2,
-  "startWeek":1,
-  "endWeek":16,
-  "weekType":0,
-  "location":"",
-  "teacher":"",
-  "color":0
-}
-```
-
-`dayOfWeek` 为 1 至 7；节次和周数从 1 开始；`weekType` 为 0、1 或 2。
-
-- `createCourse`：`{"course":COURSE}`，返回字符串 `id`。
-- `batchCreateCourses`：`{"courses":[COURSE1,COURSE2]}`。
-- `getCourse`：`{"id":"课程ID"}`。
-- `queryCourses`：`{}` 或 `{"dayOfWeek":1}`。
-- `updateCourse`：`{"id":"课程ID","course":COURSE}`，必须提交完整课程。
-- `deleteCourse`：`{"id":"课程ID"}`。
+# 随口记 API
 
 ## 文字随口记
 

@@ -15,11 +15,11 @@ class HomeAgendaTest {
 
     @Test fun singleLastEventEndsTheListWithoutFuturePlaceholders() {
         val snapshot = ScheduleDisplayHelper.buildAgendaSnapshot(listOf(event(1, today)), window)
-        val rows = HomeAgendaMapper.rows(snapshot.items, emptySet(), "", false)
+        val rows = HomeAgendaMapper.rows(snapshot.items, "", false)
         assertEquals(listOf(today), rows.map { it.date })
         assertEquals("single:1", rows.last().item!!.stableKey)
         assertTrue(snapshot.futureItems.isEmpty())
-        assertTrue(HomeAgendaMapper.rows(emptyList(), emptySet(), "", false).isEmpty())
+        assertTrue(HomeAgendaMapper.rows(emptyList(), "", false).isEmpty())
     }
 
     @Test fun ordinaryFutureAndPastEventsAreNotClippedToSevenDaysAndSearchIsGlobal() {
@@ -29,7 +29,7 @@ class HomeAgendaTest {
             event(3, today, title = "午饭"),
             event(4, today, title = "复诊").copy(archivedAt = 1),
         ), window)
-        val rows = HomeAgendaMapper.rows(snapshot.items, setOf(today.plusDays(3)), "复诊", false)
+        val rows = HomeAgendaMapper.rows(snapshot.items, "复诊", false)
         assertEquals(listOf(today.minusMonths(2), today.plusMonths(3)), rows.map { it.date })
         assertTrue(snapshot.futureItems.isEmpty())
     }
@@ -66,11 +66,11 @@ class HomeAgendaTest {
         assertTrue(ScheduleDisplayHelper.buildAgendaSnapshot(listOf(parent.copy(archivedAt = 1)), window).futureItems.isEmpty())
     }
 
-    @Test fun scheduledOnlyHidesBillOnlyDatesWhileCompleteFillsGaps() {
+    @Test fun scheduledOnlyHidesEmptyDatesWhileCompleteFillsGaps() {
         val items = ScheduleDisplayHelper.buildAgendaSnapshot(listOf(event(1, today)), window).items
-        val rows = HomeAgendaMapper.rows(items, setOf(today, today.plusDays(3)), "", false)
+        val rows = HomeAgendaMapper.rows(items, "", false)
         assertEquals(listOf(today), rows.map { it.date })
-        val complete = HomeAgendaMapper.rows(items, setOf(today.plusDays(3)), "", false, onlyScheduled = false)
+        val complete = HomeAgendaMapper.rows(items, "", false, onlyScheduled = false, loadedRange = today..today.plusDays(3))
         assertEquals((0L..3L).map { today.plusDays(it) }, complete.map { it.date })
         assertNull(complete.last().item)
         assertEquals(4, complete.count { it.startsDay })
@@ -80,13 +80,13 @@ class HomeAgendaTest {
         val items = ScheduleDisplayHelper.buildAgendaSnapshot(listOf(
             event(1, today, hour = 16), event(2, today, hour = 9), event(3, today.plusDays(1)),
         ), window).items
-        val forward = HomeAgendaMapper.rows(items, emptySet(), "", false)
-        val reverse = HomeAgendaMapper.rows(items, emptySet(), "", true)
+        val forward = HomeAgendaMapper.rows(items, "", false)
+        val reverse = HomeAgendaMapper.rows(items, "", true)
         assertEquals(listOf("single:2", "single:1"), reverse.filter { it.date == today }.map { it.item!!.stableKey })
         assertEquals(today.plusDays(1), reverse.first().date)
         assertEquals(forward.map { it.key }.toSet(), reverse.map { it.key }.toSet())
         assertEquals(1, reverse.filter { it.date == today }.count { it.startsDay })
-        val appended = HomeAgendaMapper.rows(items + ScheduleDisplayHelper.eventToSingleItem(event(4, today.plusDays(5))), emptySet(), "", true)
+        val appended = HomeAgendaMapper.rows(items + ScheduleDisplayHelper.eventToSingleItem(event(4, today.plusDays(5))), "", true)
         assertEquals(reverse.map { it.key }, appended.drop(1).map { it.key })
     }
 
@@ -95,7 +95,7 @@ class HomeAgendaTest {
             event(1, today.minusDays(3)), event(2, today.plusDays(2)), event(3, today.plusDays(2), hour = 16),
         ), window).items
         for (reverse in listOf(false, true)) {
-            val rows = HomeAgendaMapper.rows(items, emptySet(), "", reverse)
+            val rows = HomeAgendaMapper.rows(items, "", reverse)
             assertEquals(today.plusDays(2), rows[HomeAgendaMapper.anchorIndex(rows, today)].date)
             assertEquals(today.minusDays(3), rows[HomeAgendaMapper.anchorIndex(rows, today.minusDays(3))].date)
             assertTrue(rows[HomeAgendaMapper.anchorIndex(rows, today)].startsDay)
@@ -109,7 +109,7 @@ class HomeAgendaTest {
         ), window)
         assertTrue(snapshot.futureItems.any { HomeAgendaMapper.matches(it, "锻炼") })
         assertFalse(snapshot.futureItems.any { HomeAgendaMapper.matches(it, "出差") })
-        assertEquals(1, HomeAgendaMapper.rows(snapshot.items, emptySet(), "出差", false).size)
+        assertEquals(1, HomeAgendaMapper.rows(snapshot.items, "出差", false).size)
     }
 
     @Test fun newDirectionDefaultsDownAndRegisteredSettingChangesOnlyItsOwnField() {
@@ -146,16 +146,16 @@ class HomeAgendaTest {
     }
 
     @Test fun completeEmptyWindowIncludesAllLoadedDaysAndSearchNeverPadsDates() {
-        val complete = HomeAgendaMapper.rows(emptyList(), emptySet(), "", false, false, today..window)
+        val complete = HomeAgendaMapper.rows(emptyList(), "", false, false, today..window)
         assertEquals(8, complete.size)
         assertEquals(today, complete.first().date)
         assertEquals(window, complete.last().date)
-        assertTrue(HomeAgendaMapper.rows(emptyList(), setOf(today), "不存在", false, false, today..window).isEmpty())
+        assertTrue(HomeAgendaMapper.rows(emptyList(), "不存在", false, false, today..window).isEmpty())
     }
 
     @Test fun completeModeReversesDatesWithoutChangingKeys() {
-        val forward = HomeAgendaMapper.rows(emptyList(), emptySet(), "", false, false, today..window)
-        val reverse = HomeAgendaMapper.rows(emptyList(), emptySet(), "", true, false, today..window)
+        val forward = HomeAgendaMapper.rows(emptyList(), "", false, false, today..window)
+        val reverse = HomeAgendaMapper.rows(emptyList(), "", true, false, today..window)
         assertEquals(forward.map { it.key }.reversed(), reverse.map { it.key })
     }
 

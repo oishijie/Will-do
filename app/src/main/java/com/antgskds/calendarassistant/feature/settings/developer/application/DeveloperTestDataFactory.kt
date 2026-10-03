@@ -4,8 +4,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseMeta
 import com.antgskds.calendarassistant.feature.schedule.application.model.EventPatch
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.app.ui.theme.material.EventColors
@@ -22,8 +20,7 @@ object DeveloperTestDataFactory {
         SENDER("寄件码"),
         TRAIN("列车"),
         FLIGHT("航班"),
-        TAXI("打车"),
-        COURSE("课程")
+        TAXI("打车")
     }
 
     data class TestEventBundle(
@@ -44,7 +41,6 @@ object DeveloperTestDataFactory {
             TestEventType.TRAIN -> TestEventBundle(patches = listOf(trainPatch(sequence)))
             TestEventType.FLIGHT -> TestEventBundle(patches = listOf(flightPatch(sequence)))
             TestEventType.TAXI -> TestEventBundle(patches = listOf(taxiPatch(sequence)))
-            TestEventType.COURSE -> TestEventBundle(events = listOf(courseEvent(sequence)))
         }
     }
 
@@ -183,34 +179,6 @@ object DeveloperTestDataFactory {
             description = "【用车】白色|比亚迪秦|$plate",
             tag = EventTags.TAXI,
             color = color(sequence + 8)
-        )
-    }
-
-    private fun courseEvent(sequence: Int): Event {
-        val start = eventAnchor()
-        val startNode = sequence % 4 * 2 + 1
-        val meta = CourseMeta(
-            uid = "dev-course-$sequence-${System.currentTimeMillis()}",
-            teacher = "测试教师 ${sequence % 5 + 1}",
-            dayOfWeek = start.dayOfWeek.value.coerceIn(1, 7),
-            startNode = startNode,
-            endNode = startNode + 1,
-            startWeek = 1,
-            endWeek = 4,
-            weekType = 0
-        )
-        val zone = ZoneId.systemDefault()
-        return Event(
-            id = null,
-            title = "[DEV] 测试课程 $sequence",
-            startTS = start.atZone(zone).toEpochSecond(),
-            endTS = start.plusMinutes(90).atZone(zone).toEpochSecond(),
-            location = "教学楼 ${sequence % 6 + 1}01",
-            description = CourseEventMapper.buildParentDescription(meta),
-            color = color(sequence + 9),
-            rrule = "FREQ=WEEKLY;INTERVAL=1;COUNT=4",
-            timeZone = zone.id,
-            tag = EventTags.COURSE
         )
     }
 

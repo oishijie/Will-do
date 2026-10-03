@@ -22,7 +22,6 @@ data class AllEventsDateGroupUiModel(
 
 sealed interface AllEventsUiAction {
     data object OpenWeather : AllEventsUiAction
-    data class OpenAccounting(val date: LocalDate) : AllEventsUiAction
     data object LoadMoreFuture : AllEventsUiAction
     data class RevealItem(val itemKey: String) : AllEventsUiAction
     data object CollapseItem : AllEventsUiAction

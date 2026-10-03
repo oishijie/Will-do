@@ -119,9 +119,7 @@ class ScheduleReminderCoordinator(
                         advanceReminderEnabled = settings.isAdvanceReminderEnabled,
                         advanceReminderMinutes = settings.advanceReminderMinutes,
                         liveCapsuleEnabled = settings.isLiveCapsuleEnabled,
-                        braceletModeEnabled = settings.braceletModeEnabled,
-                        courseModuleEnabled = settings.courseModuleEnabled,
-                        courseResumeAt = settings.courseRemindersResumeAtMillis
+                        braceletModeEnabled = settings.braceletModeEnabled
                     )
                 }
                 .distinctUntilChanged()
@@ -251,11 +249,7 @@ class ScheduleReminderCoordinator(
     }
 
     private suspend fun runFullReminderReconcile() {
-        val settings = settingsQueryApi.settings.value
-        val storedEvents = scheduleCenter.getLatestActiveEvents().filter { it.archivedAt == null }
-        storedEvents.filterNot { com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allows(it, settings) }
-            .forEach { cancelEvent(it, it.id) }
-        val activeEvents = storedEvents.filter { com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allows(it, settings) }
+        val activeEvents = scheduleCenter.getLatestActiveEvents().filter { it.archivedAt == null }
         val now = LocalDate.now()
         val displayItems = ScheduleDisplayHelper.buildDisplayItems(
             activeEvents,
@@ -306,7 +300,6 @@ class ScheduleReminderCoordinator(
     }
 
     private fun shouldKeepEventScheduled(event: Event): Boolean {
-        if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allows(event, settingsQueryApi.settings.value)) return false
         if (event.archivedAt != null || event.endTS <= System.currentTimeMillis() / 1000L) return false
         if (event.state == STATE_PENDING) return true
         return shouldPreserveLiveCapsule(event) && isLiveCapsuleEnabled()
@@ -326,7 +319,5 @@ class ScheduleReminderCoordinator(
         val advanceReminderMinutes: Int,
         val liveCapsuleEnabled: Boolean,
         val braceletModeEnabled: Boolean,
-        val courseModuleEnabled: Boolean,
-        val courseResumeAt: Long,
     )
 }

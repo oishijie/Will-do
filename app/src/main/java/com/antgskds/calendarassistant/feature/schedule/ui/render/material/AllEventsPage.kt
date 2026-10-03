@@ -4,7 +4,7 @@ import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.shared.ui.material.component.InlineSummaryAction
 import com.antgskds.calendarassistant.feature.weather.domain.WeatherForecastIconMapper
 import com.antgskds.calendarassistant.feature.weather.domain.WeatherDateSummaryMapper
-import com.antgskds.calendarassistant.feature.accounting.ui.AccountingSummaryHeader
+import com.antgskds.calendarassistant.shared.ui.material.component.InlineSummaryHeader
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarBottomSpacing
@@ -152,13 +153,12 @@ private fun AllEventsListPane(
                                     onClick = { haptics.click(); onAction(AllEventsUiAction.OpenWeather) },
                                 )
                             )
-                            AccountingSummaryHeader(
-                                date = date,
+                            InlineSummaryHeader(
                                 title = headerText,
-                                leadingActions = weatherActions,
-                                showAccounting = date == state.today,
-                                onOpen = { selectedDate, _ -> onAction(AllEventsUiAction.OpenAccounting(selectedDate)) },
-                                hapticEnabled = hapticEnabled,
+                                actions = weatherActions,
+                                style = MaterialTheme.typography.titleMedium,
+                                titleFontWeight = FontWeight.ExtraBold,
+                                markerColor = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
                             )
                             if (group.items.isEmpty()) {

@@ -1,6 +1,5 @@
 package com.antgskds.calendarassistant.feature.recognition.application.ai
 
-import com.antgskds.calendarassistant.feature.accounting.domain.WechatRedPacketSessionPolicy
 import android.content.Context
 import android.graphics.Bitmap
 import com.antgskds.calendarassistant.shared.util.AppLogger as Log
@@ -79,21 +78,10 @@ data class AnalysisFailure(
 sealed class AnalysisResult<out T> {
     data class Success<T>(
         val data: T,
-        val bills: List<com.antgskds.calendarassistant.feature.accounting.data.AccountingDraft> = emptyList(),
-        val billIssues: List<String> = emptyList(),
-        val accountingResult: com.antgskds.calendarassistant.feature.accounting.domain.AccountingRecognitionResult? = null,
     ) : AnalysisResult<T>() {
         fun feedback(): String = buildList {
             val count = (data as? Collection<*>)?.size ?: 1
             if (count > 0) add("已识别 $count 个日程，正在保存")
-            accountingResult?.let {
-                if (it.saved.isNotEmpty()) add("已记 ${it.saved.size} 笔账单")
-                if (it.duplicates > 0) add("账单重复 ${it.duplicates} 笔，暂不入库")
-                if (it.suspectedDuplicates > 0) add("疑似重复 ${it.suspectedDuplicates} 笔，暂不入库")
-                if (it.pending > 0) add("${it.pending} 笔待核对，暂不入库")
-            }
-            if (bills.isNotEmpty() && accountingResult == null) add("${bills.size} 条账单待处理")
-            addAll(billIssues)
         }.joinToString("；")
     }
     data class Empty(val message: String = "未识别到有效日程") : AnalysisResult<Nothing>()
@@ -192,9 +180,8 @@ object RecognitionProcessor {
     }
 
     /** 图片直接交给多模态模型，二维码仍由本地条码扫描补全。 */
-    suspend fun analyzeImage(bitmap: Bitmap, settings: MySettings, context: Context,
-        redPacketSent: WechatRedPacketSessionPolicy.SentEvidence? = null): AnalysisResult<List<RecognitionDraft>> {
-        val result = analyzeImageWithMultimodal(bitmap, settings, context.applicationContext, redPacketSent)
+    suspend fun analyzeImage(bitmap: Bitmap, settings: MySettings, context: Context): AnalysisResult<List<RecognitionDraft>> {
+        val result = analyzeImageWithMultimodal(bitmap, settings, context.applicationContext)
         return attachQrPayloads(result, scanQrPayloadsSafely(bitmap))
     }
 
@@ -258,10 +245,10 @@ object RecognitionProcessor {
                     val parsedEvents = content.events
 
                     Log.d(TAG, "[$debugTag] AI 解析完成，生成 ${parsedEvents.size} 个事件")
-                    if (parsedEvents.isEmpty() && content.bills.isEmpty()) {
-                        AnalysisResult.Empty(content.issues.joinToString("；").ifBlank { "未识别到有效日程或账单" })
+                    if (parsedEvents.isEmpty()) {
+                        AnalysisResult.Empty("未识别到有效日程")
                     } else {
-                        AnalysisResult.Success(enforceRuleHeaders(parsedEvents), content.bills, content.issues)
+                        AnalysisResult.Success(enforceRuleHeaders(parsedEvents))
                     }
                 }
                 is ApiCallResult.Failure -> {
@@ -278,8 +265,7 @@ object RecognitionProcessor {
     private suspend fun analyzeImageWithMultimodal(
         bitmap: Bitmap,
         settings: MySettings,
-        context: Context,
-        redPacketSent: WechatRedPacketSessionPolicy.SentEvidence?
+        context: Context
     ): AnalysisResult<List<RecognitionDraft>> {
         val modelConfig = settings.activeAiConfig()
         if (!modelConfig.isConfigured()) {
@@ -311,7 +297,7 @@ object RecognitionProcessor {
 
         return try {
             when (val response = ApiModelProvider.generateWithImage(
-                prompt = prompt + (redPacketSent?.let { "\n\n" + it.promptContext() } ?: ""),
+                prompt = prompt,
                 imageBytes = imageBytes,
                 mimeType = "image/jpeg",
                 apiKey = modelConfig.key,
@@ -333,10 +319,10 @@ object RecognitionProcessor {
                         val mergedEvents = refinedScheduleEvents + pickupEvents
                         val finalEvents = deduplicateAiEvents(mergedEvents)
 
-                    if (finalEvents.isEmpty() && content.bills.isEmpty()) {
-                        AnalysisResult.Empty(content.issues.joinToString("；").ifBlank { "未识别到有效日程或账单" })
+                    if (finalEvents.isEmpty()) {
+                        AnalysisResult.Empty("未识别到有效日程")
                     } else {
-                        AnalysisResult.Success(finalEvents, content.bills, content.issues)
+                        AnalysisResult.Success(finalEvents)
                     }
                 }
                 is ApiCallResult.Failure -> {

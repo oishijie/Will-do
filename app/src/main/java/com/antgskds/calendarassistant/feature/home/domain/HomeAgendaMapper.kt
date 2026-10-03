@@ -33,7 +33,6 @@ object HomeAgendaMapper {
 
     fun rows(
         items: List<ScheduleDisplayItem>,
-        billDates: Set<LocalDate>,
         query: String,
         reverseDates: Boolean,
         onlyScheduled: Boolean = true,
@@ -42,9 +41,8 @@ object HomeAgendaMapper {
         val groups = items.distinctBy { it.stableKey }.filter { matches(it, query) }.groupBy { it.startDate }
         val scheduledDates = groups.keys
         val dates = if (query.isNotBlank() || onlyScheduled) scheduledDates.sorted() else {
-            val knownDates = scheduledDates + billDates
-            val start = (knownDates + listOfNotNull(loadedRange?.start)).minOrNull()
-            val end = (knownDates + listOfNotNull(loadedRange?.endInclusive)).maxOrNull()
+            val start = (scheduledDates + listOfNotNull(loadedRange?.start)).minOrNull()
+            val end = (scheduledDates + listOfNotNull(loadedRange?.endInclusive)).maxOrNull()
             if (start == null || end == null) emptyList()
             else generateSequence(start) { if (it < end) it.plusDays(1) else null }.toList()
         }

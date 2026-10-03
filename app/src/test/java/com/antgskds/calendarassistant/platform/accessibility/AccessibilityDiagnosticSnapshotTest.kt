@@ -27,7 +27,7 @@ class AccessibilityDiagnosticSnapshotTest {
     @Test fun historyOnlyIncludesDedicatedHealthRecords() {
         val before = "2026-09-23 10:00:00.000 INFO/WillDoAccessHealth: connected"
         val after = "2026-09-23 10:01:00.000 WARN/WillDoAccessHealth: configuration_unavailable"
-        val mixed = listOf(before, "INFO/WillDoAccounting: business record", "stack trace", after).joinToString("\n")
+        val mixed = listOf(before, "INFO/WillDoOther: business record", "stack trace", after).joinToString("\n")
         assertEquals(listOf(before, after).joinToString("\n"), AccessibilityDiagnosticSnapshot.healthHistory(mixed))
         assertEquals("", AccessibilityDiagnosticSnapshot.healthHistory(""))
     }

@@ -93,9 +93,6 @@ object DebugActionRegistry {
         DebugAction("test-plain-pickup", "测试普通通知·取件", CATEGORY_NOTIFICATION) { app ->
             firePlainSample(app, "pickup", "调试·取件", "菜鸟驿站 3-2-101，取件码 8-2333。", R.drawable.ic_stat_package)
         },
-        DebugAction("test-plain-course", "测试普通通知·课程", CATEGORY_NOTIFICATION) { app ->
-            firePlainSample(app, "course", "调试·课程", "高等数学即将开始，地点：教学楼 A203。", R.drawable.ic_stat_course)
-        },
         DebugAction("test-normal-double-action", "测试普通通知·双按钮", CATEGORY_NOTIFICATION) { app ->
             fireNormalDoubleAction(app)
         },
@@ -148,9 +145,6 @@ object DebugActionRegistry {
             deleteTestEvents(app)
         },
         // —— 元 ——
-        // 单次实验会自动结束并导出；日志与截图用于区分窗口、时序、触发规则和截图限制。
-        DebugAction("payment-diagnostic-start", "开始支付采集诊断（2 分钟）", "支付诊断") { app -> app.startPaymentDiagnostics() },
-        DebugAction("payment-diagnostic-export", "结束并导出支付诊断", "支付诊断") { app -> app.exportPaymentDiagnostics() },
         DebugAction("actions", "列出已注册调试动作", CATEGORY_META) { _ -> listActions() },
         DebugAction("verify-sort", "验证列表排序方向（正序/倒序对比）", CATEGORY_META) { app -> verifySort(app) },
         DebugAction("registry-check", "自检所有注册台账（页面/通知类型/事件类型/配置/调试动作/流程/工具/策略/后台任务）", CATEGORY_META) { _ -> registryCheck() },

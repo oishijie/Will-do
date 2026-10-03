@@ -25,8 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem
-import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
 import com.antgskds.calendarassistant.shared.util.stripSourceImageMarkers
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.app.ui.theme.material.background.LocalAppBackgroundStyleEnabled
@@ -112,14 +110,8 @@ fun SwipeableEventItem(
                     SwipeActionIcon(Icons.Outlined.StarOutline, Color(0xFFFFC107), actionButtonSize, hapticEnabled) {
                         close(); onImportant()
                     }
-                    if (item.tag == "__removed_course__") {
-                        SwipeActionIcon(Icons.Outlined.Delete, Color(0xFFF44336), actionButtonSize, hapticEnabled) {
-                            close(); onDelete()
-                        }
-                    } else {
-                        SwipeActionIcon(Icons.Outlined.Archive, Color(0xFF2196F3), actionButtonSize, hapticEnabled) {
-                            close(); onArchive()
-                        }
+                    SwipeActionIcon(Icons.Outlined.Archive, Color(0xFF2196F3), actionButtonSize, hapticEnabled) {
+                        close(); onArchive()
                     }
                 }
             }
@@ -197,11 +189,7 @@ fun SwipeableEventItem(
                         }
 
                         // 描述
-                        val displayDescription = if (item.tag == EventTags.COURSE) {
-                            CourseEventMapper.displayDescription(item.description, item.location)
-                        } else {
-                            stripSourceImageMarkers(item.description)
-                        }
+                        val displayDescription = stripSourceImageMarkers(item.description)
                         if (displayDescription.isNotBlank()) {
                             Text(
                                 text = displayDescription,

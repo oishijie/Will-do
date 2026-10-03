@@ -53,7 +53,6 @@ object NotificationScheduler {
             ?.settings
             ?.value
             ?: MySettings()
-        if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allowsReminder(event.tag, event.startTS * 1000L, settings)) return
         if (event.isRecurring) {
             Log.d("NotificationScheduler", "跳过重复日程父事件提醒: ${event.id}")
             return
@@ -149,7 +148,7 @@ object NotificationScheduler {
 
     /**
      * 调度刷新胶囊的准点闹钟
-     * 当启用了提前提醒时，需要在课程真正开始时刷新胶囊文案（从"还有x分钟"改为"进行中"）
+     * 当启用了提前提醒时，需要在日程真正开始时刷新胶囊文案（从"还有x分钟"改为"进行中"）
      */
     private fun scheduleRefreshCapsuleAlarm(
         context: Context, event: Event, actualStartTime: Long, alarmManager: AlarmManager

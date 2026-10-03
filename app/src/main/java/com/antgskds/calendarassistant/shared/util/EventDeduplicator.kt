@@ -71,7 +71,7 @@ object EventDeduplicator {
      * 对导入事件进行去重处理
      *
      * 策略：
-     * 1. 课程和临时事件不参与去重，直接跳过
+     * 1. 导入事件全部参与去重，不做标签过滤
      * 2. 使用内容指纹判断是否重复
      * 3. 重复则跳过，不重复则追加
      * 4. 保留导入文件的 archivedAt 字段状态
@@ -89,23 +89,19 @@ object EventDeduplicator {
         existingArchivedEvents: List<Event>,
         preserveArchivedStatus: Boolean = true
     ): DeduplicationResult {
-        // 1. 过滤掉课程（不参与去重）
-        val importRegularEvents = importEvents.filter { it.tag != "__removed_course__" }
-
+        // 1. 导入事件全部参与去重，不做标签过滤
         // 2. 构建现有事件的指纹集合
         val existingActiveFingerprints = existingActiveEvents
-            .filter { it.tag != "__removed_course__" }
             .associateBy { generateFingerprint(it) }
 
         val existingArchivedFingerprints = existingArchivedEvents
-            .filter { it.tag != "__removed_course__" }
             .associateBy { generateFingerprint(it) }
 
         val toAdd = mutableListOf<Event>()
         val toSkip = mutableListOf<Event>()
         val toUpdateArchiveStatus = mutableListOf<Pair<Event, Boolean>>()
 
-        for (importEvent in importRegularEvents) {
+        for (importEvent in importEvents) {
             val fingerprint = generateFingerprint(importEvent)
             val isImportArchived = importEvent.archivedAtMillis != null
 

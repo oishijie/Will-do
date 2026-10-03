@@ -119,10 +119,7 @@ private fun eventTypeSpecFor(tag: String): DialogEventTypeSpec? {
 }
 
 private fun eventTypeLabel(tag: String): String {
-    return when (tag) {
-        EventTags.COURSE -> "课程"
-        else -> eventTypeSpecFor(tag)?.label ?: "日程"
-    }
+    return eventTypeSpecFor(tag)?.label ?: "日程"
 }
 
 private fun parseStructuredFieldValues(
@@ -233,7 +230,6 @@ fun MaterialAddEventDialog(
     onOpenAttachment: (EventAttachment) -> Unit = {},
     onDeleteAttachment: (EventAttachment) -> Unit = {},
     onShowMessage: (String) -> Unit = {},
-    onSwitchType: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onConfirm: (EventPatch) -> Unit
 ) {
@@ -419,7 +415,6 @@ fun MaterialAddEventDialog(
                     }) { Text(if (activeStructuredSpec != null) "完成" else if (embedded) "保存" else "确定") }
     }
     val editorFields: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
-        if (embedded && !isEditing && onSwitchType != null) TextButton(onClick = onSwitchType, enabled = !dirty) { Text("改为新建课程") }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Start,

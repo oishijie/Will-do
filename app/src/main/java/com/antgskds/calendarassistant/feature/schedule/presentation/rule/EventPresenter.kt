@@ -1,7 +1,6 @@
 package com.antgskds.calendarassistant.feature.schedule.presentation.rule
 
 import android.content.Context
-import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.*
 import com.antgskds.calendarassistant.feature.settings.data.model.LiveNotificationTemplateMode
@@ -58,7 +57,6 @@ object EventPresenter {
         val isInProgress = EventPresentationInternals.computeIsInProgress(event, now)
         val isComingSoon = EventPresentationInternals.computeIsComingSoon(event, now)
         val isTerminal = event.isCompleted || event.isCheckedIn
-        val isCourse = event.tag == EventTags.COURSE || event.tag == "__removed_course__"
         val isAggregatePickup = EventPresentationInternals.isFoodPickup(event.description)
         val (title, subtitle, detail) = EventPresentationInternals.resolveDisplayContent(event, ruleId, isExpired, isTerminal)
 
@@ -69,11 +67,11 @@ object EventPresenter {
             title = title,
             subtitle = subtitle,
             detail = detail,
-            timeRange = EventPresentationInternals.resolveTimeRange(event, ruleId, isCourse),
+            timeRange = EventPresentationInternals.resolveTimeRange(event, ruleId),
             statusLabel = EventPresentationInternals.resolveStatusLabel(event, ruleId, isExpired, isInProgress, isComingSoon),
             statusColor = EventPresentationInternals.resolveStatusColor(event, isExpired, isInProgress, isComingSoon),
             isTerminal = isTerminal,
-            primaryAction = EventPresentationInternals.resolvePrimaryAction(ruleId, event, isExpired, isCourse),
+            primaryAction = EventPresentationInternals.resolvePrimaryAction(ruleId, event, isExpired),
             undoAction = EventPresentationInternals.resolveUndoAction(ruleId, isTerminal),
             iconResId = EventPresentationInternals.resolveIconResId(ruleId, event),
             actionIcon = EventPresentationInternals.resolveActionIcon(ruleId, isTerminal),

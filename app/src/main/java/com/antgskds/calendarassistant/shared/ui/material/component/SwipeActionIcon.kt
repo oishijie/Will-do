@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 
-/** 日程与账单共用的圆角背景操作按钮，尺寸仍由页面按 UI 大小传入。 */
+/** 日程侧滑使用的圆角背景操作按钮，尺寸仍由页面按 UI 大小传入。 */
 @Composable
 fun SwipeActionIcon(
     icon: ImageVector,

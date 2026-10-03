@@ -84,9 +84,6 @@ fun eventColorPaletteToArgb(colors: List<String>): List<Int> =
 
 @Serializable
 data class MySettings(
-    // 同时控制无障碍自动截图与支付应用 Hook；旧配置缺失此字段时保持关闭。
-    val automaticAccountingEnabled: Boolean = false,
-    val accountingMessagesEnabled: Boolean = false,
     // AI 模型配置
     val modelKey: String = "",
     val modelName: String = "",
@@ -171,22 +168,9 @@ data class MySettings(
     val quickMemoAutoStopEnabled: Boolean = false,
     val quickMemoAutoStopSeconds: Int = QUICK_MEMO_AUTO_STOP_DEFAULT_SECONDS,
 
-    // 首页入口配置（第 2~4 位，第一位固定侧边栏）
-    val homeBottomItems: List<String> = listOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE),
-    val homeStartPageKey: String = HomeEntryKey.TODAY,
-
     // 【新增】归档配置
     val autoArchiveEnabled: Boolean = false, // 自动归档总开关
     val archiveDaysThreshold: Int = 0, // 归档阈值天数（过期多少天后归档，0=立即归档）
-
-    // 课表设置
-    val courseFeatureEnabled: Boolean = true, // 主页下滑入口，保留旧配置语义
-    val courseModuleEnabled: Boolean = true, // 开发者中的课表总开关
-    val courseRemindersResumeAtMillis: Long = 0L, // 恢复后的提醒截止线，不补发停用期间提醒
-    val semesterStartDate: String = "",
-    val totalWeeks: Int = 20, // 旧版默认为 20
-    val timeTableJson: String = "",
-    val timeTableConfigJson: String = "",
 
     // 主题设置
     val isDarkMode: Boolean = false,

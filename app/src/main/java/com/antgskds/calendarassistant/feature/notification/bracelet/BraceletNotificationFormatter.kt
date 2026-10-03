@@ -124,8 +124,6 @@ object BraceletNotificationFormatter {
                 fields.getOrNull(1),
                 event.title
             )
-            RuleMatchingEngine.RULE_COURSE,
-            EventTags.COURSE -> firstNotBlank(event.location, fields.getOrNull(1), event.title)
             else -> null
         }
         return byRule

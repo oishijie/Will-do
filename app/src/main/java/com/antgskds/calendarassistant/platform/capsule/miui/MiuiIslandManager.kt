@@ -92,8 +92,7 @@ object MiuiIslandManager {
         val candidates = capsules.filter { isCapsuleActive(it, now) }
         if (candidates.isEmpty()) return null
         return candidates.sortedWith(
-            compareByDescending<CapsuleUiState.Active.CapsuleItem> { it.display.tapOpensAccounting }
-                .thenByDescending { it.startMillis }
+            compareByDescending<CapsuleUiState.Active.CapsuleItem> { it.startMillis }
                 .thenByDescending { it.endMillis }
         ).first()
     }
@@ -173,7 +172,6 @@ object MiuiIslandManager {
     }
 
     private fun useTextIconOnlyTemplate(item: CapsuleUiState.Active.CapsuleItem): Boolean {
-        if (item.display.tapOpensAccounting && item.display.effectiveActions.isNotEmpty()) return false
         return when (item.type) {
             CapsuleType.OCR_PROGRESS,
             CapsuleType.OCR_RESULT -> true
@@ -268,8 +266,6 @@ object MiuiIslandManager {
                 putExtra(MainActivity.EXTRA_OPEN_QUICK_MEMO_ID, tapQuickMemoId)
             } else if (item.type == CapsuleType.WEATHER_ALERT) {
                 putExtra(WidgetActions.EXTRA_WIDGET_ACTION, WidgetActions.ACTION_OPEN_WEATHER)
-            } else if (item.display.tapOpensAccounting) {
-                putExtra("open_accounting", "true")
             } else if (item.display.tapOpensPickupList) {
                 putExtra("openPickupList", true)
             }
@@ -331,7 +327,6 @@ object MiuiIslandManager {
                     RuleMatchingEngine.RULE_SENDER -> "待寄件"
                     RuleMatchingEngine.RULE_TRAIN -> if (item.state == STATE_CHECKED_IN) "待落座" else "待检票"
                     RuleMatchingEngine.RULE_FLIGHT -> if (item.state == STATE_CHECKED_IN) "待落座" else "待登机"
-                    RuleMatchingEngine.RULE_COURSE -> buildTimeStatus(item)
                     else -> buildTimeStatus(item)
                 }
             }

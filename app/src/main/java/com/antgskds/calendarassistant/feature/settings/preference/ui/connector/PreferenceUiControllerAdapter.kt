@@ -9,8 +9,6 @@ class PreferenceUiControllerAdapter(private val viewModel: SettingsViewModel) : 
     override val availableSyncCalendars = viewModel.availableSyncCalendars
 
     override fun refreshSyncStatus() = viewModel.refreshSyncStatus()
-    override fun updateAccountingMessages(enabled: Boolean) = viewModel.updateAccountingMessages(enabled)
-    override fun updateAutomaticAccounting(enabled: Boolean) = viewModel.updateAutomaticAccounting(enabled)
     override fun refreshSyncCalendars() = viewModel.refreshSyncCalendars()
     override fun toggleCalendarSync(enabled: Boolean) = viewModel.toggleCalendarSync(enabled)
     override fun enableCalendarSyncAndSyncNow(callback: suspend (Result<Unit>) -> Unit) = viewModel.enableCalendarSyncAndSyncNow(callback)
@@ -37,7 +35,7 @@ class PreferenceUiControllerAdapter(private val viewModel: SettingsViewModel) : 
         floatingBallSingleTapAction: Int?, floatingBallDoubleTapAction: Int?, floatingBallLongPressAction: Int?,
         edgeBarSingleTapAction: Int?, edgeBarDoubleTapAction: Int?, edgeBarLongPressAction: Int?,
         volumeUpLongPressEnabled: Boolean?, volumeUpLongPressAction: Int?, smsMonitoring: Boolean?,
-        courseFeatureEnabled: Boolean?, quickMemoRecordingDisplayMode: Int?, voiceInputEnabled: Boolean?,
+        quickMemoRecordingDisplayMode: Int?, voiceInputEnabled: Boolean?,
         floatingVoiceLongPressEnabled: Boolean?, floatingTextQuickMemoAutoPinEnabled: Boolean?,
         voiceQuickMemoAutoPinEnabled: Boolean?
     ) = viewModel.updatePreference(
@@ -59,7 +57,6 @@ class PreferenceUiControllerAdapter(private val viewModel: SettingsViewModel) : 
         edgeBarSingleTapAction = edgeBarSingleTapAction, edgeBarDoubleTapAction = edgeBarDoubleTapAction,
         edgeBarLongPressAction = edgeBarLongPressAction, volumeUpLongPressEnabled = volumeUpLongPressEnabled,
         volumeUpLongPressAction = volumeUpLongPressAction, smsMonitoring = smsMonitoring,
-        courseFeatureEnabled = courseFeatureEnabled,
         quickMemoRecordingDisplayMode = quickMemoRecordingDisplayMode,
         voiceInputEnabled = voiceInputEnabled,
         floatingVoiceLongPressEnabled = floatingVoiceLongPressEnabled,

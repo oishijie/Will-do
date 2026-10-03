@@ -20,7 +20,6 @@ data class CapsuleDisplayModel(
     val tapQuickMemoId: String? = null,
     val action: CapsuleActionSpec? = null,
     val actions: List<CapsuleActionSpec> = emptyList(),
-    val tapOpensAccounting: Boolean = false,
     val tapImagePinId: Long? = null,
 ) {
     val effectiveActions: List<CapsuleActionSpec>

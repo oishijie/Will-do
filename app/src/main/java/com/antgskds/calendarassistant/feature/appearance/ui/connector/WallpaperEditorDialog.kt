@@ -55,9 +55,8 @@ import com.antgskds.calendarassistant.app.ui.theme.material.background.AppWallpa
 import com.antgskds.calendarassistant.app.ui.theme.material.background.LocalAppBackgroundAverageLuminance
 import com.antgskds.calendarassistant.app.ui.theme.material.background.calculateAppWallpaperLayout
 import com.antgskds.calendarassistant.feature.home.domain.HomeEntryKey
-import com.antgskds.calendarassistant.feature.home.domain.sanitizeHomeStartPageKey
-import com.antgskds.calendarassistant.feature.home.domain.visibleHomeBottomItems
 import com.antgskds.calendarassistant.feature.home.ui.connector.HomePageRoute
+import com.antgskds.calendarassistant.feature.home.domain.fixedHomeBottomItems
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBar
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarBottomSpacing
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
@@ -104,14 +103,10 @@ internal fun WallpaperEditorDialog(
         mutableStateOf(0f)
     }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
-    val previewPages = remember(settings.homeBottomItems, settings.voiceInputEnabled) {
-        visibleHomeBottomItems(
-            raw = settings.homeBottomItems,
-            quickMemoEnabled = settings.voiceInputEnabled
-        )
-    }
+    // 壁纸预览页使用常驻底栏固定入口
+    val previewPages = remember { fixedHomeBottomItems }
     var previewPageKey by remember(source) {
-        mutableStateOf(sanitizeHomeStartPageKey(settings.homeStartPageKey, previewPages))
+        mutableStateOf(HomeEntryKey.TODAY)
     }
     val wallpaperBackdrop = rememberAppWindowBackdrop()
     val wallpaperBlurRadius = with(LocalDensity.current) { 28.dp.toPx() }
@@ -335,7 +330,6 @@ private fun BoxScope.WallpaperHomePreview(
         currentPageKey = selectedPageKey,
         pageOrder = previewPages,
         uiSize = settings.uiSize,
-        courseFeatureEnabled = com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.swipeEnabled(settings),
         quickMemoCount = quickMemos.size,
         settingsOverride = settings
     )
@@ -343,10 +337,8 @@ private fun BoxScope.WallpaperHomePreview(
     IntegratedFloatingBar(
         isExpanded = false,
         onExpandedChange = {},
-        isSidebarOpen = false,
         navItems = previewPages,
         selectedPageKey = selectedPageKey,
-        onMenuClick = {},
         onPageClick = {},
         onSearchClick = {},
         onImageClick = {},

@@ -12,9 +12,6 @@ class CapsuleStateManagerCommandApi(
 ) : CapsuleCommandApi {
     override fun showImagePin(id: Long, count: Int) = capsuleStateManager.showImagePin(id, count)
     override fun clearImagePin() = capsuleStateManager.clearImagePin()
-    override fun showAccountingResult(display: com.antgskds.calendarassistant.feature.capsule.domain.CapsuleDisplayModel) {
-        capsuleStateManager.showAccountingResult(display)
-    }
     override fun forceRefresh() {
         capsuleStateManager.forceRefresh()
     }

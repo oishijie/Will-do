@@ -122,9 +122,9 @@ class SevenUiRegressionTest {
                             searchQuery = "", calendarViewMode = HomeCalendarViewMode.AGENDA,
                             listState = rememberLazyListState(), contentBottomPadding = 60.dp,
                             uiSize = 2, isTwoPane = false, serviceEnabled = true, notificationEnabled = true,
-                            onSelectDate = { selected = it }, onOpenWeatherDetail = {}, onOpenAccounting = { _, _ -> },
+                            onSelectDate = { selected = it }, onOpenWeatherDetail = {},
                             onOpenAccessibilitySettings = {}, onOpenNotificationSettings = {}, onAction = {},
-                            onEditItem = {}, onRequestDeleteItem = {}, scheduleContent = {}, onCalendarViewModeChange = {},
+                            onEditItem = {}, onRequestDeleteItem = {}, onCalendarViewModeChange = {},
                         )
                     }
                 }

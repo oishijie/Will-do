@@ -63,23 +63,8 @@ class CapsuleDispatcher(
         }
         val now = System.currentTimeMillis()
         val settings = settingsQueryApi.settings.value
-        val accounting = com.antgskds.calendarassistant.feature.notification.policy.AccountingRecognitionNotificationPolicy.owns(payload.key)
-        val duration = if (accounting) {
-            if (payload.behavior.ongoing) null else payload.behavior.timeoutAfterMillis
-                ?: com.antgskds.calendarassistant.feature.notification.policy.AccountingRecognitionNotificationPolicy.timeout(false, settings)
-        } else QuickMemoCapsuleDurationPolicy.durationMillis(settings.defaultEventDurationMinutes)
-        val item = if (accounting) {
-            val display = com.antgskds.calendarassistant.shared.management.resource.notification.display.live.template.AccountingRecognitionDisplay
-                .notification(payload.display, payload.actions)
-            CapsuleUiState.Active.CapsuleItem(
-                id = payload.key.value, notifId = payload.notificationId,
-                type = if (payload.behavior.ongoing) CapsuleType.OCR_PROGRESS else CapsuleType.OCR_RESULT,
-                eventType = "accounting_recognition", title = display.primaryText,
-                content = display.secondaryText.orEmpty(), description = display.expandedText.orEmpty(),
-                color = 0xFF4CAF50.toInt(), startMillis = now, endMillis = duration?.let { now + it } ?: Long.MAX_VALUE,
-                display = display,
-            )
-        } else {
+        val duration = QuickMemoCapsuleDurationPolicy.durationMillis(settings.defaultEventDurationMinutes)
+        val item = run {
             val memoId = payload.tapTarget?.payload?.get("quickMemoId")?.toLongOrNull()
                 ?: return@synchronized NotificationResult.Failure(payload.key, NotificationFailureReason.VALIDATION_FAILED, "缺少随口记 ID")
             val reminderId = payload.key.value.removePrefix("quick-memo:reminder:").toLongOrNull()
@@ -105,7 +90,7 @@ class CapsuleDispatcher(
                 description = payload.display.expandedText.orEmpty(),
                 color = android.graphics.Color.parseColor("#7C4DFF"),
                 startMillis = now,
-                endMillis = now + requireNotNull(duration),
+                endMillis = now + duration,
                 display = display,
             )
         }
@@ -114,7 +99,7 @@ class CapsuleDispatcher(
             dispatch(baseState)
             check(publishedCapsules[payload.key.value] === item) { "胶囊开关在发布期间变更" }
             publishedExpiryJobs.remove(payload.key.value)?.cancel()
-            if (duration != null) publishedExpiryJobs[payload.key.value] = appScope.launch {
+            publishedExpiryJobs[payload.key.value] = appScope.launch {
                 kotlinx.coroutines.delay(duration)
                 synchronized(this@CapsuleDispatcher) {
                     if (publishedCapsules[payload.key.value] !== item) return@synchronized

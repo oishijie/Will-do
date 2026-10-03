@@ -55,12 +55,6 @@ object PageCatalog {
     )
 
     val pages: List<PageEntry> = listOf(
-        // —— 课表相关 ——
-        PageEntry(SettingsDestination.CourseManage, "settings_course_manage", "课程管理", PageVisibility.USER, "管理课程表里的课程条目"),
-        PageEntry(SettingsDestination.TimeTableManage, "settings_timetable_manage", "作息表管理", PageVisibility.USER, "编辑上课作息时间段"),
-        PageEntry(SettingsDestination.SemesterConfig, "settings_semester_config", "学期配置", PageVisibility.USER, "设置学期开始日期、总周数"),
-        PageEntry(SettingsDestination.Schedule, "settings_schedule", "课表设置", PageVisibility.USER, "综合课表设置（旧版，建议用上面细分项）"),
-
         // —— 其他设置（普通用户）——
         PageEntry(SettingsDestination.AI, "settings_ai", "模型与连接", PageVisibility.USER, "配置 AI 识别模型与 WebDAV 连接"),
         PageEntry(SettingsDestination.Weather, "settings_weather", "天气", PageVisibility.USER, "天气位置与预警设置"),
@@ -69,7 +63,6 @@ object PageCatalog {
         PageEntry(SettingsDestination.Archives, "settings_archives", "归档", PageVisibility.USER, "查看与恢复已归档的过期日程"),
         PageEntry(SettingsDestination.Backup, "settings_backup", "数据备份", PageVisibility.USER, "导入导出备份"),
         PageEntry(SettingsDestination.AppUpdate, "settings_app_update", "软件更新", PageVisibility.USER, "检查与下载新版本"),
-        PageEntry(SettingsDestination.BottomBarEditor, "settings_bottom_bar_editor", "底栏编辑", PageVisibility.USER, "自定义首页底栏入口（从偏好设置进入）"),
         PageEntry(SettingsDestination.WidgetSettings, "settings_widget_settings", "桌面小组件", PageVisibility.USER, "桌面小组件外观设置（从偏好设置进入）"),
 
         // —— 操作类（不是导航页，直接执行）——
@@ -83,7 +76,7 @@ object PageCatalog {
         PageEntry(SettingsDestination.Developer, "settings_developer", "开发者", PageVisibility.DEVELOPER, "测试中心：列表排序开关 + DebugActionRegistry 调试动作（从实验室进入）"),
         PageEntry(SettingsDestination.ConfigEditor, "settings_config_editor", "配置编辑", PageVisibility.DEVELOPER, "由 ConfigCatalog 驱动的底层配置编辑（从开发者页进入）"),
         PageEntry(SettingsDestination.OnboardingGuide, "settings_onboarding_guide", "初始化引导", PageVisibility.DEVELOPER, "首次启动引导页调试入口：权限与一级功能开关体检"),
-        PageEntry(SettingsDestination.RegexRuleEditor, "settings_regex_rule_editor", "正则规则", PageVisibility.DEVELOPER, "编辑日程及通知短信记账规则；测试仅解析、不入库"),
+        PageEntry(SettingsDestination.RegexRuleEditor, "settings_regex_rule_editor", "正则规则", PageVisibility.DEVELOPER, "编辑日程正则规则；测试仅解析、不入库"),
     )
 
     val weatherDetailPage = NestedPageEntry(
@@ -92,25 +85,12 @@ object PageCatalog {
         title = "天气详情",
     )
 
-    /** 首页入口直接打开的独立页面，不增加设置菜单项。 */
-    data class StandalonePageEntry(val route: String, val title: String, val note: String)
-
-    val standalonePages = listOf(
-        StandalonePageEntry("accounting_preview/{date}/{period}", "记账", "日周月真实账单、分析与微信/支付宝文件导入"),
-    )
-
-    private val destinationAliases = mapOf(
-        "course_manager" to SettingsDestination.CourseManage,
-        "timetable_editor" to SettingsDestination.TimeTableManage,
-    )
-
     /** 按枚举值查登记项。 */
     fun find(destination: SettingsDestination): PageEntry? =
         pages.firstOrNull { it.destination == destination }
 
     fun resolveDestination(value: String): SettingsDestination =
-        destinationAliases[value]
-            ?: SettingsDestination.entries.firstOrNull { it.name == value }
+        SettingsDestination.entries.firstOrNull { it.name == value }
             ?: SettingsDestination.Preference
 
     fun routeFor(destination: SettingsDestination): String? = find(destination)?.route

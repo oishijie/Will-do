@@ -2,10 +2,8 @@ package com.antgskds.calendarassistant.feature.schedule.presentation.rule
 
 import android.content.Context
 import com.antgskds.calendarassistant.R
-import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.*
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
 import com.antgskds.calendarassistant.shared.util.stripSourceImageMarkers
 import com.antgskds.calendarassistant.feature.settings.data.model.LiveNotificationTemplateMode
 import com.antgskds.calendarassistant.feature.capsule.domain.CapsuleActionSpec
@@ -52,7 +50,6 @@ internal object EventPresentationInternals {
             RuleMatchingEngine.RULE_FLIGHT -> resolveFlightDisplay(event)
             RuleMatchingEngine.RULE_TICKET -> resolveTicketDisplay(event, isExpired)
             RuleMatchingEngine.RULE_SENDER -> resolveSenderDisplay(event)
-            RuleMatchingEngine.RULE_COURSE -> resolveCourseDisplay(event)
             else -> resolveGeneralDisplay(event)
         }
     }
@@ -92,8 +89,8 @@ internal object EventPresentationInternals {
         }
     }
 
-    fun resolvePrimaryAction(ruleId: String, event: Event, isExpired: Boolean, isCourse: Boolean): EventAction? {
-        if (event.isCompleted || event.isCheckedIn || isExpired || isCourse || event.isRecurring) return null
+    fun resolvePrimaryAction(ruleId: String, event: Event, isExpired: Boolean): EventAction? {
+        if (event.isCompleted || event.isCheckedIn || isExpired || event.isRecurring) return null
         val defaults = RuleActionDefaults.defaultsFor(ruleId)
         val receiverAction = when (ruleId) {
             RuleMatchingEngine.RULE_TRAIN,
@@ -120,8 +117,6 @@ internal object EventPresentationInternals {
             RuleMatchingEngine.RULE_FLIGHT -> R.drawable.ic_stat_flight
             RuleMatchingEngine.RULE_TICKET -> R.drawable.ic_stat_ticket
             RuleMatchingEngine.RULE_SENDER -> R.drawable.ic_stat_sender
-            RuleMatchingEngine.RULE_COURSE -> R.drawable.ic_stat_course
-            "__removed_course__" -> R.drawable.ic_stat_course
             RuleMatchingEngine.RULE_GENERAL -> R.drawable.ic_stat_event
             else -> R.drawable.ic_notification_small
         }
@@ -139,8 +134,8 @@ internal object EventPresentationInternals {
         }
     }
 
-    fun resolveTimeRange(event: Event, ruleId: String, isCourse: Boolean): String? {
-        if (isCourse || ruleId == RuleMatchingEngine.RULE_GENERAL) {
+    fun resolveTimeRange(event: Event, ruleId: String): String? {
+        if (ruleId == RuleMatchingEngine.RULE_GENERAL) {
             val start = event.startTime.trim().takeIf { it.isNotEmpty() }
             val end = event.endTime.trim().takeIf { it.isNotEmpty() }
             return when {
@@ -436,7 +431,7 @@ internal object EventPresentationInternals {
         val timeText = formatTimeRange(event)
         val locationText = sanitize(event.location)
         val descriptionText = summaryText(event.description)
-        val action = if (!event.isCompleted && !isExpired && event.tag != "__removed_course__" && event.tag != EventTags.COURSE) CapsuleActionSpec("已完成", EventActionReceiver.ACTION_COMPLETE_SCHEDULE) else null
+        val action = if (!event.isCompleted && !isExpired) CapsuleActionSpec("已完成", EventActionReceiver.ACTION_COMPLETE_SCHEDULE) else null
         return NotificationTemplateComposer.composeSchedule(
             title = primaryText,
             time = timeText,
@@ -445,11 +440,6 @@ internal object EventPresentationInternals {
             templateMode = templateMode,
             action = action
         )
-    }
-
-    private fun resolveCourseDisplay(event: Event): Triple<String, String?, String?> {
-        val desc = CourseEventMapper.displayDescription(event.description, event.location).takeIf { it.isNotBlank() }
-        return Triple(event.title.ifBlank { "课程" }, desc, null)
     }
 
     private fun parseTransport(event: Event): TransportInfo {

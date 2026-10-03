@@ -2,9 +2,6 @@ package com.antgskds.calendarassistant.app.ui.navigation
 
 object AppRoutes {
     const val Home = "home"
-    const val AccountingPreview = "accounting_preview/{date}/{period}"
-    fun accountingPreview(date: java.time.LocalDate, monthly: Boolean): String =
-        "accounting_preview/$date/${if (monthly) "MONTH" else "DAY"}"
 
     const val OnboardingGuide = "onboarding_guide"
     const val WeatherDetail = "weather_detail"

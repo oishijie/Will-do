@@ -62,9 +62,6 @@ import com.antgskds.calendarassistant.shared.ui.material.component.AppCard
 import com.antgskds.calendarassistant.shared.ui.edition.EditionSlider
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
-import com.antgskds.calendarassistant.platform.widget.CourseWidgetProvider
-import com.antgskds.calendarassistant.platform.widget.CourseWidgetSnapshot
-import com.antgskds.calendarassistant.platform.widget.CourseWidgetSnapshotBuilder
 import com.antgskds.calendarassistant.platform.widget.ScheduleWidgetProvider
 import com.antgskds.calendarassistant.platform.widget.WeatherWidgetProvider
 import com.antgskds.calendarassistant.platform.widget.WidgetAppearanceConfig
@@ -91,13 +88,12 @@ fun WidgetSettingsPage(
     var appearanceRefreshKey by remember { mutableStateOf(0) }
     val queryApi = remember { LocalWidgetScheduleQueryApi() }
     val snapshot = remember(rawEvents) { queryApi.buildSnapshot(rawEvents) }
-    val courseSnapshot = remember(rawEvents, settings) { CourseWidgetSnapshotBuilder.build(rawEvents, settings) }
     val configStore = remember(context) { WidgetInstanceConfigStore(context) }
     val appearances = remember(context, settings, appearanceRefreshKey) {
         WidgetType.entries.associateWith { configStore.defaultAppearance(it, settings) }
     }
     MaterialWidgetSettingsScreen(
-        state = WidgetSettingsUiState(settings, snapshot, courseSnapshot, weatherData, appearances),
+        state = WidgetSettingsUiState(settings, snapshot, weatherData, appearances),
         uiSize = uiSize,
         onAction = { action -> when (action) {
             is WidgetSettingsUiAction.UpdateAppearance -> {
@@ -112,7 +108,6 @@ fun WidgetSettingsPage(
 fun MaterialWidgetSettingsScreen(state: WidgetSettingsUiState, uiSize: Int = 2, onAction: (WidgetSettingsUiAction) -> Unit) {
     val settings = state.settings
     val snapshot = state.scheduleSnapshot
-    val courseSnapshot = state.courseSnapshot
     val weatherData = state.weatherData
     val scrollState = rememberScrollState()
     val haptics = rememberAppHaptics(settings.hapticFeedbackEnabled)
@@ -181,7 +176,6 @@ fun MaterialWidgetSettingsScreen(state: WidgetSettingsUiState, uiSize: Int = 2, 
                             type = selectedType,
                             size = selectedSize,
                             snapshot = snapshot,
-                            courseSnapshot = courseSnapshot,
                             weatherData = weatherData,
                             settings = settings,
                             appearance = selectedAppearance,
@@ -241,7 +235,6 @@ private fun widgetProviderClass(type: WidgetType): Class<*> {
     return when (type) {
         WidgetType.SCHEDULE -> ScheduleWidgetProvider::class.java
         WidgetType.WEATHER -> WeatherWidgetProvider::class.java
-        WidgetType.COURSE -> CourseWidgetProvider::class.java
     }
 }
 
@@ -249,7 +242,6 @@ private fun widgetTypeShortLabel(type: WidgetType): String {
     return when (type) {
         WidgetType.SCHEDULE -> "日程"
         WidgetType.WEATHER -> "天气"
-        WidgetType.COURSE -> "课表"
     }
 }
 
@@ -345,7 +337,6 @@ private fun WidgetTypePreview(
     type: WidgetType,
     size: WidgetPreviewSize,
     snapshot: WidgetScheduleSnapshot,
-    courseSnapshot: CourseWidgetSnapshot,
     weatherData: WeatherData?,
     settings: MySettings,
     appearance: WidgetAppearanceConfig,
@@ -358,7 +349,6 @@ private fun WidgetTypePreview(
     when (type) {
         WidgetType.SCHEDULE -> WidgetPreview(size, snapshot, previewSettings, modifier)
         WidgetType.WEATHER -> WeatherPreview(size, weatherData ?: sampleWeatherData(), previewSettings, modifier)
-        WidgetType.COURSE -> CoursePreview(size, courseSnapshot, previewSettings, modifier)
     }
 }
 
@@ -453,94 +443,6 @@ private fun WeatherHourlyRow(hours: List<WeatherHourlyForecast>, palette: Widget
                 Text(if (index == 0) "现在" else hourLabel(hour.fxTime), style = MaterialTheme.typography.labelSmall, color = palette.secondaryText, maxLines = 1)
                 Text(hour.text.ifBlank { "多云" }.take(2), style = MaterialTheme.typography.labelMedium, color = palette.primary)
                 Text("${hour.temp.ifBlank { "20" }}°", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = palette.primaryText)
-            }
-        }
-    }
-}
-
-@Composable
-private fun CoursePreview(
-    size: WidgetPreviewSize,
-    snapshot: CourseWidgetSnapshot,
-    settings: MySettings,
-    modifier: Modifier = Modifier
-) {
-    val palette = rememberWidgetPreviewPalette(settings)
-    WidgetPreviewShell(palette = palette, modifier = modifier.aspectRatio(size.aspectRatio)) {
-        if (size == WidgetPreviewSize.FourByFour) {
-            CourseGridPreview(snapshot, palette)
-        } else {
-            CourseSummaryPreview(size, snapshot, palette)
-        }
-    }
-}
-
-@Composable
-private fun CourseSummaryPreview(size: WidgetPreviewSize, snapshot: CourseWidgetSnapshot, palette: WidgetPreviewPalette) {
-    val items = snapshot.todayItems.ifEmpty { snapshot.upcomingItems }.take(if (size == WidgetPreviewSize.FourByTwo) 3 else 2)
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(if (size == WidgetPreviewSize.TwoByOne) 12.dp else 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("第 ${snapshot.weekNumber} 周", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = palette.primaryText, maxLines = 1)
-        if (items.isEmpty()) {
-            Text("今日暂无课程", style = MaterialTheme.typography.bodyLarge, color = palette.secondaryText, maxLines = 1)
-        } else {
-            items.forEach { item ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(palette.card)
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.width(3.dp).height(28.dp).clip(RoundedCornerShape(2.dp)).background(item.safeComposeColor(palette.primary)))
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(item.title.ifBlank { "课程" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = palette.primaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${item.startTime} · ${item.nodeText}", style = MaterialTheme.typography.labelSmall, color = palette.secondaryText, maxLines = 1)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CourseGridPreview(snapshot: CourseWidgetSnapshot, palette: WidgetPreviewPalette) {
-    val section = snapshot.sections.firstOrNull() ?: return
-    val nodes = section.range.toList().take(4).ifEmpty { listOf(1, 2, 3, 4) }
-    val hasItems = snapshot.items.any { it.startNode <= section.range.last && it.endNode >= section.range.first }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text("第 ${snapshot.weekNumber} 周 · ${section.segment.displayName}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = palette.primaryText, maxLines = 1)
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.width(22.dp))
-            (1..7).forEach { day ->
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(weekdayText(snapshot.weekStart.plusDays((day - 1).toLong())).removePrefix("周"), style = MaterialTheme.typography.labelSmall, color = palette.secondaryText)
-                    Text(snapshot.weekStart.plusDays((day - 1).toLong()).dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall, color = if (day == snapshot.today.dayOfWeek.value) palette.primary else palette.secondaryText)
-                }
-            }
-        }
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
-                nodes.forEach { node ->
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(node.toString(), modifier = Modifier.width(22.dp), style = MaterialTheme.typography.labelMedium, color = palette.secondaryText)
-                        Box(modifier = Modifier.weight(1f).height(1.dp).background(palette.secondaryText.copy(alpha = 0.18f)))
-                    }
-                }
-            }
-            if (!hasItems) {
-                Text("本时段暂无课程", modifier = Modifier.align(Alignment.Center), style = MaterialTheme.typography.titleMedium, color = palette.secondaryText)
             }
         }
     }
@@ -852,10 +754,6 @@ private fun rememberWidgetPreviewPalette(settings: MySettings): WidgetPreviewPal
 }
 
 private fun ScheduleDisplayItem.safeComposeColor(fallback: Color): Color {
-    return if (color == 0) fallback else Color(color)
-}
-
-private fun com.antgskds.calendarassistant.platform.widget.CourseWidgetItem.safeComposeColor(fallback: Color): Color {
     return if (color == 0) fallback else Color(color)
 }
 

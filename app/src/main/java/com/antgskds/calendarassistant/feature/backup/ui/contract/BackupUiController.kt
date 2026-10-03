@@ -2,8 +2,6 @@ package com.antgskds.calendarassistant.feature.backup.ui.contract
 
 import android.net.Uri
 import com.antgskds.calendarassistant.feature.recognition.application.ai.AiPrompts
-import com.antgskds.calendarassistant.feature.backup.courseimport.ImportMode
-import com.antgskds.calendarassistant.feature.backup.courseimport.ParsedCourseImport
 import com.antgskds.calendarassistant.feature.backup.data.model.AppBackupImportResult
 import com.antgskds.calendarassistant.feature.backup.data.model.AppBackupOptions
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
@@ -18,12 +16,6 @@ interface BackupUiController {
     val promptCheckFeedback: SharedFlow<PromptCheckFeedback>
     fun getAttachmentCount(): Int
     fun estimateAttachmentBytes(): Long
-    fun getCoursesCount(): Int
-    suspend fun exportCoursesData(): String
-    suspend fun importCoursesData(content: String): Result<Unit>
-    suspend fun parseExternalCourseImport(content: String): Result<ParsedCourseImport>
-    suspend fun fetchWakeUpShareImport(text: String): Result<ParsedCourseImport>
-    fun importParsedCourseImport(parsed: ParsedCourseImport, mode: ImportMode, importSettings: Boolean, callback: suspend (Result<Int>) -> Unit)
     suspend fun exportBackupData(options: AppBackupOptions): String
     suspend fun exportBackupZip(uri: Uri, options: AppBackupOptions)
     suspend fun importBackupJson(content: String, options: AppBackupOptions): Result<AppBackupImportResult>

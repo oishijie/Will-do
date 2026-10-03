@@ -195,8 +195,7 @@ dependencies {
     // === MIUI 超级岛 (LSPosed/Xposed) ===
     implementation("io.github.d4viddf:hyperisland_kit:0.4.3")
     compileOnly("de.robv.android.xposed:api:82")
-    // AutoAccounting upstream DEX adaptation engine (same dependency/version).
-    implementation("org.smali:dexlib2:2.5.2")
+    // 记账功能已下线：org.smali:dexlib2（原 AutoAccounting upstream DEX adaptation engine）随之移除。
 
     // === Room 数据库 ===
     implementation(libs.androidx.room.runtime)

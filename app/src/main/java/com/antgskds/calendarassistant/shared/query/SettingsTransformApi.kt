@@ -60,10 +60,7 @@ interface SettingsTransformApi {
         developerOptionsEnabled: Boolean? = null,
         developerOptionsDisabledAtMillis: Long? = null,
         developerSimulateRootEnabled: Boolean? = null,
-        homeBottomItems: List<String>? = null,
-        homeStartPageKey: String? = null,
         weatherLocationStabilityRequiredHits: Int? = null,
-        liveNotificationTemplateMode: String? = null,
-        courseFeatureEnabled: Boolean? = null
+        liveNotificationTemplateMode: String? = null
     ): MySettings
 }

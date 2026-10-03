@@ -31,7 +31,7 @@ class SmsReceiver : BroadcastReceiver() {
 
         val settings = SettingsDataSource(context).loadSettings()
         Log.d(TAG, "[探针] Settings 同步读取完成, isSmsMonitoringEnabled=${settings.isSmsMonitoringEnabled}")
-        if (!settings.isSmsMonitoringEnabled && !AccountingMessageAccessPolicy.enabled(context, settings)) {
+        if (!settings.isSmsMonitoringEnabled) {
             Log.d(TAG, "[探针] 短信监控未开启，跳过")
             return
         }
@@ -50,10 +50,6 @@ class SmsReceiver : BroadcastReceiver() {
                 for ((sender, parts) in messages.filter { it.originatingAddress != null }.groupBy { it.originatingAddress!! }) {
                     val body = parts.joinToString("") { it.messageBody.orEmpty() }
                     val receivedAt = parts.first().timestampMillis
-                    app.accountingMessageCoordinator.process(
-                        com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessage(
-                            com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessageKind.SMS,
-                            sender, body, receivedAt))
                     if (settings.isSmsMonitoringEnabled) ingestCoordinator.submit(
                         source = SmsPickupSource.SMS_RECEIVER,
                         sender = sender,

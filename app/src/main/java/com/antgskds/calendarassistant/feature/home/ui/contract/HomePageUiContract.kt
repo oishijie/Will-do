@@ -10,7 +10,6 @@ data class HomePageUiState(
     val today: LocalDate = LocalDate.now(),
     val timeRefreshToken: Long = 0L,
     val revealedItemKey: String? = null,
-    val courseScheduleItems: List<ScheduleDisplayItem> = emptyList(),
     val currentDateEvents: List<ScheduleDisplayItem> = emptyList(),
     val tomorrowEvents: List<ScheduleDisplayItem> = emptyList(),
     val datesWithEvents: Set<LocalDate> = emptySet(),

@@ -1,6 +1,5 @@
 package com.antgskds.calendarassistant.feature.recognition.application
 
-import com.antgskds.calendarassistant.feature.accounting.domain.WechatRedPacketSessionPolicy
 import android.content.Context
 import android.graphics.Bitmap
 import kotlinx.coroutines.ensureActive
@@ -19,63 +18,7 @@ import com.antgskds.calendarassistant.feature.recognition.application.node.Recog
 import com.antgskds.calendarassistant.feature.recognition.application.node.RecognitionTextNode
 class RecognitionOrchestrator(
     private val domainEventBus: DomainEventBus,
-    private val ingestProvider: () -> com.antgskds.calendarassistant.shared.operation.IngestCommandApi,
-    private val notificationApi: com.antgskds.calendarassistant.feature.notification.api.NotificationApi,
-    private val capsuleProvider: () -> com.antgskds.calendarassistant.shared.operation.CapsuleCommandApi,
-    private val automaticAccountingEnabled: () -> Boolean,
 ) : com.antgskds.calendarassistant.shared.operation.RecognitionApi {
-    override suspend fun analyzeAccountingMessage(
-        message: com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessage,
-        context: Context, traceId: String,
-    ): AnalysisResult<List<RecognitionDraft>> {
-        val access = com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy
-        if (!access.enabled(context)) return AnalysisResult.Empty("通知与短信记账未开启或权限不足")
-        val draft = com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessageRules.parse(message,
-            com.antgskds.calendarassistant.feature.accounting.data.AccountingMessageRulePrefs.load(context))
-            ?: return AnalysisResult.Empty("未匹配账单规则")
-        kotlinx.coroutines.currentCoroutineContext().ensureActive()
-        val settings = com.antgskds.calendarassistant.feature.settings.data.SettingsDataSource(context).loadSettings()
-        if (!access.enabled(context, settings)) return AnalysisResult.Empty("通知与短信记账已关闭")
-        return ingestBills(AnalysisResult.Success(emptyList(), bills = listOf(draft)),
-            "accounting.${message.kind.name.lowercase()}", message.sender, traceId, false, settings.isLiveCapsuleEnabled)
-    }
-
-    override suspend fun analyzeAutomaticAccountingImage(bitmap: Bitmap, settings: MySettings, context: Context,
-        sourcePackage: String, traceId: String, isDetailPage: Boolean,
-        redPacketSent: WechatRedPacketSessionPolicy.SentEvidence?, publishFeedback: Boolean, capturedAt: Long): AnalysisResult<List<RecognitionDraft>> {
-        if (!automaticAccountingEnabled() || !com.antgskds.calendarassistant.feature.accounting.domain.AutomaticAccountingPolicy.supports(sourcePackage))
-            return AnalysisResult.Empty("自动记账已关闭或来源不支持")
-        if (redPacketSent != null && (isDetailPage || sourcePackage != com.antgskds.calendarassistant.feature.accounting.domain.AutomaticAccountingPolicy.WECHAT))
-            return AnalysisResult.Empty("红包成功上下文不适用于此来源")
-        val result = RecognitionMultimodalNode.analyzeImage(bitmap, settings, context, redPacketSent)
-        kotlinx.coroutines.currentCoroutineContext().ensureActive()
-        if (!automaticAccountingEnabled()) return AnalysisResult.Empty("自动记账已关闭")
-        if (isDetailPage && result is AnalysisResult.Success &&
-            !com.antgskds.calendarassistant.feature.accounting.domain.AutomaticAccountingPolicy.acceptsDetailResult(result.bills, result.billIssues)) {
-            return AnalysisResult.Empty("详情页未识别到时间明确的单笔已完成交易，暂不入库")
-        }
-        // 识别结果中的日程不参与自动记账；支付完成现场缺时间才使用本次识别时间。
-        val billsOnly = if (result is AnalysisResult.Success && redPacketSent != null) {
-            if (result.billIssues.isNotEmpty()) return AnalysisResult.Empty("红包确认图解析不完整，暂不入库")
-            val bill = redPacketSent.complete(result.bills)
-                ?: return AnalysisResult.Empty("红包确认图未识别到明确的单笔支出，暂不入库")
-            result.copy(data = emptyList(), bills = listOf(bill))
-        } else if (result is AnalysisResult.Success) result.copy(data = emptyList(),
-            bills = result.bills.map { it.copy(createdAt = capturedAt) }) else result
-        return ingestImageBills(billsOnly, bitmap, context, "accounting.accessibility", sourcePackage, traceId,
-            !isDetailPage, settings.isLiveCapsuleEnabled, publishFeedback)
-    }
-
-    override suspend fun analyzeAutomaticPaymentMessage(sourcePackage: String, payload: String, receivedAt: Long,
-        settings: MySettings, traceId: String): AnalysisResult<List<RecognitionDraft>> {
-        if (!automaticAccountingEnabled()) return AnalysisResult.Empty("自动记账已关闭")
-        val bills = com.antgskds.calendarassistant.feature.accounting.domain.PaymentMessageParser.parse(sourcePackage, payload, receivedAt)
-        if (bills.isEmpty()) return AnalysisResult.Empty("未匹配已完成支付消息")
-        kotlinx.coroutines.currentCoroutineContext().ensureActive()
-        if (!automaticAccountingEnabled()) return AnalysisResult.Empty("自动记账已关闭")
-        return ingestBills(AnalysisResult.Success(emptyList(), bills = bills), "accounting.xposed", sourcePackage,
-            traceId, false, settings.isLiveCapsuleEnabled)
-    }
     override suspend fun parseUserText(
         text: String,
         settings: MySettings,
@@ -162,7 +105,7 @@ class RecognitionOrchestrator(
                 "textLength=${text.length} configReady=${settings.isTextRecognitionConfigReady()} " +
                 "mode=${settings.recognitionMode} ingest=$ingestRequested"
         )
-        val result = ingestBills(RecognitionTextNode.analyzeTextEvents(text, settings, context), sourceType, sourceId, traceId, true, settings.isLiveCapsuleEnabled)
+        val result = RecognitionTextNode.analyzeTextEvents(text, settings, context)
         logResult("analyzeTextEvents", traceId, sourceType, sourceId, result)
         when (result) {
             is AnalysisResult.Success -> {
@@ -217,8 +160,7 @@ class RecognitionOrchestrator(
                 "size=${bitmap.width}x${bitmap.height} configReady=${settings.isRecognitionConfigReady()} " +
                 "multimodal=true ingest=$ingestRequested"
         )
-        val result = ingestImageBills(RecognitionMultimodalNode.analyzeImage(bitmap, settings, context), bitmap, context,
-            sourceType, sourceId, traceId, false, settings.isLiveCapsuleEnabled)
+        val result = RecognitionMultimodalNode.analyzeImage(bitmap, settings, context)
         logResult("analyzeImage", traceId, sourceType, sourceId, result)
         when (result) {
             is AnalysisResult.Success -> {
@@ -270,80 +212,6 @@ class RecognitionOrchestrator(
             }
         }
         return result
-    }
-
-    /** 只为识别到账单的图片留存独立副本，日程附件删除不会影响账单原图。 */
-    private suspend fun ingestImageBills(
-        result: AnalysisResult<List<RecognitionDraft>>, bitmap: Bitmap, context: Context,
-        sourceType: String, sourceId: String, traceId: String, useCurrentTimeForMissing: Boolean, liveEnabled: Boolean,
-        publishFeedback: Boolean = true,
-    ): AnalysisResult<List<RecognitionDraft>> {
-        if (result !is AnalysisResult.Success || result.bills.isEmpty()) return result
-        val image = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val directory = java.io.File(context.filesDir, "accounting_images").apply { mkdirs() }
-            java.io.File(directory, "${java.util.UUID.randomUUID()}.jpg").also { file ->
-                try {
-                    file.outputStream().use { output -> check(bitmap.compress(Bitmap.CompressFormat.JPEG, 80, output)) }
-                } catch (e: Exception) { file.delete(); throw e }
-            }
-        }
-        val outcome = ingestBills(result, sourceType, sourceId, traceId, useCurrentTimeForMissing, liveEnabled, image.absolutePath, publishFeedback)
-        val saved = (outcome as? AnalysisResult.Success)?.accountingResult
-        if (saved != null && saved.saved.isEmpty() && saved.pending == 0 && saved.suspectedDuplicates == 0) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { image.delete() }
-        }
-        return outcome
-    }
-
-    private suspend fun ingestBills(
-        result: AnalysisResult<List<RecognitionDraft>>, sourceType: String, sourceId: String, traceId: String,
-        useCurrentTimeForMissing: Boolean, liveEnabled: Boolean, sourceImagePath: String? = null, publishFeedback: Boolean = true,
-    ): AnalysisResult<List<RecognitionDraft>> {
-        if (result !is AnalysisResult.Success || result.bills.isEmpty()) return result
-        val drafts = result.bills.mapIndexed { index, draft ->
-            draft.copy(id = java.util.UUID.nameUUIDFromBytes("$traceId:bill:$index".toByteArray()).toString(),
-                sourceType = sourceType, sourceId = sourceId, sourceImagePath = sourceImagePath)
-        }
-        val accounting = try {
-            ingestProvider().ingestRecognizedBills(drafts, useCurrentTimeForMissing)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.e(RECOGNITION_LOG_TAG, "账单入库失败", e)
-            if (result.data.isEmpty()) return AnalysisResult.Failure(
-                com.antgskds.calendarassistant.feature.recognition.application.ai.AnalysisFailure("账单保存失败", "本次账单未能入库，请重试"))
-            return result.copy(bills = emptyList(), billIssues = result.billIssues + "账单未能入库，请重试；日程继续保存")
-        }
-        if (!publishFeedback) return result.copy(bills = drafts, accountingResult = accounting)
-        // 事务完成后才展示成功金额；胶囊与普通通知均使用同一份实际入库汇总。
-        try {
-            val display = com.antgskds.calendarassistant.shared.management.resource.notification.display.live.template.AccountingRecognitionDisplay.create(accounting)
-            if (liveEnabled) {
-                capsuleProvider().showAccountingResult(display)
-            } else {
-            val key = com.antgskds.calendarassistant.feature.notification.model.NotificationKey("accounting:recognition")
-            notificationApi.create(com.antgskds.calendarassistant.feature.notification.model.NotificationRequest(
-                key = key,
-                kind = com.antgskds.calendarassistant.feature.notification.model.NotificationKind.RECOGNITION_STATUS,
-                route = com.antgskds.calendarassistant.feature.notification.model.NotificationRoute.NORMAL,
-                display = com.antgskds.calendarassistant.feature.notification.model.NotificationDisplaySnapshot(
-                    shortText = display.shortText, primaryText = display.primaryText, secondaryText = display.expandedText,
-                    expandedText = display.expandedText,
-                ),
-                tapTarget = com.antgskds.calendarassistant.feature.notification.model.NotificationTapTarget(
-                    com.antgskds.calendarassistant.feature.notification.model.NotificationTapTargetType.APP_HOME,
-                    mapOf("open_accounting" to "true")),
-                source = "accounting_recognition",
-                behavior = com.antgskds.calendarassistant.feature.notification.model.NotificationBehavior(
-                    onlyAlertOnce = false, priority = com.antgskds.calendarassistant.feature.notification.model.NotificationPriority.HIGH),
-            ))
-            notificationApi.trigger(com.antgskds.calendarassistant.feature.notification.model.NotificationTrigger.ByKey(key,
-                com.antgskds.calendarassistant.feature.notification.model.NotificationTriggerReason.USER_ACTION))
-            }
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.w(RECOGNITION_LOG_TAG, "账单处理完成，结果反馈发布失败", e)
-        }
-        return result.copy(bills = drafts, accountingResult = accounting)
     }
 
     private fun logResult(

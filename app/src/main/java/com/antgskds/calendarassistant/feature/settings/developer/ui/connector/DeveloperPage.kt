@@ -105,7 +105,6 @@ fun DeveloperPage(
             is DeveloperUiAction.SetSimulateRoot -> settingsViewModel.updatePreference(
                 developerSimulateRootEnabled = action.enabled,
             )
-            is DeveloperUiAction.SetCourseModule -> settingsViewModel.setCourseModuleEnabled(action.enabled)
             is DeveloperUiAction.SetAgendaOnlyScheduled -> settingsViewModel.setHomeAgendaOnlyScheduled(action.enabled)
             is DeveloperUiAction.SetDemoMode -> settingsViewModel.setDemoModeEnabled(action.enabled)
             is DeveloperUiAction.SetQuickMemoPinnedFixedTitle -> {
@@ -226,7 +225,6 @@ fun MaterialDeveloperScreen(
                 "create-dev-train",
                 "create-dev-flight",
                 "create-dev-taxi",
-                "create-dev-course",
                 "create-soon",
                 "create-missed",
                 "test-imported-restore"
@@ -299,7 +297,6 @@ fun MaterialDeveloperScreen(
                     "test-live-double-action",
                     "test-plain-schedule",
                     "test-plain-pickup",
-                    "test-plain-course",
                     "test-daily-today",
                     "test-daily-tomorrow",
                     "test-new-chain-preview"
@@ -446,7 +443,7 @@ fun MaterialDeveloperScreen(
             SettingsCard {
                 SwitchSettingItem(
                     title = "演示模式",
-                    subtitle = "使用本地只读示例数据展示日程、课表、随口记、记账和天气；不写入数据库，不同步，也不发送通知",
+                    subtitle = "使用本地只读示例数据展示日程、随口记和天气；不写入数据库，不同步，也不发送通知",
                     checked = settings.developerDemoModeEnabled,
                     onCheckedChange = { onAction(DeveloperUiAction.SetDemoMode(it)) },
                     cardTitleStyle = cardTitleStyle,
@@ -456,18 +453,9 @@ fun MaterialDeveloperScreen(
 
             Text(text = "页面功能", style = sectionTitleStyle)
             SettingsCard {
-                SwitchSettingItem(
-                    title = "启用课表功能",
-                    subtitle = "关闭后隐藏课表和课程入口、暂停课程提醒，保留课程数据和下滑偏好",
-                    checked = settings.courseModuleEnabled,
-                    onCheckedChange = { onAction(DeveloperUiAction.SetCourseModule(it)) },
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle,
-                )
-                RowDivider()
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("日程视图显示模式", style = cardTitleStyle)
-                    Text("仅影响今日页日程列表；仅日程不显示空日期或只有账单的日期", style = cardSubtitleStyle)
+                    Text("仅影响今日页日程列表；仅日程不显示空日期", style = cardSubtitleStyle)
                     com.antgskds.calendarassistant.shared.ui.material.component.AppSegmentedControl(
                         options = listOf(false, true),
                         selectedOption = settings.homeAgendaOnlyScheduled,
@@ -631,7 +619,7 @@ fun MaterialDeveloperScreen(
             SettingsCard {
                 ActionSettingItem(
                     title = "创建测试日程",
-                    subtitle = "普通、重复、取件/取餐/取票/寄件、列车、航班、打车、课程和专项测试",
+                    subtitle = "普通、重复、取件/取餐/取票/寄件、列车、航班、打车和专项测试",
                     value = "",
                     icon = Icons.Default.ChevronRight,
                     enabled = createScheduleActions.isNotEmpty(),

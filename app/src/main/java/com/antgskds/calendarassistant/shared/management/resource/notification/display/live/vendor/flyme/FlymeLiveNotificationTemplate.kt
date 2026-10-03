@@ -117,9 +117,6 @@ object FlymeLiveNotificationTemplate {
                     RuleMatchingEngine.RULE_FLIGHT -> R.drawable.ic_stat_flight
                     RuleMatchingEngine.RULE_TICKET -> R.drawable.ic_stat_ticket
                     RuleMatchingEngine.RULE_SENDER -> R.drawable.ic_stat_sender
-                    RuleMatchingEngine.RULE_COURSE,
-                    EventTags.COURSE,
-                    "__removed_course__" -> R.drawable.ic_stat_course
                     RuleMatchingEngine.RULE_GENERAL,
                     EventTags.GENERAL -> R.drawable.ic_stat_event
                     else -> R.drawable.ic_stat_event

@@ -203,7 +203,6 @@ fun MaterialSettingsDetailScreen(
                         isDarkMode = state.isDarkMode,
                         glassMode = state.backgroundEnabled,
                         hasAppUpdate = state.hasAppUpdate,
-                        courseModuleEnabled = state.courseModuleEnabled,
                         reserveFloatingBarSpace = false,
                         selectedDestination = selectedDestination,
                         onThemeToggle = { isDark ->
@@ -229,7 +228,6 @@ fun MaterialSettingsDetailScreen(
                         isDarkMode = state.isDarkMode,
                         glassMode = state.backgroundEnabled,
                         hasAppUpdate = state.hasAppUpdate,
-                        courseModuleEnabled = state.courseModuleEnabled,
                         selectedDestination = selectedDestination,
                         onThemeToggle = { isDark ->
                             onAction(SettingsDetailUiAction.SetDarkMode(isDark))
@@ -267,7 +265,6 @@ private fun MaterialSettingsPage(
     }
     val scrollWholePage = destination == SettingsDestination.About || destination == SettingsDestination.AppUpdate
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    var showClearCoursesConfirm by rememberSaveable(route) { mutableStateOf(false) }
     var showClearArchivesConfirm by rememberSaveable(route) { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -288,15 +285,6 @@ private fun MaterialSettingsPage(
                     )
                 }
                 val actionsContent: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
-                    if (destination == SettingsDestination.CourseManage && state.courseCount > 0) {
-                        IconButton(onClick = { showClearCoursesConfirm = true }) {
-                            Icon(
-                                Icons.Default.DeleteSweep,
-                                contentDescription = "清空课程",
-                                modifier = Modifier.size(28.dp),
-                            )
-                        }
-                    }
                     if (destination == SettingsDestination.Archives && state.archiveCount > 0) {
                         IconButton(
                             onClick = {
@@ -323,23 +311,6 @@ private fun MaterialSettingsPage(
         ) {
             content()
         }
-
-        PredictiveFloatingActionCard(
-            visible = showClearCoursesConfirm,
-            title = "确认清空",
-            content = "此操作将删除当前 ${state.courseCount} 门课程。\n删除后将无法恢复。",
-            confirmText = "删除",
-            dismissText = "取消",
-            isDestructive = true,
-            isLoading = false,
-            predictiveBackEnabled = state.confirmationPredictiveBackEnabled,
-            onConfirm = {
-                showClearCoursesConfirm = false
-                onAction(SettingsDetailUiAction.ClearCourses)
-            },
-            onDismiss = { showClearCoursesConfirm = false },
-            modifier = Modifier.padding(bottom = bottomInset),
-        )
 
         PredictiveFloatingActionCard(
             visible = showClearArchivesConfirm,

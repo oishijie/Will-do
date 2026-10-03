@@ -11,11 +11,9 @@ class WidgetInstanceConfigStore(context: Context) {
         val storedType = WidgetType.fromStorageKey(prefs.getString(prefix + KEY_TYPE, null)) ?: fallbackType
         val themeMode = prefs.getInt(prefix + KEY_THEME_MODE, defaultAppearance(fallbackType, settings).themeMode)
         val alpha = prefs.getFloat(prefix + KEY_ALPHA, defaultAppearance(fallbackType, settings).backgroundAlpha)
-        val courseSegment = CourseWidgetSegment.fromStorageKey(prefs.getString(prefix + KEY_COURSE_SEGMENT, null))
         return WidgetInstanceConfig(
             type = storedType,
-            appearance = WidgetAppearanceConfig(themeMode, alpha).normalized(),
-            courseSegment = courseSegment
+            appearance = WidgetAppearanceConfig(themeMode, alpha).normalized()
         )
     }
 
@@ -27,7 +25,6 @@ class WidgetInstanceConfigStore(context: Context) {
                 .putString(prefix + KEY_TYPE, type.storageKey)
                 .putInt(prefix + KEY_THEME_MODE, appearance.themeMode)
                 .putFloat(prefix + KEY_ALPHA, appearance.backgroundAlpha)
-                .putString(prefix + KEY_COURSE_SEGMENT, CourseWidgetSegment.MORNING.storageKey)
                 .apply()
             return WidgetInstanceConfig(type, appearance)
         }
@@ -41,7 +38,6 @@ class WidgetInstanceConfigStore(context: Context) {
             .putString(prefix + KEY_TYPE, config.type.storageKey)
             .putInt(prefix + KEY_THEME_MODE, appearance.themeMode)
             .putFloat(prefix + KEY_ALPHA, appearance.backgroundAlpha)
-            .putString(prefix + KEY_COURSE_SEGMENT, config.courseSegment.storageKey)
                 .apply()
     }
 
@@ -60,7 +56,6 @@ class WidgetInstanceConfigStore(context: Context) {
             .remove(prefix + KEY_TYPE)
             .remove(prefix + KEY_THEME_MODE)
             .remove(prefix + KEY_ALPHA)
-            .remove(prefix + KEY_COURSE_SEGMENT)
             .apply()
     }
 
@@ -82,6 +77,5 @@ class WidgetInstanceConfigStore(context: Context) {
         const val KEY_TYPE = "type"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_ALPHA = "alpha"
-        const val KEY_COURSE_SEGMENT = "course_segment"
     }
 }

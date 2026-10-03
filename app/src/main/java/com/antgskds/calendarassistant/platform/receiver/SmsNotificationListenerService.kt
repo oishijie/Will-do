@@ -119,25 +119,7 @@ class SmsNotificationListenerService : NotificationListenerService() {
         // 跳过本应用和汇总通知，防止结果通知回流、把通知组累计金额当作单笔。
         if (pkg == context.packageName || sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         try {
-            if (AccountingMessageAccessPolicy.enabled(context)) {
-                val extras = sbn.notification.extras
-                val body = if (isSms) extractNotificationText(extras) else
-                    (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.takeIf { it.isNotBlank() }
-                        ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()
-                if (!body.isNullOrBlank()) {
-                    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-                    val messageBundle = extras.getParcelableArray("android.messages")?.lastOrNull() as? Bundle
-                    val time = if (isSms) messageBundle?.getLong("time")?.takeIf { it > 0 } else null
-                    val timestamp = time ?: sbn.notification.`when`.takeIf { it > 0 } ?: sbn.postTime
-                    (context as? App)?.accountingMessageCoordinator?.submit(
-                        com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessage(
-                            if (isSms) com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessageKind.SMS
-                            else com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessageKind.NOTIFICATION,
-                            if (isSms) title else pkg, body, timestamp, if (isSms) "" else title),
-                        if (isSms) "" else sbn.key)
-                }
-            }
-            // 旧取件逻辑独立于记账子开关。
+            // 取件短信逻辑。
             if (!isSms) return
             val settings = SettingsDataSource(context).loadSettings()
             if (!settings.isSmsMonitoringEnabled) return

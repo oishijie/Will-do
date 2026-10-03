@@ -1,14 +1,6 @@
 package com.antgskds.calendarassistant.shared.api
 
 import android.Manifest
-import com.antgskds.calendarassistant.shared.operation.AgentBill
-import com.antgskds.calendarassistant.shared.operation.AgentBillDraft
-import com.antgskds.calendarassistant.shared.operation.AgentBillPatch
-import com.antgskds.calendarassistant.shared.operation.AgentBillFilter
-import com.antgskds.calendarassistant.shared.operation.AgentBillQuery
-import com.antgskds.calendarassistant.shared.operation.AgentBillPage
-import com.antgskds.calendarassistant.shared.operation.AgentBillCreation
-import com.antgskds.calendarassistant.shared.operation.AgentBillSummary
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -30,8 +22,6 @@ import com.antgskds.calendarassistant.feature.schedule.domain.calendar.REMINDER_
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.STATE_CHECKED_IN
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.STATE_COMPLETED
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.STATE_PENDING
-import com.antgskds.calendarassistant.feature.schedule.domain.course.Course
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Attendee
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.EventAttachment
@@ -71,8 +61,6 @@ import com.antgskds.calendarassistant.shared.operation.AgentWeatherSnapshot
 import com.antgskds.calendarassistant.shared.operation.AgentWebDavConnectionInput
 import com.antgskds.calendarassistant.shared.operation.AgentWebDavConnectionSummary
 import com.antgskds.calendarassistant.shared.operation.AgentAttendee
-import com.antgskds.calendarassistant.shared.operation.AgentCourse
-import com.antgskds.calendarassistant.shared.operation.AgentCourseDraft
 import com.antgskds.calendarassistant.shared.operation.AgentDataApi
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -116,7 +104,6 @@ class AgentDataService(
     private val weatherOperationApi: WeatherOperationApi,
     private val diagnosticLogExporter: DiagnosticLogExporter,
     private val backupCoordinator: BackupCoordinator,
-    private val accountingService: AgentAccountingService,
 ) : AgentDataApi {
     private val attachmentMutationMutex = Mutex()
 
@@ -135,30 +122,6 @@ class AgentDataService(
         Result.success(block())
     } catch (error: Throwable) {
         Result.failure(error)
-    }
-
-    override suspend fun createBill(draft: AgentBillDraft): Result<AgentBillCreation> = withPermissionCheck {
-        accountingService.create(draft)
-    }
-
-    override suspend fun getBill(id: String): Result<AgentBill> = withPermissionCheck {
-        accountingService.get(id)
-    }
-
-    override suspend fun queryBills(query: AgentBillQuery): Result<AgentBillPage> = withPermissionCheck {
-        accountingService.query(query)
-    }
-
-    override suspend fun updateBill(id: String, patch: AgentBillPatch): Result<AgentBill> = withPermissionCheck {
-        accountingService.update(id, patch)
-    }
-
-    override suspend fun deleteBill(id: String): Result<Unit> = withPermissionCheck {
-        accountingService.delete(id)
-    }
-
-    override suspend fun getBillSummary(filter: AgentBillFilter): Result<List<AgentBillSummary>> = withPermissionCheck {
-        accountingService.summary(filter)
     }
 
     override suspend fun createEvent(draft: AgentEventDraft): Result<Long> = withPermissionCheck {
@@ -328,48 +291,6 @@ class AgentDataService(
         val attachment = eventAttachmentManager.getAttachmentsByIds(listOf(attachmentId)).firstOrNull()
             ?: throw NoSuchElementException("Attachment $attachmentId not found")
         eventAttachmentManager.deleteAttachment(attachment)
-    }
-
-    override suspend fun createCourse(draft: AgentCourseDraft): Result<String> = withPermissionCheck {
-        createCourseInternal(draft)
-    }
-
-    override suspend fun batchCreateCourses(drafts: List<AgentCourseDraft>): Result<List<String>> = withPermissionCheck {
-        require(drafts.size <= WillDoAgentContract.MAX_BATCH_SIZE) { "Too many courses in one batch" }
-        drafts.forEach(::validateCourseDraft)
-        val created = mutableListOf<String>()
-        try {
-            drafts.forEach { created += createCourseInternal(it) }
-            created
-        } catch (error: Throwable) {
-            created.asReversed().forEach { id -> runCatching { deleteCourseInternal(id) } }
-            throw error
-        }
-    }
-
-    override suspend fun getCourse(id: String): Result<AgentCourse> = withPermissionCheck {
-        findCourse(id) ?: throw NoSuchElementException("Course $id not found")
-    }
-
-    override suspend fun queryCourses(dayOfWeek: Int?): Result<List<AgentCourse>> = withPermissionCheck {
-        require(dayOfWeek == null || dayOfWeek in 1..7) { "dayOfWeek must be 1..7" }
-        val settings = settingsQueryApi.settings.first()
-        CourseEventMapper.extractParentCourses(scheduleFacade.getLatestActiveEvents(), settings)
-            .filter { dayOfWeek == null || it.dayOfWeek == dayOfWeek }
-            .map(::courseToAgentCourse)
-    }
-
-    override suspend fun updateCourse(id: String, draft: AgentCourseDraft): Result<Unit> = withPermissionCheck {
-        validateCourseDraft(draft)
-        val allEvents = scheduleFacade.getLatestActiveEvents()
-        val existing = CourseEventMapper.findParentByCourseId(allEvents, id)
-            ?: throw NoSuchElementException("Course $id not found")
-        val settings = settingsQueryApi.settings.first()
-        scheduleFacade.updateEvent(CourseEventMapper.toParentEvent(draftToCourse(draft).copy(id = id), settings, existing))
-    }
-
-    override suspend fun deleteCourse(id: String): Result<Unit> = withPermissionCheck {
-        deleteCourseInternal(id)
     }
 
     override suspend fun createQuickMemo(draft: AgentQuickMemoDraft): Result<Long> = withPermissionCheck {
@@ -715,7 +636,6 @@ class AgentDataService(
             "isDailySummaryEnabled" to settings.isDailySummaryEnabled,
             "isAdvanceReminderEnabled" to settings.isAdvanceReminderEnabled,
             "advanceReminderMinutes" to settings.advanceReminderMinutes,
-            "courseFeatureEnabled" to settings.courseFeatureEnabled,
             "isDarkMode" to settings.isDarkMode,
             "themeMode" to settings.themeMode
         )
@@ -985,27 +905,6 @@ class AgentDataService(
         if (replaceAttachments) oldAttachments.forEach(eventAttachmentManager::deleteAttachment)
     }
 
-    private suspend fun createCourseInternal(draft: AgentCourseDraft): String {
-        validateCourseDraft(draft)
-        val settings = settingsQueryApi.settings.first()
-        val course = draftToCourse(draft)
-        val parent = CourseEventMapper.toParentEvent(course, settings)
-        scheduleFacade.addEvent(parent)
-        return CourseEventMapper.parseMeta(parent.description)?.uid ?: course.id
-    }
-
-    private suspend fun deleteCourseInternal(id: String) {
-        val parent = CourseEventMapper.findParentByCourseId(scheduleFacade.getLatestActiveEvents(), id)
-            ?: throw NoSuchElementException("Course $id not found")
-        scheduleFacade.deleteEvent(requireNotNull(parent.id))
-    }
-
-    private suspend fun findCourse(id: String): AgentCourse? {
-        val settings = settingsQueryApi.settings.first()
-        val parent = CourseEventMapper.findParentByCourseId(scheduleFacade.getLatestActiveEvents(), id) ?: return null
-        return CourseEventMapper.toCourse(parent, settings)?.let(::courseToAgentCourse)
-    }
-
     private fun validateEventDraft(draft: AgentEventDraft) {
         require(draft.title.isNotBlank()) { "Event title is required" }
         require(draft.startTs >= 0L && draft.endTs >= draft.startTs) { "Invalid event time range" }
@@ -1013,14 +912,6 @@ class AgentDataService(
         require(draft.reminderMinutes.all { it >= 0 }) { "Reminder minutes must be non-negative" }
         if (draft.timeZone.isNotBlank()) ZoneId.of(draft.timeZone)
         draft.attachments.forEach { validateContentUri(it.contentUri) }
-    }
-
-    private fun validateCourseDraft(draft: AgentCourseDraft) {
-        require(draft.name.isNotBlank()) { "Course name is required" }
-        require(draft.dayOfWeek in 1..7) { "dayOfWeek must be 1..7" }
-        require(draft.startNode >= 1 && draft.endNode >= draft.startNode) { "Invalid course node range" }
-        require(draft.startWeek >= 1 && draft.endWeek >= draft.startWeek) { "Invalid course week range" }
-        require(draft.weekType in 0..2) { "weekType must be 0, 1 or 2" }
     }
 
     private fun validateContentUri(value: String) {
@@ -1151,34 +1042,6 @@ class AgentDataService(
             validateQuickMemoReminderRRule(reminder.rrule)
         }
     }
-
-    private fun draftToCourse(draft: AgentCourseDraft): Course = Course(
-        id = "",
-        name = draft.name.trim(),
-        dayOfWeek = draft.dayOfWeek,
-        startNode = draft.startNode,
-        endNode = draft.endNode,
-        startWeek = draft.startWeek,
-        endWeek = draft.endWeek,
-        weekType = draft.weekType,
-        location = draft.location,
-        teacher = draft.teacher,
-        color = draft.color
-    )
-
-    private fun courseToAgentCourse(course: Course): AgentCourse = AgentCourse(
-        id = course.id,
-        name = course.name,
-        dayOfWeek = course.dayOfWeek,
-        startNode = course.startNode,
-        endNode = course.endNode,
-        startWeek = course.startWeek,
-        endWeek = course.endWeek,
-        weekType = course.weekType,
-        location = course.location,
-        teacher = course.teacher,
-        color = course.color
-    )
 
     private fun copyInputToQuickMemoStore(input: AgentFileInput, fallbackName: String): File {
         validateContentUri(input.contentUri)

@@ -4,19 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
 import com.antgskds.calendarassistant.shared.management.catalog.PageCatalog
 import com.antgskds.calendarassistant.app.ui.navigation.SettingsDestination
 import com.antgskds.calendarassistant.feature.appearance.ui.connector.ThemeSettingsPage
 import com.antgskds.calendarassistant.feature.backup.ui.connector.BackupSettingsPage
-import com.antgskds.calendarassistant.feature.home.ui.connector.BottomBarEditorPage
 import com.antgskds.calendarassistant.feature.recognition.ui.connector.AiSettingsPage
 import com.antgskds.calendarassistant.feature.recognition.ui.connector.RegexRuleEditorPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ArchivesPage
-import com.antgskds.calendarassistant.feature.schedule.ui.connector.CourseManagerScreen
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ScheduleColorSettingsPage
-import com.antgskds.calendarassistant.feature.schedule.ui.connector.ScheduleSettingsPage
-import com.antgskds.calendarassistant.feature.schedule.ui.connector.TimeTableEditorScreen
 import com.antgskds.calendarassistant.feature.settings.about.ui.connector.DonatePage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.ConfigEditorPage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.DeveloperPage
@@ -52,9 +47,6 @@ fun SettingsDetailRoute(
         PageCatalog.routeFor(initialDestination)
             ?: requireNotNull(PageCatalog.routeFor(SettingsDestination.Preference))
     }
-    val courseCount = remember(uiState.rawEvents, uiState.settings) {
-        CourseEventMapper.extractParentCourses(uiState.rawEvents, uiState.settings).size
-    }
     val archiveCount = remember(archivedEvents) {
         archivedEvents
             .filter { it.archivedAt != null }
@@ -66,7 +58,6 @@ fun SettingsDetailRoute(
         state = SettingsDetailUiState(
             initialRoute = initialRoute,
             uiSize = uiSize,
-            courseModuleEnabled = com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settings),
             backgroundEnabled = settings.appBackgroundImagePath.isNotBlank(),
             backgroundMiuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled,
             backgroundCardAlphaPercent = settings.appBackgroundCardAlphaPercent,
@@ -76,7 +67,6 @@ fun SettingsDetailRoute(
             hapticEnabled = uiState.settings.hapticFeedbackEnabled,
             navigationPredictiveBackEnabled = settings.predictiveBackEnabled,
             confirmationPredictiveBackEnabled = uiState.settings.predictiveBackEnabled,
-            courseCount = courseCount,
             archiveCount = archiveCount,
         ),
         onAction = { action ->
@@ -84,7 +74,6 @@ fun SettingsDetailRoute(
                 SettingsDetailUiAction.ExitSettings -> onExitSettings()
                 SettingsDetailUiAction.Logout -> onLogout()
                 is SettingsDetailUiAction.SetDarkMode -> settingsViewModel.updateDarkMode(action.isDark)
-                SettingsDetailUiAction.ClearCourses -> mainViewModel.clearAllCourses()
                 SettingsDetailUiAction.ClearArchives -> mainViewModel.clearAllArchives()
             }
         },
@@ -116,13 +105,6 @@ private fun SettingsPageRouteContent(
     onNavigateTo: (SettingsDestination) -> Unit,
     onNavigateRoute: (String) -> Unit,
 ) {
-    val currentSettings by settingsViewModel.settings.collectAsState()
-    if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(currentSettings) &&
-        destination in setOf(SettingsDestination.Schedule, SettingsDestination.SemesterConfig,
-            SettingsDestination.CourseManage, SettingsDestination.TimeTableManage)) {
-        androidx.compose.material3.Text("课表功能已关闭，可在开发者设置中重新开启")
-        return
-    }
     when (destination) {
         SettingsDestination.AI -> AiSettingsPage(
             viewModel = settingsViewModel,
@@ -136,24 +118,12 @@ private fun SettingsPageRouteContent(
             onOpenWeatherDetail = { onNavigateRoute(PageCatalog.weatherDetailPage.route) },
         )
 
-        SettingsDestination.Schedule,
-        SettingsDestination.SemesterConfig -> ScheduleSettingsPage(
-            viewModel = settingsViewModel,
-            onNavigateTo = onNavigateTo,
-            uiSize = uiSize,
-        )
 
-        SettingsDestination.CourseManage -> CourseManagerScreen(mainViewModel, settingsViewModel, uiSize)
-        SettingsDestination.TimeTableManage -> TimeTableEditorScreen(settingsViewModel, uiSize)
         SettingsDestination.Preference -> PreferenceSettingsPage(
             viewModel = settingsViewModel,
             uiSize = uiSize,
-            onNavigateToBottomBarEditor = { onNavigateTo(SettingsDestination.BottomBarEditor) },
             onNavigateToWidgetSettings = { onNavigateTo(SettingsDestination.WidgetSettings) },
             onNavigateToScheduleColors = { onNavigateTo(SettingsDestination.ScheduleColors) },
-            onNavigateToSemesterConfig = { onNavigateTo(SettingsDestination.SemesterConfig) },
-            onNavigateToCourseManage = { onNavigateTo(SettingsDestination.CourseManage) },
-            onNavigateToTimeTableManage = { onNavigateTo(SettingsDestination.TimeTableManage) },
         )
 
         SettingsDestination.ScheduleColors -> ScheduleColorSettingsPage(
@@ -192,10 +162,6 @@ private fun SettingsPageRouteContent(
             uiSize = uiSize,
         )
         SettingsDestination.RegexRuleEditor -> RegexRuleEditorPage(uiSize = uiSize)
-        SettingsDestination.BottomBarEditor -> BottomBarEditorPage(
-            settingsViewModel = settingsViewModel,
-            uiSize = uiSize,
-        )
 
         SettingsDestination.WidgetSettings -> WidgetSettingsPage(
             settingsViewModel = settingsViewModel,

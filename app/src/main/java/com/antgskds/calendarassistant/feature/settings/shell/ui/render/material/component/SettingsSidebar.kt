@@ -53,7 +53,6 @@ fun SettingsSidebar(
     isDarkMode: Boolean = false,
     glassMode: Boolean = false,
     hasAppUpdate: Boolean = false,
-    courseModuleEnabled: Boolean,
     reserveFloatingBarSpace: Boolean = true,
     selectedDestination: SettingsDestination? = null,
     onThemeToggle: (Boolean) -> Unit = {},
@@ -173,9 +172,6 @@ fun SettingsSidebar(
                 onAbout = { onNavigate(SettingsDestination.About) },
                 onAppUpdate = { onNavigate(SettingsDestination.AppUpdate) }
             )
-
-            // 第二块：课表管理卡片
-            if (courseModuleEnabled) SidebarScheduleCard(glassMode, selectedDestination, onNavigate)
 
             // 第三块：其他设置卡片
             SidebarOtherSettingsCard(glassMode, selectedDestination, onNavigate)
@@ -315,43 +311,6 @@ private fun SidebarActionItem(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-}
-
-// 第二块：课表管理卡片
-@Composable
-private fun SidebarScheduleCard(
-    glassMode: Boolean,
-    selectedDestination: SettingsDestination?,
-    onNavigate: (SettingsDestination) -> Unit,
-) {
-    SidebarGlassCard(glassMode = glassMode) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            // 课表管理
-            SidebarActionItem(
-                icon = Icons.Default.TableChart,
-                title = "课表管理",
-                subtitle = "管理课程信息",
-                selected = selectedDestination == SettingsDestination.CourseManage,
-                onClick = { onNavigate(SettingsDestination.CourseManage) }
-            )
-            // 作息表管理
-            SidebarActionItem(
-                icon = Icons.Default.Schedule,
-                title = "作息表管理",
-                subtitle = "设置上课时间",
-                selected = selectedDestination == SettingsDestination.TimeTableManage,
-                onClick = { onNavigate(SettingsDestination.TimeTableManage) }
-            )
-            // 学期配置
-            SidebarActionItem(
-                icon = Icons.Default.DateRange,
-                title = "学期配置",
-                subtitle = "设置学期时间",
-                selected = selectedDestination == SettingsDestination.SemesterConfig,
-                onClick = { onNavigate(SettingsDestination.SemesterConfig) }
             )
         }
     }

@@ -7,9 +7,6 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.antgskds.calendarassistant.feature.accounting.data.AccountingEntry
-import com.antgskds.calendarassistant.feature.accounting.data.AccountingDao
-import com.antgskds.calendarassistant.feature.accounting.data.AccountingDraft
 import com.antgskds.calendarassistant.feature.schedule.data.db.dao.EventAttachmentsDao
 import com.antgskds.calendarassistant.feature.schedule.data.db.dao.EventTypesDao
 import com.antgskds.calendarassistant.feature.schedule.data.db.dao.EventsDao
@@ -33,8 +30,6 @@ import java.util.concurrent.Executors
 
 @Database(
     entities = [
-        AccountingEntry::class,
-        AccountingDraft::class,
         Event::class,
         EventType::class,
         EventAttachment::class,
@@ -48,13 +43,12 @@ import java.util.concurrent.Executors
         SyncV2PeerEntity::class,
         SyncV2MetaEntity::class
     ],
-    version = 20,
+    version = 22,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class EventsDatabase : RoomDatabase() {
 
-    abstract fun accountingDao(): AccountingDao
     abstract fun eventsDao(): EventsDao
     abstract fun eventTypesDao(): EventTypesDao
     abstract fun eventAttachmentsDao(): EventAttachmentsDao
@@ -72,7 +66,7 @@ abstract class EventsDatabase : RoomDatabase() {
                     context.applicationContext,
                     EventsDatabase::class.java,
                     "events.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_17, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20).addCallback(object : Callback() {
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_17, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22).addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
                         insertRegularEventType(context)
@@ -90,6 +84,23 @@ abstract class EventsDatabase : RoomDatabase() {
                     color = 0xFF3F51B5.toInt()
                 )
                 database.eventTypesDao().insertOrUpdate(defaultType)
+            }
+        }
+
+        // 记账功能已下线：删除账单与草稿表（索引随表删除），用户历史账单不可恢复。
+        // 旧版本 15→21 的迁移仍保留，以便老库能连续升级到 22；记账表会在本迁移中统一丢弃。
+        internal val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS accounting_entries")
+                db.execSQL("DROP TABLE IF EXISTS accounting_drafts")
+            }
+        }
+
+        // 课表功能已下线：删除历史课程事件父/子行（含旧版遗留标记）。
+        // 附件通过 event_attachments 的 ON DELETE CASCADE 一并清理；系统日历与云端备份不在本迁移内处理。
+        internal val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM events WHERE tag IN ('course', '__removed_course__')")
             }
         }
 

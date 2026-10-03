@@ -6,8 +6,6 @@ import com.antgskds.calendarassistant.feature.settings.data.model.FloatingEntryS
 import com.antgskds.calendarassistant.feature.settings.data.model.LiveNotificationTemplateMode
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.settings.data.model.QuickMemoRecordingDisplayMode
-import com.antgskds.calendarassistant.feature.home.domain.sanitizeHomeBottomItems
-import com.antgskds.calendarassistant.feature.home.domain.sanitizeHomeStartPageKey
 
 class LocalSettingsTransformApi : SettingsTransformApi {
     override fun applyPreferenceUpdate(
@@ -67,11 +65,8 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         developerOptionsEnabled: Boolean?,
         developerOptionsDisabledAtMillis: Long?,
         developerSimulateRootEnabled: Boolean?,
-        homeBottomItems: List<String>?,
-        homeStartPageKey: String?,
         weatherLocationStabilityRequiredHits: Int?,
-        liveNotificationTemplateMode: String?,
-        courseFeatureEnabled: Boolean?
+        liveNotificationTemplateMode: String?
     ): MySettings {
         var updated = current
         if (showTomorrow != null) updated = updated.copy(showTomorrowEvents = showTomorrow)
@@ -170,21 +165,14 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         if (developerOptionsEnabled != null) updated = updated.copy(developerOptionsEnabled = developerOptionsEnabled)
         if (developerOptionsDisabledAtMillis != null) updated = updated.copy(developerOptionsDisabledAtMillis = developerOptionsDisabledAtMillis)
         if (developerSimulateRootEnabled != null) updated = updated.copy(developerSimulateRootEnabled = developerSimulateRootEnabled)
-        if (homeBottomItems != null) updated = updated.copy(homeBottomItems = homeBottomItems)
-        if (homeStartPageKey != null) updated = updated.copy(homeStartPageKey = homeStartPageKey)
         if (weatherLocationStabilityRequiredHits != null) {
             updated = updated.copy(weatherLocationStabilityRequiredHits = weatherLocationStabilityRequiredHits.coerceIn(1, 3))
         }
         if (liveNotificationTemplateMode != null) {
             updated = updated.copy(liveNotificationTemplateMode = LiveNotificationTemplateMode.normalize(liveNotificationTemplateMode))
         }
-        if (courseFeatureEnabled != null) updated = updated.copy(courseFeatureEnabled = courseFeatureEnabled)
 
-        val sanitizedBottomItems = sanitizeHomeBottomItems(updated.homeBottomItems)
-        val sanitizedStartPage = sanitizeHomeStartPageKey(updated.homeStartPageKey, sanitizedBottomItems)
         return updated.copy(
-            homeBottomItems = sanitizedBottomItems,
-            homeStartPageKey = sanitizedStartPage,
             volumeUpLongPressAction = updated.volumeUpLongPressAction.coerceIn(1, 3)
         )
     }

@@ -10,7 +10,6 @@ import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.schedule.domain.model.isCheckedIn
 import com.antgskds.calendarassistant.feature.schedule.domain.model.isCompleted
-import com.antgskds.calendarassistant.feature.schedule.domain.model.isCourse
 import com.antgskds.calendarassistant.feature.schedule.domain.model.isRetiredNoteTag
 import com.antgskds.calendarassistant.feature.schedule.domain.model.isTransit
 import com.antgskds.calendarassistant.feature.schedule.domain.model.RecurringMode
@@ -471,7 +470,6 @@ class ScheduleFacade(
      * train/flight → checkIn, 其他 → complete。
      */
     fun performPrimaryActionOnItem(item: ScheduleDisplayItem) {
-        if (item.tag == EventTags.COURSE) return
         if (item.isTransit) {
             checkInItem(item.action)
         } else {
@@ -488,12 +486,10 @@ class ScheduleFacade(
         appScope.launch(Dispatchers.IO) {
             val changedId = when (target) {
                 is ActionTarget.Single -> {
-                    if (calendarCenter.getEvent(target.eventId)?.isCourse == true) return@launch
                     val result = calendarCenter.completeEvent(target.eventId)
                     (result as? OperationResult.Success<Long>)?.data
                 }
                 is ActionTarget.RecurringOccurrence -> {
-                    if (calendarCenter.getEvent(target.parentId)?.isCourse == true) return@launch
                     val result = calendarCenter.completeEvent(target.parentId, target.occurrenceTs)
                     (result as? OperationResult.Success<Long>)?.data
                 }
@@ -541,7 +537,6 @@ class ScheduleFacade(
     }
 
     fun performPrimaryActionOnItemWithUndo(item: ScheduleDisplayItem) {
-        if (item.tag == EventTags.COURSE) return
         if (_pendingItemStates.value.containsKey(item.stableKey)) {
             undoStatusAction()
             return
@@ -582,7 +577,6 @@ class ScheduleFacade(
     }
 
     private suspend fun submitStateItemWithUndo(item: ScheduleDisplayItem, targetState: Int, labelPrefix: String) {
-        if (item.tag == EventTags.COURSE) return
         val snapshotBefore = captureStateUndoSnapshot(item) ?: return
         val changedId = applyItemState(item.action, targetState) ?: return
         notifyBraceletScheduleUpdate(changedId)
@@ -619,7 +613,6 @@ class ScheduleFacade(
         return when (val target = item.action) {
             is ActionTarget.Single -> {
                 val event = calendarCenter.getEvent(target.eventId) ?: return null
-                if (event.isCourse) return null
                 StateUndoSnapshot(
                     action = target,
                     itemStableKey = item.stableKey,
@@ -628,7 +621,6 @@ class ScheduleFacade(
             }
             is ActionTarget.RecurringOccurrence -> {
                 val parent = calendarCenter.getEvent(target.parentId) ?: return null
-                if (parent.isCourse) return null
                 val existingChild = calendarCenter.getEvents().firstOrNull {
                     it.parentId == target.parentId && it.startTS == target.occurrenceTs && !it.isRecurring
                 }
@@ -645,7 +637,6 @@ class ScheduleFacade(
     private fun applyItemState(target: ActionTarget, targetState: Int): Long? {
         val result = when (target) {
             is ActionTarget.Single -> {
-                if (calendarCenter.getEvent(target.eventId)?.isCourse == true) return null
                 when (targetState) {
                     STATE_COMPLETED -> calendarCenter.completeEvent(target.eventId)
                     STATE_CHECKED_IN -> calendarCenter.checkInEvent(target.eventId)
@@ -654,7 +645,6 @@ class ScheduleFacade(
                 }
             }
             is ActionTarget.RecurringOccurrence -> {
-                if (calendarCenter.getEvent(target.parentId)?.isCourse == true) return null
                 when (targetState) {
                     STATE_COMPLETED -> calendarCenter.completeEvent(target.parentId, target.occurrenceTs)
                     STATE_CHECKED_IN -> calendarCenter.checkInEvent(target.parentId, target.occurrenceTs)

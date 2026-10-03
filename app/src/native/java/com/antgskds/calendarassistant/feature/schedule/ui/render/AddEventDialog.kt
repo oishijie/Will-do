@@ -21,7 +21,6 @@ fun AddEventDialog(
     onOpenAttachment: (EventAttachment) -> Unit = {},
     onDeleteAttachment: (EventAttachment) -> Unit = {},
     onShowMessage: (String) -> Unit = {},
-    onSwitchType: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onConfirm: (EventPatch) -> Unit
 ) {
@@ -37,7 +36,6 @@ fun AddEventDialog(
         onOpenAttachment = onOpenAttachment,
         onDeleteAttachment = onDeleteAttachment,
         onShowMessage = onShowMessage,
-        onSwitchType = onSwitchType,
         onDismiss = onDismiss,
         onConfirm = onConfirm
     )

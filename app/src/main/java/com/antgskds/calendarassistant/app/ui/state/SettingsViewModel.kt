@@ -16,11 +16,8 @@ import com.antgskds.calendarassistant.feature.cloudsync.domain.WebDavConnectionT
 import com.antgskds.calendarassistant.feature.settings.diagnostics.application.DiagnosticLogExporter
 import com.antgskds.calendarassistant.feature.schedule.data.maintenance.DuplicateEventCleaner
 import com.antgskds.calendarassistant.feature.schedule.data.maintenance.DuplicateEventCleanupResult
-import com.antgskds.calendarassistant.feature.backup.courseimport.ParsedCourseImport
 import com.antgskds.calendarassistant.feature.schedule.application.ScheduleFacade
 import com.antgskds.calendarassistant.feature.schedule.application.sync.CalendarSyncService
-import com.antgskds.calendarassistant.feature.backup.courseimport.ImportMode
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
 import com.antgskds.calendarassistant.shared.operation.SettingsOperationApi
 import com.antgskds.calendarassistant.feature.note.data.migration.LegacyNoteMigrator
 import com.antgskds.calendarassistant.feature.note.data.migration.LegacyNoteMigrationResult
@@ -117,59 +114,7 @@ class SettingsViewModel(
         )
     }
 
-    // 更新学期开始日期
-    fun updateSemesterStartDate(date: String) {
-        viewModelScope.launch {
-            settingsOperationApi.updateSettings(settings.value.copy(semesterStartDate = date))
-        }
-    }
-
-    // 更新总周数
-    fun updateTotalWeeks(weeks: Int) {
-        viewModelScope.launch {
-            settingsOperationApi.updateSettings(settings.value.copy(totalWeeks = weeks))
-        }
-    }
-
-    // 更新作息时间 JSON
-    fun updateTimeTable(json: String, configJson: String? = null) {
-        viewModelScope.launch {
-            val current = settings.value
-            val updated = if (configJson != null) {
-                current.copy(timeTableJson = json, timeTableConfigJson = configJson)
-            } else {
-                current.copy(timeTableJson = json)
-            }
-            settingsOperationApi.updateSettings(updated)
-            remapCourseEventsForSettings(updated)
-        }
-    }
-
-    fun updateTimeTableConfig(json: String) {
-        viewModelScope.launch {
-            settingsOperationApi.updateSettings(settings.value.copy(timeTableConfigJson = json))
-        }
-    }
-
     // 更新偏好设置（支持单独更新某一项）
-    fun updateAccountingMessages(enabled: Boolean) {
-        viewModelScope.launch {
-            val allowed = !enabled || (settings.value.automaticAccountingEnabled &&
-                com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy.permissionsGranted(appContext))
-            if (!allowed) return@launch
-            settingsOperationApi.updateSettings(settings.value.copy(accountingMessagesEnabled = enabled))
-            (appContext.applicationContext as? com.antgskds.calendarassistant.App)?.refreshSmsObserver()
-            if (enabled) com.antgskds.calendarassistant.platform.receiver.SmsNotificationListenerService.rebind(appContext)
-        }
-    }
-
-    fun updateAutomaticAccounting(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsOperationApi.updateSettings(settings.value.copy(automaticAccountingEnabled = enabled,
-                accountingMessagesEnabled = enabled && settings.value.accountingMessagesEnabled))
-            (appContext.applicationContext as? com.antgskds.calendarassistant.App)?.refreshSmsObserver()
-        }
-    }
 
     // 【修改】增加了 pickupAggregation、advanceReminder 和 autoArchive 参数
     fun updatePreference(
@@ -228,11 +173,8 @@ class SettingsViewModel(
         developerOptionsEnabled: Boolean? = null,
         developerOptionsDisabledAtMillis: Long? = null,
         developerSimulateRootEnabled: Boolean? = null,
-        homeBottomItems: List<String>? = null,
-        homeStartPageKey: String? = null,
         weatherLocationStabilityRequiredHits: Int? = null,
-        liveNotificationTemplateMode: String? = null,
-        courseFeatureEnabled: Boolean? = null
+        liveNotificationTemplateMode: String? = null
     ) {
         viewModelScope.launch {
             val updated = settingsTransformApi.applyPreferenceUpdate(
@@ -292,11 +234,8 @@ class SettingsViewModel(
                 developerOptionsEnabled = developerOptionsEnabled,
                 developerOptionsDisabledAtMillis = developerOptionsDisabledAtMillis,
                 developerSimulateRootEnabled = developerSimulateRootEnabled,
-                homeBottomItems = homeBottomItems,
-                homeStartPageKey = homeStartPageKey,
                 weatherLocationStabilityRequiredHits = weatherLocationStabilityRequiredHits,
-                liveNotificationTemplateMode = liveNotificationTemplateMode,
-                courseFeatureEnabled = courseFeatureEnabled
+                liveNotificationTemplateMode = liveNotificationTemplateMode
             )
             settingsOperationApi.updateSettings(updated)
         }
@@ -436,10 +375,6 @@ class SettingsViewModel(
 
     fun setAutoRecordLogs(enabled: Boolean) = viewModelScope.launch {
         settingsOperationApi.updateSettings(settings.value.copy(autoRecordLogs = enabled))
-    }
-
-    fun setCourseModuleEnabled(enabled: Boolean) = viewModelScope.launch {
-        settingsOperationApi.updateSettings(settings.value.copy(courseModuleEnabled = enabled))
     }
 
     fun setHomeAgendaOnlyScheduled(enabled: Boolean) = viewModelScope.launch {
@@ -816,14 +751,6 @@ class SettingsViewModel(
 
     // --- 导出/导入功能 ---
 
-    suspend fun exportCoursesData(): String {
-        return backupCenter.exportCoursesData()
-    }
-
-    suspend fun importCoursesData(jsonString: String): Result<Unit> {
-        return backupCenter.importCoursesData(jsonString)
-    }
-
     suspend fun exportEventsData(): String {
         return backupCenter.exportEventsData()
     }
@@ -856,101 +783,12 @@ class SettingsViewModel(
     fun getTotalEventsCount(): Int = scheduleCenter.getTotalEventsCount()
     fun getAttachmentCount(): Int = backupCenter.getAttachmentCount()
     fun estimateAttachmentBytes(): Long = backupCenter.estimateAttachmentBytes()
-    fun getCoursesCount(): Int = CourseEventMapper.extractParentCourses(
-        scheduleCenter.events.value,
-        settingsQueryApi.settings.value
-    ).size
-
-    private suspend fun remapCourseEventsForSettings(updatedSettings: MySettings) {
-        val events = scheduleCenter.events.value
-        val courseParents = events.filter { CourseEventMapper.isCourseParent(it) }
-        if (courseParents.isEmpty()) return
-
-        courseParents.forEach { parent ->
-            val parentId = parent.id ?: return@forEach
-            val course = CourseEventMapper.toCourse(parent, updatedSettings) ?: return@forEach
-            val detachedWeeks = events
-                .filter { it.parentId == parentId && CourseEventMapper.isCourseEvent(it) }
-                .mapNotNull { child -> CourseEventMapper.childOriginalWeek(child, updatedSettings) }
-                .distinct()
-            val detachedOccurrenceTs = detachedWeeks.mapNotNull { week ->
-                CourseEventMapper.occurrenceTsForWeek(course, updatedSettings, week)
-            }
-            val rebasedParent = CourseEventMapper.toParentEvent(
-                course = course,
-                settings = updatedSettings,
-                existingParent = parent.copy(exdates = emptyList()),
-                additionalExcludedOccurrenceTs = detachedOccurrenceTs
-            )
-            if (rebasedParent.startTS != parent.startTS ||
-                rebasedParent.endTS != parent.endTS ||
-                rebasedParent.exdates != parent.exdates
-            ) {
-                scheduleCenter.updateEvent(rebasedParent)
-            }
-        }
-
-        events.filter { CourseEventMapper.isCourseException(it) }.forEach { child ->
-            val meta = CourseEventMapper.parseMeta(child.description) ?: return@forEach
-            val actualDate = Instant.ofEpochSecond(child.startTS)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
-            val (startTs, endTs) = CourseEventMapper.mapNodesToEpochRange(
-                settings = updatedSettings,
-                date = actualDate,
-                startNode = meta.startNode,
-                endNode = meta.endNode
-            )
-            if (startTs != child.startTS || endTs != child.endTS) {
-                scheduleCenter.updateEvent(child.copy(startTS = startTs, endTS = endTs))
-            }
-        }
-    }
 
     fun hasDuplicateAdvanceReminder(minutes: Int): Boolean {
         return scheduleInsightsQueryApi.hasDuplicateAdvanceReminder(
             events = scheduleCenter.events.value,
             minutes = minutes
         )
-    }
-
-    /**
-     * 导入外部课表文件（WakeUp 格式）
-     * @param content 文件内容
-     * @param mode 导入模式（追加/覆盖）
-     * @param importSettings 是否导入设置（开学日期、总周数）
-     * @param callback 导入完成回调，返回成功导入的课程数量
-     */
-    fun importWakeUpFile(
-        content: String,
-        mode: ImportMode,
-        importSettings: Boolean,
-        callback: suspend (Result<Int>) -> Unit
-    ) {
-        viewModelScope.launch {
-            val result = backupCenter.importWakeUpFile(content, mode, importSettings)
-            callback(result)
-        }
-    }
-
-    suspend fun parseExternalCourseImport(content: String): Result<ParsedCourseImport> {
-        return backupCenter.parseExternalCourseImport(content)
-    }
-
-    suspend fun fetchWakeUpShareImport(shareText: String): Result<ParsedCourseImport> {
-        return backupCenter.fetchWakeUpShareImport(shareText)
-    }
-
-    fun importParsedCourseImport(
-        parsed: ParsedCourseImport,
-        mode: ImportMode,
-        importSettings: Boolean,
-        callback: suspend (Result<Int>) -> Unit
-    ) {
-        viewModelScope.launch {
-            val result = backupCenter.importParsedCourseImport(parsed, mode, importSettings)
-            callback(result)
-        }
     }
 
     // ==================== 日历同步相关 ====================

@@ -1,9 +1,5 @@
 package com.antgskds.calendarassistant
 
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.component.SettingsSidebar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,19 +24,6 @@ class SettingsNavigationRegressionTest {
     @Test fun phoneCanReturnToInitialPreferencePage() = navigateBackToPreference(false)
     @Test fun tabletCanReturnToInitialPreferencePage() = navigateBackToPreference(true)
 
-    @Test fun sidebarRemovesCourseBlockImmediatelyWhenDisabled() {
-        var enabled by mutableStateOf(true)
-        compose.setContent {
-            MaterialTheme { SettingsSidebar(courseModuleEnabled = enabled, reserveFloatingBarSpace = false) }
-        }
-        compose.onNodeWithText("课表管理").assertExists()
-        compose.runOnIdle { enabled = false }
-        compose.onNodeWithText("课表管理").assertDoesNotExist()
-        compose.onNodeWithText("学期配置").assertDoesNotExist()
-        compose.runOnIdle { enabled = true }
-        compose.onNodeWithText("课表管理").assertExists()
-    }
-
     private fun navigateBackToPreference(tablet: Boolean) {
         var initialNavigation: ((SettingsDestination) -> Unit)? = null
         compose.setContent {
@@ -56,7 +39,7 @@ class SettingsNavigationRegressionTest {
                             backgroundCardAlphaPercent = 100, pageHasAppBackground = false,
                             isDarkMode = false, hasAppUpdate = false, hapticEnabled = false,
                             navigationPredictiveBackEnabled = true, confirmationPredictiveBackEnabled = true,
-                            courseCount = 0, archiveCount = 0,
+                            archiveCount = 0,
                         ),
                         onAction = {},
                     ) { _, destination, onNavigate, _ ->

@@ -36,15 +36,7 @@ class PageCatalogTest {
     }
 
     @Test
-    fun `resolves legacy aliases and safe fallback`() {
-        assertEquals(
-            SettingsDestination.CourseManage,
-            PageCatalog.resolveDestination("course_manager"),
-        )
-        assertEquals(
-            SettingsDestination.TimeTableManage,
-            PageCatalog.resolveDestination("timetable_editor"),
-        )
+    fun `resolves destination names and safe fallback`() {
         assertEquals(
             SettingsDestination.Weather,
             PageCatalog.resolveDestination(SettingsDestination.Weather.name),

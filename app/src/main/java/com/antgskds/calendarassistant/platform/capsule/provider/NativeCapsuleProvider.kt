@@ -86,9 +86,6 @@ class NativeCapsuleProvider : ICapsuleProvider {
             addAction(builder, context, item.id, action, index)
         }
 
-        if (item.eventType == "accounting_recognition" && item.type == CapsuleType.OCR_RESULT) {
-            builder.setTimeoutAfter((item.endMillis - System.currentTimeMillis()).coerceAtLeast(1L))
-        }
         if (item.type == CapsuleType.QUICK_MEMO_REMINDER) {
             builder.setCategory(Notification.CATEGORY_REMINDER)
                 .setTimeoutAfter((item.endMillis - System.currentTimeMillis()).coerceAtLeast(1L))
@@ -113,8 +110,6 @@ class NativeCapsuleProvider : ICapsuleProvider {
                 putExtra(MainActivity.EXTRA_OPEN_QUICK_MEMO_ID, tapQuickMemoId)
             } else if (item.type == CapsuleType.WEATHER_ALERT) {
                 putExtra(WidgetActions.EXTRA_WIDGET_ACTION, WidgetActions.ACTION_OPEN_WEATHER)
-            } else if (item.display.tapOpensAccounting) {
-                putExtra("open_accounting", "true")
             } else if (item.display.tapOpensPickupList) {
                 putExtra("openPickupList", true)
             }

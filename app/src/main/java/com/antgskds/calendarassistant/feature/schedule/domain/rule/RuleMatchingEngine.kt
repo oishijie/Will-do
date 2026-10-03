@@ -15,7 +15,6 @@ object RuleMatchingEngine {
     const val RULE_FLIGHT = "flight"
     const val RULE_TICKET = "ticket"
     const val RULE_SENDER = "sender"
-    const val RULE_COURSE = "course"
 
     data class RulePayload(
         val ruleId: String,
@@ -32,7 +31,6 @@ object RuleMatchingEngine {
             EventTags.FLIGHT -> RULE_FLIGHT
             EventTags.TICKET -> RULE_TICKET
             EventTags.SENDER -> RULE_SENDER
-            EventTags.COURSE -> RULE_COURSE
             else -> null
         }
         return resolvePayload(event.description, fallbackRuleId)

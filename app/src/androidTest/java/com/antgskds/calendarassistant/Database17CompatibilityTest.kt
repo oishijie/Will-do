@@ -10,23 +10,24 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.UUID
 
-/** 使用独立测试数据库，验证覆盖升级、数据保留与第二次打开；不操作应用的 events.db。 */
+/** 使用独立测试数据库，验证覆盖升级、数据保留与第二次打开；不操作应用的 events.db。
+ *  记账功能已下线：各旧版本升级到 22 后记账表统一删除，便签等非记账数据完整保留。 */
 @RunWith(AndroidJUnit4::class)
 class Database17CompatibilityTest {
     @Test
-    fun version15CreatesEmptyAccountingTableAndKeepsNotes() = verifyUpgrade(15)
+    fun version15UpgradesAndDropsAccountingTablesKeepingNotes() = verifyUpgrade(15)
 
     @Test
-    fun version16KeepsAccountingRowsAndNotes() = verifyUpgrade(16)
+    fun version16UpgradesAndDropsAccountingTablesKeepingNotes() = verifyUpgrade(16)
 
     @Test
-    fun version17AddsDraftsAndKeepsAccountingRows() = verifyUpgrade(17)
+    fun version17UpgradesAndDropsAccountingTablesKeepingNotes() = verifyUpgrade(17)
 
     @Test
-    fun version18PreservesDraftsAndMarksOldTransactionTypesUnknown() = verifyUpgrade(18)
+    fun version18UpgradesAndDropsAccountingTablesKeepingNotes() = verifyUpgrade(18)
 
     @Test
-    fun version19AddsNullableScreenshotsWithoutChangingBillsOrDrafts() = verifyUpgrade(19)
+    fun version19UpgradesAndDropsAccountingTablesKeepingNotes() = verifyUpgrade(19)
 
     private fun verifyUpgrade(oldVersion: Int) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -35,7 +36,12 @@ class Database17CompatibilityTest {
             val builder = Room.databaseBuilder(context, EventsDatabase::class.java, name)
                 .allowMainThreadQueries()
             if (withMigrations) {
-                builder.addMigrations(EventsDatabase.MIGRATION_15_17, EventsDatabase.MIGRATION_16_17, EventsDatabase.MIGRATION_17_18, EventsDatabase.MIGRATION_18_19, EventsDatabase.MIGRATION_19_20)
+                builder.addMigrations(
+                    EventsDatabase.MIGRATION_15_17, EventsDatabase.MIGRATION_16_17,
+                    EventsDatabase.MIGRATION_17_18, EventsDatabase.MIGRATION_18_19,
+                    EventsDatabase.MIGRATION_19_20, EventsDatabase.MIGRATION_20_21,
+                    EventsDatabase.MIGRATION_21_22
+                )
             }
             return builder.build()
         }
@@ -77,34 +83,21 @@ class Database17CompatibilityTest {
                 val upgraded = openDatabase(withMigrations = true)
                 try {
                     val db = upgraded.openHelper.writableDatabase
-                    assertEquals(20, db.version)
-                    db.query("SELECT COUNT(*) FROM accounting_drafts").use { cursor ->
-                        assertTrue(cursor.moveToFirst()); assertEquals(if (oldVersion >= 18) 1 else 0, cursor.getInt(0))
+                    assertEquals(22, db.version)
+                    // 记账功能已下线：迁移到 22 时账单与草稿表被统一删除，
+                    // 旧版本遗留的记账行不再保留；便签等非记账数据必须完整保留。
+                    for (dropped in listOf("accounting_entries", "accounting_drafts")) {
+                        assertEquals(
+                            0,
+                            db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(dropped)).use { c ->
+                                c.moveToFirst(); c.getInt(0)
+                            }
+                        )
                     }
                     db.query("SELECT title, plain_text FROM notes WHERE id = 1").use { cursor ->
                         assertTrue(cursor.moveToFirst())
                         assertEquals("keep-note", cursor.getString(0))
                         assertEquals("keep-body", cursor.getString(1))
-                    }
-                    db.query("SELECT COUNT(*) FROM accounting_entries").use { cursor ->
-                        assertTrue(cursor.moveToFirst())
-                        assertEquals(if (oldVersion >= 16) 1 else 0, cursor.getInt(0))
-                    }
-                    if (oldVersion >= 16) {
-                        db.query("SELECT amountMinor, transactionIdType, sourceImagePath FROM accounting_entries WHERE id = 'keep-entry'").use { cursor ->
-                            assertTrue(cursor.moveToFirst())
-                            assertEquals(1234L, cursor.getLong(0))
-                            assertEquals("UNKNOWN", cursor.getString(1))
-                            assertTrue(cursor.isNull(2))
-                        }
-                    }
-                    if (oldVersion >= 18) {
-                        db.query("SELECT transactionId, transactionIdType, sourceImagePath FROM accounting_drafts WHERE id = 'keep-draft'").use { cursor ->
-                            assertTrue(cursor.moveToFirst())
-                            assertEquals("old-id", cursor.getString(0))
-                            assertEquals("UNKNOWN", cursor.getString(1))
-                            assertTrue(cursor.isNull(2))
-                        }
                     }
                 } finally {
                     upgraded.close()

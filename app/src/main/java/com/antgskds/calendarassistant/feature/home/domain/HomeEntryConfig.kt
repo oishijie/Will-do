@@ -1,52 +1,30 @@
 package com.antgskds.calendarassistant.feature.home.domain
 
 object HomeEntryKey {
-    const val SIDEBAR = "menu"
     const val TODAY = "today"
     const val ALL = "all"
     const val NOTE = "note"
     const val SETTINGS = "settings"
 }
 
-fun sanitizeHomeBottomItems(raw: List<String>): List<String> {
-    val allowed = setOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE)
+/** 常驻底栏的固定入口顺序：今日日程 / 全部日程 / 随口记 / 设置。 */
+val fixedHomeBottomItems: List<String> =
+    listOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE, HomeEntryKey.SETTINGS)
 
-    val cleaned = raw
-        .map { it.trim().lowercase() }
-        .filter { it in allowed }
-        .distinct()
-        .take(3)
+/** 宽屏 NavigationRail 的日程页入口（不含设置，Rail 有独立设置路由）。 */
+val railHomeItems: List<String> =
+    listOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE)
 
-    if (cleaned.isNotEmpty()) return cleaned
-
-    return listOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE)
-}
-
-fun visibleHomeBottomItems(raw: List<String>, quickMemoEnabled: Boolean): List<String> {
-    val sanitized = sanitizeHomeBottomItems(raw)
-    val visible = if (quickMemoEnabled) {
-        sanitized
-    } else {
-        sanitized.filterNot { it == HomeEntryKey.NOTE }
-    }
-    return visible.ifEmpty { listOf(HomeEntryKey.TODAY) }
-}
-
-fun isHomeEntryAvailable(key: String, quickMemoEnabled: Boolean): Boolean {
-    return key != HomeEntryKey.NOTE || quickMemoEnabled
-}
-
-fun sanitizeHomeStartPageKey(raw: String, bottomItems: List<String>): String {
-    val normalized = raw.trim().lowercase()
-    return if (normalized in bottomItems) normalized else bottomItems.firstOrNull() ?: HomeEntryKey.TODAY
-}
+/** 首页内容区支持滑动切换的页面（设置不参与横滑）。 */
+val swipeableHomeItems: List<String> =
+    listOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE)
 
 fun homeEntryLabel(key: String): String {
     return when (key) {
-        HomeEntryKey.SIDEBAR -> "侧边栏"
         HomeEntryKey.TODAY -> "今日日程"
         HomeEntryKey.ALL -> "全部日程"
         HomeEntryKey.NOTE -> "随口记"
+        HomeEntryKey.SETTINGS -> "设置"
         else -> key
     }
 }

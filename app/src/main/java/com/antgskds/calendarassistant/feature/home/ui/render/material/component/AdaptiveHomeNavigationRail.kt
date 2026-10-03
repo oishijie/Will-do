@@ -17,7 +17,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuOpen
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.WbSunny
@@ -52,7 +51,6 @@ import com.antgskds.calendarassistant.feature.home.domain.HomeEntryKey
 fun AdaptiveHomeNavigationRail(
     navItems: List<String>,
     selectedPageKey: String,
-    accountingSelected: Boolean = false,
     weatherSelected: Boolean = false,
     settingsSelected: Boolean = false,
     expanded: Boolean,
@@ -61,7 +59,6 @@ fun AdaptiveHomeNavigationRail(
     miuiBlurEnabled: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onPageClick: (String) -> Unit,
-    onAccountingClick: () -> Unit,
     onWeatherClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -109,7 +106,7 @@ fun AdaptiveHomeNavigationRail(
                 val item = adaptiveRailItem(pageKey) ?: return@forEach
                 AdaptivePrimaryNavigationItem(
                     label = item.label,
-                    selected = !settingsSelected && !accountingSelected && !weatherSelected && selectedPageKey == pageKey,
+                    selected = !settingsSelected && !weatherSelected && selectedPageKey == pageKey,
                     expanded = expanded,
                     onClick = { onPageClick(pageKey) },
                     icon = {
@@ -122,13 +119,6 @@ fun AdaptiveHomeNavigationRail(
                 )
             }
 
-            AdaptivePrimaryNavigationItem(
-                label = "记账",
-                selected = accountingSelected,
-                expanded = expanded,
-                onClick = onAccountingClick,
-                icon = { Icon(Icons.Outlined.AccountBalanceWallet, null, Modifier.size(26.dp)) },
-            )
             AdaptivePrimaryNavigationItem(
                 label = "天气",
                 selected = weatherSelected,

@@ -205,23 +205,6 @@ class NotificationOrchestrator(
             Log.i("WillDoNotify", "quick memo dispatch result key=${key.value} result=$result")
             return result
         }
-        val accountingRoute = com.antgskds.calendarassistant.feature.notification.policy.AccountingRecognitionNotificationPolicy
-            .route(snapshot.kind, snapshot.key, liveCapsuleEnabled)
-        if (accountingRoute != null) {
-            // 每笔记账主动发布自己的胶囊，不能落入“胶囊另行负责”的旧日程门控。
-            if (accountingRoute == NotificationRoute.NORMAL) livePublisherProvider()?.cancel(key)
-            Log.i("WillDoNotify", "accounting dispatch key=${key.value} route=$accountingRoute")
-            return publishSnapshot(snapshot.copy(route = accountingRoute))
-        }
-        val courseSettings = (appContext as? App)?.settingsQueryApi?.settings?.value
-        if (courseSettings != null && !com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allowsReminder(
-                snapshot.metadata["tag"].orEmpty(),
-                (snapshot.metadata["startTS"]?.toLongOrNull() ?: 0L) * 1000L - (snapshot.offsetMinutes ?: 0) * 60_000L,
-                courseSettings,
-            )) {
-            cancel(key)
-            return NotificationResult.Success(key, NotificationState.CANCELLED)
-        }
         // 其余提醒沿用现有胶囊与手环门控；随口记已在上方完成真实分流发布。
         if (liveCapsuleEnabled && !braceletModeEnabled) {
             Log.d("WillDoNotify", "fire key=${key.value} -> SUPPRESSED_CAPSULE")

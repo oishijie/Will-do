@@ -103,12 +103,7 @@ class SettingsDataSource(context: Context) {
             isLiveCapsuleEnabled = prefs.getBoolean("live_capsule_enabled", true),
 
             // 新字段，旧数据中不存在，使用默认值
-            isPickupAggregationEnabled = false,
-
-            semesterStartDate = prefs.getString("semester_start_date", "") ?: "",
-            totalWeeks = prefs.getInt("semester_total_weeks", 20),
-            timeTableJson = prefs.getString("time_table_json", "") ?: "",
-            timeTableConfigJson = prefs.getString("time_table_config_json", "") ?: ""
+            isPickupAggregationEnabled = false
         )
     }
 }

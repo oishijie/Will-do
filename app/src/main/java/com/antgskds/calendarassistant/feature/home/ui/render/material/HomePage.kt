@@ -1,6 +1,5 @@
 package com.antgskds.calendarassistant.feature.home.ui.render.material
 
-import com.antgskds.calendarassistant.feature.accounting.ui.AccountingSummaryHeader
 import com.antgskds.calendarassistant.shared.ui.material.component.AppPageScaffold
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
@@ -143,15 +142,12 @@ import com.antgskds.calendarassistant.shared.ui.material.component.rememberAppWi
 fun MaterialHomePage(
     state: HomePageUiState,
     onAction: (HomePageUiAction) -> Unit,
-    scheduleContent: @Composable () -> Unit,
     allEventsContent: @Composable (String, Dp) -> Unit,
     quickMemoContent: @Composable (String, Dp) -> Unit,
     currentPageKey: String,
     pageOrder: List<String>,
     uiSize: Int = 2,
     pickupTimestamp: Long = 0L,
-    openCourseRequestId: Long = 0L,
-    courseFeatureEnabled: Boolean = true,
     isActionExpanded: Boolean = false,
     onActionExpandedChange: (Boolean) -> Unit = {},
     searchRequestId: Int = 0,
@@ -161,7 +157,6 @@ fun MaterialHomePage(
     isTwoPane: Boolean = false,
     onPageChange: (String) -> Unit = {},
     onAddEventClick: () -> Unit = {},
-    onAddCourseClick: () -> Unit = {},
     onEditItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestClearQuickMemos: () -> Unit = {},
@@ -170,7 +165,6 @@ fun MaterialHomePage(
     onScheduleProgressChange: (Float) -> Unit = {},
     onScheduleOffsetChange: (Float) -> Unit = {},
     onOpenWeatherDetail: () -> Unit = {},
-    onOpenAccounting: (java.time.LocalDate, Boolean) -> Unit = { _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -336,7 +330,6 @@ fun MaterialHomePage(
 
     // --- 1. 手势与动画状态 ---
     val offsetY = remember { Animatable(0f) }
-    var lastHandledOpenCourseRequestId by rememberSaveable { mutableLongStateOf(0L) }
     val maxOffsetPx = with(LocalDensity.current) { 600.dp.toPx() }
 
     // 触发阈值：约 100dp
@@ -345,50 +338,20 @@ fun MaterialHomePage(
     // 提升 listState，用于精确判断列表是否到达顶部
     val listState = rememberLazyListState()
 
-    val courseModuleEnabled = com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(state.settings)
-    val progress = if (courseModuleEnabled) (offsetY.value / maxOffsetPx).coerceIn(0f, 1f) else 0f
-    LaunchedEffect(courseModuleEnabled) {
-        if (!courseModuleEnabled && calendarViewMode == HomeCalendarViewMode.COURSE) {
-            calendarViewName = HomeCalendarViewMode.WEEK.name
-        }
-    }
-    LaunchedEffect(courseModuleEnabled) {
-        if (!courseModuleEnabled && offsetY.value != 0f) {
-            offsetY.snapTo(0f)
-        }
-    }
+    val progress = (offsetY.value / maxOffsetPx).coerceIn(0f, 1f)
 
-    LaunchedEffect(openCourseRequestId, courseModuleEnabled) {
-        if (
-            openCourseRequestId > 0L &&
-            openCourseRequestId != lastHandledOpenCourseRequestId
-        ) {
-            lastHandledOpenCourseRequestId = openCourseRequestId
-            if (!courseModuleEnabled) return@LaunchedEffect
-            if (isTwoPane) {
-                calendarViewName = HomeCalendarViewMode.COURSE.name
-                return@LaunchedEffect
-            }
-            offsetY.animateTo(
-                targetValue = maxOffsetPx,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow)
-            )
-        }
-    }
-
-    LaunchedEffect(offsetY.value, courseModuleEnabled) {
-        onScheduleExpandedChange(courseModuleEnabled && offsetY.value > 0)
+    LaunchedEffect(offsetY.value) {
+        onScheduleExpandedChange(offsetY.value > 0)
         onScheduleProgressChange(progress)
-        onScheduleOffsetChange(if (courseModuleEnabled) offsetY.value else 0f)
+        onScheduleOffsetChange(offsetY.value)
     }
 
     // === 核心修改：NestedScrollConnection ===
-    val nestedScrollConnection = remember(currentPageKey, courseFeatureEnabled, courseModuleEnabled, calendarViewMode, todaySearchQuery.isNotBlank()) {
+    val nestedScrollConnection = remember(currentPageKey, calendarViewMode, todaySearchQuery.isNotBlank()) {
         object : NestedScrollConnection {
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (isTwoPane) return Offset.Zero
-                if (!courseModuleEnabled || (!courseFeatureEnabled && offsetY.value == 0f)) return Offset.Zero
                 if (offsetY.value > 0f) {
                     val newOffset = (offsetY.value + available.y).coerceIn(0f, maxOffsetPx)
                     if (newOffset != offsetY.value) {
@@ -401,7 +364,6 @@ fun MaterialHomePage(
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (isTwoPane) return Offset.Zero
-                if (!courseModuleEnabled || (!courseFeatureEnabled && offsetY.value == 0f)) return Offset.Zero
                 if (!isTodayPage) return Offset.Zero
                 if (calendarViewMode == HomeCalendarViewMode.AGENDA || todaySearchQuery.isNotBlank()) return Offset.Zero
 
@@ -418,7 +380,6 @@ fun MaterialHomePage(
 
             // === 关键修改：分区域判断意图 ===
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (!courseModuleEnabled || (!courseFeatureEnabled && offsetY.value == 0f)) return Velocity.Zero
                 if (offsetY.value > 0f) {
                     val target = when {
                         // 1. 速度优先 (降低阈值到 300f，轻轻一划就能触发)
@@ -451,7 +412,6 @@ fun MaterialHomePage(
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                if (!courseModuleEnabled || (!courseFeatureEnabled && offsetY.value == 0f)) return Velocity.Zero
                 if (offsetY.value > 0f) {
                     // 同步 onPreFling 的逻辑，确保双重保险
                     val target = if (offsetY.value < (maxOffsetPx / 2)) {
@@ -521,39 +481,36 @@ fun MaterialHomePage(
             .fillMaxSize()
             .nestedScroll(nestedScrollConnection)
     ) {
-        // === 背景层：课程表视图 ===
+        // === 背景层：下拉展开区（原课表视图位置，内容待定）===
         if (!isTwoPane) Box(
             modifier = Modifier
                 .matchParentSize()
                 .padding(top = 50.dp)
-                // 处理在课表区域直接触摸滑动的逻辑
+                // 处理在下拉展开区直接触摸滑动的逻辑
                 .draggable(
                     state = rememberDraggableState { delta ->
-                        if (courseModuleEnabled && offsetY.value > 0) {
+                        if (offsetY.value > 0) {
                             val newOffset = (offsetY.value + delta).coerceIn(0f, maxOffsetPx)
                             scope.launch { offsetY.snapTo(newOffset) }
                         }
                     },
-                    enabled = courseModuleEnabled,
+                    enabled = true,
                     orientation = Orientation.Vertical,
                     onDragStopped = { velocity ->
-                        if (courseModuleEnabled) {
-                            // === 关键修改：Draggable 的松手逻辑同步 ===
-                            val target = when {
-                                velocity > 300f -> maxOffsetPx
-                                velocity < -300f -> 0f
-                                // 慢速松手判断：
-                                offsetY.value < (maxOffsetPx / 2) -> {
-                                    if (offsetY.value > snapThresholdPx) maxOffsetPx else 0f
-                                }
-                                else -> {
-                                    if (offsetY.value < (maxOffsetPx - snapThresholdPx)) 0f else maxOffsetPx
-                                }
+                        val target = when {
+                            velocity > 300f -> maxOffsetPx
+                            velocity < -300f -> 0f
+                            // 慢速松手判断：
+                            offsetY.value < (maxOffsetPx / 2) -> {
+                                if (offsetY.value > snapThresholdPx) maxOffsetPx else 0f
                             }
+                            else -> {
+                                if (offsetY.value < (maxOffsetPx - snapThresholdPx)) 0f else maxOffsetPx
+                            }
+                        }
 
-                            scope.launch {
-                                offsetY.animateTo(target, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                            }
+                        scope.launch {
+                            offsetY.animateTo(target, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                         }
                     }
                 )
@@ -562,11 +519,7 @@ fun MaterialHomePage(
                     scaleX = 0.9f + (0.1f * progress)
                     scaleY = 0.9f + (0.1f * progress)
                 }
-        ) {
-
-            scheduleContent()
-
-        }
+        )
 
         // === 前景层：日程列表 + Scaffold ===
         Box(
@@ -647,7 +600,7 @@ fun MaterialHomePage(
                                 menuContentColor = calendarMenuContentColor,
                                 onCreate = {
                                     haptics.click()
-                                    if (isTwoPane && calendarViewMode == HomeCalendarViewMode.COURSE) onAddCourseClick() else onAddEventClick()
+                                    onAddEventClick()
                                 },
                                 onSearch = {
                                     haptics.click()
@@ -739,7 +692,6 @@ fun MaterialHomePage(
                                 haptics.click()
                                 onOpenWeatherDetail()
                             },
-                            onOpenAccounting = onOpenAccounting,
                             onOpenAccessibilitySettings = {
                                 context.startActivity(
                                     Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
@@ -758,7 +710,6 @@ fun MaterialHomePage(
                             onAction = onAction,
                             onEditItem = onEditItem,
                             onRequestDeleteItem = onRequestDeleteItem,
-                            scheduleContent = scheduleContent,
                             onCalendarViewModeChange = { mode -> calendarViewName = mode.name },
                         )
                     } else if (animatedIsAllPage) {
@@ -782,7 +733,6 @@ fun MaterialHomePage(
                                         },
                                         onEditItem = onEditItem,
                                         onOpenWeatherDetail = {},
-                                        scheduleContent = scheduleContent,
                                     )
                                 },
                             )
@@ -858,7 +808,7 @@ fun MaterialHomePage(
                     },
                     onCreate = {
                         isWideActionMenuExpanded = false
-                        if (isTwoPane && calendarViewMode == HomeCalendarViewMode.COURSE) onAddCourseClick() else onAddEventClick()
+                        onAddEventClick()
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -928,13 +878,11 @@ internal fun HomeCalendarContent(
     notificationEnabled: Boolean,
     onSelectDate: (LocalDate) -> Unit,
     onOpenWeatherDetail: () -> Unit,
-    onOpenAccounting: (LocalDate, Boolean) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onAction: (HomePageUiAction) -> Unit,
     onEditItem: (ScheduleDisplayItem) -> Unit,
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit,
-    scheduleContent: @Composable () -> Unit,
     onCalendarViewModeChange: (HomeCalendarViewMode) -> Unit,
 ) {
     if (!isTwoPane) {
@@ -957,8 +905,6 @@ internal fun HomeCalendarContent(
                 onOpenNotificationSettings = onOpenNotificationSettings,
             )
             homeAgendaItems(
-                showAccounting = true,
-                onOpenAccounting = onOpenAccounting,
                 state = state,
                 todayEvents = todayEvents,
                 tomorrowEvents = tomorrowEvents,
@@ -990,17 +936,15 @@ internal fun HomeCalendarContent(
                     onOpenNotificationSettings = onOpenNotificationSettings,
                 )
                 homeAgendaItems(
-                    showAccounting = false,
-                    onOpenAccounting = onOpenAccounting,
-                    state = state,
-                    todayEvents = todayEvents,
-                    tomorrowEvents = tomorrowEvents,
-                    searchQuery = searchQuery,
-                    uiSize = uiSize,
-                    onAction = onAction,
-                    onEditItem = onEditItem,
-                    onRequestDeleteItem = onRequestDeleteItem,
-                )
+                state = state,
+                todayEvents = todayEvents,
+                tomorrowEvents = tomorrowEvents,
+                searchQuery = searchQuery,
+                uiSize = uiSize,
+                onAction = onAction,
+                onEditItem = onEditItem,
+                onRequestDeleteItem = onRequestDeleteItem,
+            )
             }
         },
         secondary = {
@@ -1011,7 +955,6 @@ internal fun HomeCalendarContent(
                 onSelectDate = onSelectDate,
                 onEditItem = onEditItem,
                 onOpenWeatherDetail = onOpenWeatherDetail,
-                scheduleContent = scheduleContent,
             )
         },
     )
@@ -1071,8 +1014,6 @@ private fun LazyListScope.homePermissionItems(
 
 private fun LazyListScope.homeAgendaItems(
     state: HomePageUiState,
-    showAccounting: Boolean,
-    onOpenAccounting: (LocalDate, Boolean) -> Unit,
     todayEvents: List<ScheduleDisplayItem>,
     tomorrowEvents: List<ScheduleDisplayItem>,
     searchQuery: String,
@@ -1081,22 +1022,6 @@ private fun LazyListScope.homeAgendaItems(
     onEditItem: (ScheduleDisplayItem) -> Unit,
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit,
 ) {
-    if (showAccounting) item {
-        AccountingSummaryHeader(
-            date = state.selectedDate,
-            onOpen = onOpenAccounting,
-            title = if (state.selectedDate == state.today) {
-                "今日安排"
-            } else {
-                "${state.selectedDate.monthValue}月${state.selectedDate.dayOfMonth}日 安排"
-            },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-            titleFontWeight = FontWeight.ExtraBold,
-            summaryFontWeight = FontWeight.ExtraBold,
-            hapticEnabled = state.settings.hapticFeedbackEnabled,
-        )
-    }
-
     if (todayEvents.isEmpty()) {
         item {
             Text(
@@ -1213,7 +1138,6 @@ private fun RowScope.HomeTopBarActions(
                             HomeCalendarViewMode.WEEK -> Icons.Outlined.CalendarViewWeek
                             HomeCalendarViewMode.MONTH -> Icons.Outlined.CalendarViewMonth
                             HomeCalendarViewMode.AGENDA -> Icons.Outlined.ViewTimeline
-                            HomeCalendarViewMode.COURSE -> Icons.Default.TableChart
                         },
                         onClick = { onSelectCalendarMode(mode) },
                     )
@@ -1317,12 +1241,11 @@ private fun HomeWideCalendarWorkspace(
     onSelectDate: (LocalDate) -> Unit,
     onEditItem: (ScheduleDisplayItem) -> Unit,
     onOpenWeatherDetail: () -> Unit,
-    scheduleContent: @Composable () -> Unit,
 ) {
     fun movePeriod(direction: Long) {
         val nextDate = when (viewMode) {
             HomeCalendarViewMode.MONTH -> state.selectedDate.plusMonths(direction)
-            HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> state.selectedDate.plusWeeks(direction)
+            HomeCalendarViewMode.WEEK -> state.selectedDate.plusWeeks(direction)
             HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> state.selectedDate.plusDays(direction)
         }
         onSelectDate(nextDate)
@@ -1358,7 +1281,6 @@ private fun HomeWideCalendarWorkspace(
             }
         }
         HomeWideTimeModeSelector(
-            courseEnabled = com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(state.settings),
             selected = viewMode,
             onSelected = onViewModeChange,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -1387,19 +1309,15 @@ private fun HomeWideCalendarWorkspace(
                     )
                 },
         ) {
-            if (viewMode == HomeCalendarViewMode.COURSE) {
-                scheduleContent()
-            } else {
-                HomeCalendarCard(
-                    state = state,
-                    viewMode = viewMode,
-                    wide = true,
-                    modifier = Modifier.fillMaxSize(),
-                    onSelectDate = onSelectDate,
-                    onEditItem = onEditItem,
-                    onOpenWeatherDetail = onOpenWeatherDetail,
-                )
-            }
+            HomeCalendarCard(
+                state = state,
+                viewMode = viewMode,
+                wide = true,
+                modifier = Modifier.fillMaxSize(),
+                onSelectDate = onSelectDate,
+                onEditItem = onEditItem,
+                onOpenWeatherDetail = onOpenWeatherDetail,
+            )
         }
     }    }
 
@@ -1427,20 +1345,18 @@ private fun calendarWorkspacePeriodText(
 
 @Composable
 private fun HomeWideTimeModeSelector(
-    courseEnabled: Boolean = true,
     selected: HomeCalendarViewMode,
     onSelected: (HomeCalendarViewMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AppSegmentedControl(
-        options = HomeCalendarViewMode.wideModes.filter { courseEnabled || it != HomeCalendarViewMode.COURSE },
+        options = HomeCalendarViewMode.wideModes,
         selectedOption = selected,
         onSelected = onSelected,
         label = { mode ->
             when (mode) {
                 HomeCalendarViewMode.WEEK -> "周"
                 HomeCalendarViewMode.MONTH -> "月"
-                HomeCalendarViewMode.COURSE -> "课表"
                 else -> mode.menuLabel
             }
         },
@@ -1452,8 +1368,7 @@ internal enum class HomeCalendarViewMode {
     TODAY,
     WEEK,
     MONTH,
-    AGENDA,
-    COURSE;
+    AGENDA;
 
     fun next(twoPane: Boolean): HomeCalendarViewMode {
         val modes = if (twoPane) wideModes else phoneModes
@@ -1466,7 +1381,6 @@ internal enum class HomeCalendarViewMode {
             WEEK -> "切换到月视图"
             MONTH -> "切换到日程视图"
             AGENDA -> "返回日期视图"
-            COURSE -> "切换到周视图"
         }
 
     val menuLabel: String
@@ -1475,12 +1389,11 @@ internal enum class HomeCalendarViewMode {
             WEEK -> "周视图"
             MONTH -> "月视图"
             AGENDA -> "日程视图"
-            COURSE -> "课表视图"
     }
 
     companion object {
         val phoneModes = listOf(TODAY, WEEK, MONTH, AGENDA)
-        val wideModes = listOf(WEEK, MONTH, COURSE)
+        val wideModes = listOf(WEEK, MONTH)
     }
 }
 
@@ -1652,7 +1565,7 @@ private fun HomeCalendarCard(
         val monthRowHeight = (todayCardHeight - calendarHeaderHeight - weekdayHeaderHeight - 10.dp) / 6f
         val targetHeight = when (viewMode) {
             HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> todayCardHeight
-            HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> calendarHeaderHeight + 114.dp
+            HomeCalendarViewMode.WEEK -> calendarHeaderHeight + 114.dp
             HomeCalendarViewMode.MONTH -> todayCardHeight
         }
         val animatedCardHeight by animateDpAsState(
@@ -1686,7 +1599,7 @@ private fun HomeCalendarCard(
                                 if (direction != 0L) {
                                     val nextDate = when (viewMode) {
                                         HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> state.selectedDate.plusDays(direction)
-                                        HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> state.selectedDate.plusWeeks(direction)
+                                        HomeCalendarViewMode.WEEK -> state.selectedDate.plusWeeks(direction)
                                         HomeCalendarViewMode.MONTH -> state.selectedDate.plusMonths(direction)
                                     }
                                     onSelectDate(nextDate)
@@ -1752,7 +1665,7 @@ private fun HomeCalendarCard(
                             onSelectDate = onSelectDate,
                             onOpenWeatherDetail = onOpenWeatherDetail,
                         )
-                        HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> HomeWeekContent(
+                        HomeCalendarViewMode.WEEK -> HomeWeekContent(
                             selectedDate = state.selectedDate,
                             today = state.today,
                             headerHeight = calendarHeaderHeight,
@@ -1808,26 +1721,26 @@ private fun BoxScope.HomeCalendarSelectionIndicator(
 
         val targetX = when (viewMode) {
             HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> 0.dp
-            HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> horizontalPadding + (cellWidth + horizontalSpacing) * weekdayIndex
+            HomeCalendarViewMode.WEEK -> horizontalPadding + (cellWidth + horizontalSpacing) * weekdayIndex
             HomeCalendarViewMode.MONTH -> {
                 horizontalPadding + (cellWidth + horizontalSpacing) * weekdayIndex + columnInset
             }
         }
         val targetY = when (viewMode) {
             HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> 0.dp
-            HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> headerHeight
+            HomeCalendarViewMode.WEEK -> headerHeight
             HomeCalendarViewMode.MONTH -> {
                 headerHeight + 18.dp + monthRowHeight * monthRow + monthCellInset
             }
         }
         val targetWidth = when (viewMode) {
             HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> maxWidth
-            HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> cellWidth
+            HomeCalendarViewMode.WEEK -> cellWidth
             HomeCalendarViewMode.MONTH -> monthCellSize
         }
         val targetHeight = when (viewMode) {
             HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> headerHeight
-            HomeCalendarViewMode.WEEK, HomeCalendarViewMode.COURSE -> 104.dp
+            HomeCalendarViewMode.WEEK -> 104.dp
             HomeCalendarViewMode.MONTH -> monthCellSize
         }
         val targetRadius = if (viewMode == HomeCalendarViewMode.TODAY) 0.dp else 12.dp

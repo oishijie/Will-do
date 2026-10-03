@@ -31,7 +31,6 @@ fun AllEventsRoute(
     twoPane: Boolean = false,
     hapticEnabled: Boolean = true,
     onOpenWeatherDetail: () -> Unit = {},
-    onOpenAccounting: (LocalDate, Boolean) -> Unit = { _, _ -> },
 ) {
     val mainState by viewModel.uiState.collectAsState()
     val demoModeEnabled = mainState.settings.developerOptionsEnabled &&
@@ -69,7 +68,6 @@ fun AllEventsRoute(
         onAction = { action ->
             when (action) {
                 AllEventsUiAction.OpenWeather -> onOpenWeatherDetail()
-                is AllEventsUiAction.OpenAccounting -> onOpenAccounting(action.date, false)
                 AllEventsUiAction.LoadMoreFuture -> viewModel.loadMoreFutureAllEvents()
                 is AllEventsUiAction.RevealItem -> viewModel.onRevealItem(action.itemKey)
                 AllEventsUiAction.CollapseItem -> viewModel.onRevealItem(null)
@@ -123,7 +121,7 @@ internal fun buildAllEventsConnection(
         .groupBy { it.startDate }
         .map { (date, dateItems) -> AllEventsDateGroupUiModel(date, dateItems) }
         .let { groups ->
-            // 今天始终提供天气和记账入口；搜索时仍保留真实的空结果。
+            // 今天始终提供天气入口；搜索时仍保留真实的空结果。
             if (searchQuery.isBlank() && groups.none { it.date == today }) {
                 listOf(AllEventsDateGroupUiModel(today, emptyList())) + groups
             } else groups

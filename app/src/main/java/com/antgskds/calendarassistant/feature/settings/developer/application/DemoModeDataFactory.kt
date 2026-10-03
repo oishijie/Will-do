@@ -1,13 +1,10 @@
 package com.antgskds.calendarassistant.feature.settings.developer.application
 
-import com.antgskds.calendarassistant.feature.accounting.data.AccountingEntry
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoEntity
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoTodoState
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.FLAG_ALL_DAY
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.STATE_COMPLETED
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.STATE_PENDING
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseMeta
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.weather.domain.model.WeatherAlertData
@@ -17,7 +14,6 @@ import com.antgskds.calendarassistant.feature.weather.domain.model.WeatherHourly
 import com.antgskds.calendarassistant.feature.weather.domain.model.WeatherRiskAlert
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import kotlin.random.Random
 
@@ -66,51 +62,7 @@ object DemoModeDataFactory {
                 state = if (end.toLocalDate().isBefore(today)) STATE_COMPLETED else STATE_PENDING,
             )
         }
-        return result + courses(today)
-    }
-
-    fun courses(today: LocalDate = LocalDate.now()): List<Event> {
-        val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
-        val zone = ZoneId.systemDefault()
-        val specs = listOf(
-            Triple(0, 1, "高等数学"), Triple(0, 5, "大学英语"), Triple(0, 9, "形势与政策"),
-            Triple(1, 3, "数据结构"), Triple(1, 7, "体育"),
-            Triple(2, 1, "计算机网络"), Triple(2, 5, "概率论"), Triple(2, 7, "创新实践"),
-            Triple(3, 3, "操作系统"), Triple(3, 9, "通识选修"),
-            Triple(4, 1, "软件工程"), Triple(4, 5, "实验课"),
-        )
-        val teachers = listOf("陈老师", "林老师", "王老师", "周老师", "刘老师")
-        val rooms = listOf("博学楼 A201", "博学楼 B305", "实验楼 406", "体育馆", "综合楼 108")
-        return specs.mapIndexed { index, (dayOffset, startNode, title) ->
-            val date = monday.plusDays(dayOffset.toLong())
-            val startTime = when (startNode) {
-                1 -> LocalTime.of(8, 0)
-                3 -> LocalTime.of(10, 0)
-                5 -> LocalTime.of(14, 0)
-                7 -> LocalTime.of(16, 0)
-                else -> LocalTime.of(19, 0)
-            }
-            val meta = CourseMeta(
-                uid = "demo-course-$index",
-                teacher = teachers[index % teachers.size],
-                dayOfWeek = dayOffset + 1,
-                startNode = startNode,
-                endNode = startNode + 1,
-                startWeek = 1,
-                endWeek = 20,
-            )
-            event(
-                id = -(100L + index),
-                title = title,
-                start = date.atTime(startTime),
-                end = date.atTime(startTime).plusMinutes(100),
-                location = rooms[index % rooms.size],
-                tag = EventTags.COURSE,
-                color = colors[index % colors.size],
-                zone = zone,
-                description = CourseEventMapper.buildParentDescription(meta),
-            )
-        }
+        return result
     }
 
     fun quickMemos(today: LocalDate = LocalDate.now()): List<QuickMemoEntity> {
@@ -135,44 +87,6 @@ object DemoModeDataFactory {
                 updatedAt = base - index * 3_600_000L,
                 sortRank = (bodies.size - index).toLong(),
                 todoState = if (index in 0..2) QuickMemoTodoState.ACTIVE else QuickMemoTodoState.NONE,
-            )
-        }
-    }
-
-    fun accountingEntries(today: LocalDate = LocalDate.now()): List<AccountingEntry> {
-        val zone = ZoneId.of("Asia/Shanghai")
-        val specs = listOf(
-            Triple(0, "校园食堂", 1860L), Triple(0, "咖啡店", 2800L), Triple(-1, "地铁出行", 600L),
-            Triple(-1, "便利店", 2340L), Triple(-2, "网上购物", 12900L), Triple(-3, "电影票", 7600L),
-            Triple(-4, "水果店", 3580L), Triple(-5, "共享单车", 250L), Triple(-6, "图书资料", 4590L),
-            Triple(-7, "周末聚餐", 16800L), Triple(-9, "话费充值", 5000L), Triple(-11, "运动用品", 8990L),
-            Triple(-13, "兼职收入", 120000L), Triple(-15, "奖学金", 80000L), Triple(-18, "订单退款", 3290L),
-        )
-        val categories = listOf("餐饮", "餐饮", "交通", "购物", "购物", "娱乐", "餐饮", "交通", "学习", "餐饮", "通讯", "运动")
-        return specs.mapIndexed { index, (offset, merchant, amount) ->
-            val income = index >= 12
-            val occurred = today.plusDays(offset.toLong()).atTime(8 + index % 12, (index * 7) % 60)
-                .atZone(zone).toInstant().toEpochMilli()
-            AccountingEntry(
-                id = "demo-bill-$index",
-                amountMinor = amount,
-                direction = if (income) "INCOME" else "EXPENSE",
-                currency = "CNY",
-                merchant = merchant,
-                category = if (income) if (index == 14) "退款" else "收入" else categories[index % categories.size],
-                note = if (index == 14) "演示退款" else "演示账单",
-                occurredAt = occurred,
-                zoneId = zone.id,
-                source = "DEMO",
-                channel = listOf("微信支付", "支付宝", "银行卡")[index % 3],
-                transactionId = "DEMO${10000 + index}",
-                status = "CONFIRMED",
-                ruleId = "demo",
-                dedupKey = "demo-$index",
-                refundOf = null,
-                createdAt = occurred,
-                updatedAt = occurred,
-                deletedAt = null,
             )
         }
     }

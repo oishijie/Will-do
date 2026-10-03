@@ -44,7 +44,6 @@ class SmsContentObserver(
     }
 
     private val pollHandler = Handler(Looper.getMainLooper())
-    private var accountingBaseline = System.currentTimeMillis()
     private var registered = false
     private var polling = false
     private val pollRunnable = object : Runnable {
@@ -62,7 +61,6 @@ class SmsContentObserver(
     @Synchronized
     fun register() {
         if (registered) return
-        accountingBaseline = System.currentTimeMillis()
         val contentResolver = context.contentResolver
         try {
             val persistedId = prefs.getLong(KEY_LAST_PROCESSED_ID, -1L)
@@ -161,13 +159,12 @@ class SmsContentObserver(
         val ingestCoordinator = getSmsPickupIngestCoordinator() ?: return
 
         val settings = SettingsDataSource(context).loadSettings()
-        val accountingEnabled = com.antgskds.calendarassistant.platform.receiver.AccountingMessageAccessPolicy.enabled(context, settings)
-        if (!settings.isSmsMonitoringEnabled && !accountingEnabled) return
+        if (!settings.isSmsMonitoringEnabled) return
 
         // 查询比 lastProcessedId 更新的短信
         val cursor = contentResolver.query(
             SMS_URI,
-            arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+            arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY),
             "${Telephony.Sms._ID} > ?",
             arrayOf(lastProcessedId.toString()),
             "${Telephony.Sms._ID} ASC"
@@ -180,13 +177,6 @@ class SmsContentObserver(
                 val address = it.getString(1) ?: continue
                 val body = it.getString(2) ?: continue
                 newMessages.add(Triple(id, address, body))
-                val receivedAt = it.getLong(3)
-                if (accountingEnabled && receivedAt >= accountingBaseline) {
-                    (context.applicationContext as? com.antgskds.calendarassistant.App)?.accountingMessageCoordinator?.submit(
-                        com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessage(
-                            com.antgskds.calendarassistant.feature.accounting.domain.AccountingMessageKind.SMS,
-                            address, body, receivedAt))
-                }
             }
         }
 

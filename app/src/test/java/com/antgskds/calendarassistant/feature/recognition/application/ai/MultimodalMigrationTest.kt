@@ -10,74 +10,89 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MultimodalMigrationTest {
-    @Test fun version14AddsIndependentRefundCreationTimeAndPreservesCustomRules() {
+    // 记账功能已下线：旧版统一图文输出协议（v9~v15，含交易时间/退款/收款等记账规则）
+    // 在 normalize 时整块移除，不再注入任何记账规则，同时保留用户的自定义日程正文。
+
+    @Test fun version14ProtocolBlockIsRemovedAndCustomRulesPreserved() {
         val old = "自定义开头\n【统一图文输出协议 v14】\n旧退款时间规则\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。\n自定义结尾"
         val updated = AiPrompts.normalize(RemotePrompts(version = 14, mmUnifiedPrompt = old))
         assertTrue(updated.mmUnifiedPrompt.startsWith("自定义开头"))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义结尾"))
         assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v14"))
         assertFalse(updated.mmUnifiedPrompt.contains("旧退款时间规则"))
-        assertTrue(updated.mmUnifiedPrompt.contains("统一图文输出协议 v15"))
-        assertTrue(updated.mmUnifiedPrompt.contains("“创建时间”作为退款记账时间"))
-        assertTrue(updated.mmUnifiedPrompt.contains("此例外不适用于原支出中“已全额退款”"))
+        assertFalse(updated.mmUnifiedPrompt.contains("bills"))
+        assertFalse(updated.mmUnifiedPrompt.contains("退款"))
         assertEquals(updated.mmUnifiedPrompt, updated.userTextPrompt)
         assertEquals(updated, AiPrompts.normalize(updated))
     }
 
-    @Test fun version13RefundRulesUpgradeWithoutLosingCustomText() {
+    @Test fun version13ProtocolBlockIsRemovedAndCustomRulesPreserved() {
         val old = "自定义开头\n【统一图文输出协议 v13】\n原付款页的已退款不能当新收入\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。\n自定义结尾"
         val updated = AiPrompts.normalize(RemotePrompts(version = 13, mmUnifiedPrompt = old))
         assertTrue(updated.mmUnifiedPrompt.startsWith("自定义开头"))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义结尾"))
         assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v13"))
         assertFalse(updated.mmUnifiedPrompt.contains("原付款页的已退款不能当新收入"))
-        assertTrue(updated.mmUnifiedPrompt.contains("统一图文输出协议 v15"))
-        assertTrue(updated.mmUnifiedPrompt.contains("退款实际到账后再生成一笔 INCOME、REFUNDED"))
-        assertTrue(updated.mmUnifiedPrompt.contains("原付款详情里的“退款记录”"))
-        assertTrue(updated.mmUnifiedPrompt.contains("不能当作退款单号"))
+        assertFalse(updated.mmUnifiedPrompt.contains("bills"))
         assertEquals(updated.mmUnifiedPrompt, updated.userTextPrompt)
         assertEquals(updated, AiPrompts.normalize(updated))
     }
-    @Test fun version12ProtocolAddsReceiptSummaryRulesOnceAndPreservesCustomText() {
+
+    @Test fun version12ProtocolBlockIsRemovedAndCustomRulesPreserved() {
         val old = "自定义开头\n【统一图文输出协议 v12】\n旧账单规则\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。\n自定义结尾"
-        val updated = AiPrompts.normalize(RemotePrompts(version = 11, mmUnifiedPrompt = old))
+        val updated = AiPrompts.normalize(RemotePrompts(version = 12, mmUnifiedPrompt = old))
         assertTrue(updated.mmUnifiedPrompt.startsWith("自定义开头"))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义结尾"))
         assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v12"))
         assertFalse(updated.mmUnifiedPrompt.contains("旧账单规则"))
-        assertTrue(updated.mmUnifiedPrompt.contains("统一图文输出协议 v15"))
-        assertTrue(updated.mmUnifiedPrompt.contains("收款汇总首页例外"))
+        assertFalse(updated.mmUnifiedPrompt.contains("收款汇总首页例外"))
         assertEquals(updated.mmUnifiedPrompt, updated.userTextPrompt)
         assertEquals(updated, AiPrompts.normalize(updated))
     }
-    @Test fun version11ProtocolUpgradesTransferRulesOnceAndPreservesCustomText() {
+
+    @Test fun version11ProtocolBlockIsRemovedAndCustomRulesPreserved() {
         val old = "自定义开头\n【统一图文输出协议 v11】\n旧账单规则\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。\n自定义结尾"
         val updated = AiPrompts.normalize(RemotePrompts(version = 11, mmUnifiedPrompt = old))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义开头"))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义结尾"))
         assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v11"))
-        assertTrue(updated.mmUnifiedPrompt.contains("收款方尚未领取的转账不能生成收入"))
-        assertTrue(updated.mmUnifiedPrompt.contains("统一图文输出协议 v15"))
+        assertFalse(updated.mmUnifiedPrompt.contains("收款方尚未领取的转账不能生成收入"))
         assertEquals(updated.mmUnifiedPrompt, updated.userTextPrompt)
         assertEquals(updated, AiPrompts.normalize(updated))
     }
-    @Test fun version10ProtocolAddsNumberTypesAndPreservesSurroundingCustomRules() {
+
+    @Test fun version10ProtocolBlockIsRemovedAndCustomRulesPreserved() {
         val old = "自定义开头\n【统一图文输出协议 v10】\n旧账单规则\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。\n自定义结尾"
         val updated = AiPrompts.normalize(RemotePrompts(version = 10, mmUnifiedPrompt = old))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义开头"))
         assertTrue(updated.mmUnifiedPrompt.contains("自定义结尾"))
         assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v10"))
-        assertTrue(updated.mmUnifiedPrompt.contains("transactionIdType"))
+        assertFalse(updated.mmUnifiedPrompt.contains("transactionIdType"))
         assertEquals(updated, AiPrompts.normalize(updated))
     }
-    @Test fun oldAccountingProtocolIsUpgradedWithoutLosingCustomRules() {
+
+    @Test fun version9AccountingProtocolBlockIsRemovedAndCustomRulesPreserved() {
         val old = "我的日程规则\n【统一图文输出协议 v9】\n旧时间规则\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。"
         val updated = AiPrompts.normalize(RemotePrompts(version = 9, mmUnifiedPrompt = old))
         assertTrue(updated.mmUnifiedPrompt.startsWith("我的日程规则"))
         assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v9"))
-        assertTrue(updated.mmUnifiedPrompt.contains("午饭花了35块"))
+        assertFalse(updated.mmUnifiedPrompt.contains("午饭花了35块"))
         assertEquals(updated, AiPrompts.normalize(updated))
     }
+
+    @Test fun version15ProtocolBlockIsRemovedAndCustomRulesPreserved() {
+        // 历史上曾被 normalize 追加过 v15 记账协议的旧缓存/备份，也必须被整块清理。
+        val old = "自定义开头\n【统一图文输出协议 v15】\n旧记账规则\n此协议优先于旧提示词中“仅输出 events”或“仅识别日程”的限制，其他自定义日程规则继续生效。\n自定义结尾"
+        val updated = AiPrompts.normalize(RemotePrompts(version = 15, mmUnifiedPrompt = old))
+        assertTrue(updated.mmUnifiedPrompt.startsWith("自定义开头"))
+        assertTrue(updated.mmUnifiedPrompt.contains("自定义结尾"))
+        assertFalse(updated.mmUnifiedPrompt.contains("统一图文输出协议 v15"))
+        assertFalse(updated.mmUnifiedPrompt.contains("旧记账规则"))
+        assertFalse(updated.mmUnifiedPrompt.contains("bills"))
+        assertEquals(updated.mmUnifiedPrompt, updated.userTextPrompt)
+        assertEquals(updated, AiPrompts.normalize(updated))
+    }
+
     @Test
     fun legacyLayoutBlockIsRemovedWithoutLosingCustomRules() {
         val layout = """
@@ -94,7 +109,6 @@ class MultimodalMigrationTest {
             val normalized = AiPrompts.normalize(RemotePrompts(version = 7, promptHeader = header, mmUnifiedPrompt = "custom"))
             assertEquals(custom, normalized.promptHeader.replace("\r\n", "\n"))
             assertTrue(normalized.mmUnifiedPrompt.startsWith("custom"))
-            assertTrue(normalized.mmUnifiedPrompt.contains("【统一图文输出协议 v15】"))
             assertEquals(normalized, AiPrompts.normalize(normalized))
         }
     }

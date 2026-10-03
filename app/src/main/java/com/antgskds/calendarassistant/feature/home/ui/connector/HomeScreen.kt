@@ -24,35 +24,34 @@ import com.antgskds.calendarassistant.shared.event.DomainEventType
 import com.antgskds.calendarassistant.shared.event.events.IngestFailedEvent
 import com.antgskds.calendarassistant.shared.event.events.IngestSucceededEvent
 import com.antgskds.calendarassistant.shared.event.events.RecognitionFailedEvent
-import com.antgskds.calendarassistant.feature.schedule.domain.course.CourseEventMapper
-import com.antgskds.calendarassistant.feature.schedule.domain.course.TimeTableLayoutUtils
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoEntity
 import com.antgskds.calendarassistant.feature.settings.developer.application.DemoModeDataFactory
 import kotlinx.coroutines.launch
 import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import com.antgskds.calendarassistant.feature.home.domain.HomeEntryKey
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
 import com.antgskds.calendarassistant.feature.schedule.domain.model.*
-import com.antgskds.calendarassistant.feature.home.domain.sanitizeHomeBottomItems
-import com.antgskds.calendarassistant.feature.home.domain.sanitizeHomeStartPageKey
-import com.antgskds.calendarassistant.feature.home.domain.visibleHomeBottomItems
+import com.antgskds.calendarassistant.feature.home.domain.fixedHomeBottomItems
+import com.antgskds.calendarassistant.feature.home.domain.swipeableHomeItems
+import androidx.activity.compose.BackHandler
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBar
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarBottomSpacing
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarToastGap
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarVisualHeight
-import com.antgskds.calendarassistant.feature.home.ui.contract.HomeShellUiAction
 import com.antgskds.calendarassistant.feature.home.ui.contract.HomeShellUiState
 import com.antgskds.calendarassistant.app.ui.navigation.SettingsDestination
-import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.component.SettingsSidebar
+import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.component.SettingsTabPage
 import com.antgskds.calendarassistant.shared.ui.material.component.ToastType
 import com.antgskds.calendarassistant.shared.ui.material.component.UniversalToast
 import com.antgskds.calendarassistant.feature.home.ui.connector.HomePageRoute
 import com.antgskds.calendarassistant.feature.schedule.ui.render.material.dialog.*
 import com.antgskds.calendarassistant.shared.ui.material.dialog.*
 import com.antgskds.calendarassistant.feature.schedule.ui.render.AddEventDialog
-import com.antgskds.calendarassistant.feature.schedule.ui.render.CourseSingleEditDialog
 import com.antgskds.calendarassistant.feature.home.ui.render.HomeScreenContent
 import com.antgskds.calendarassistant.feature.home.ui.render.HomeActionDialog
 import com.antgskds.calendarassistant.feature.home.ui.render.editionHomeEntries
@@ -61,6 +60,7 @@ import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
 import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import java.time.LocalDate
 import kotlin.math.roundToInt
+import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.component.SettingsSidebar
 
 private data class RecurringEditSession(
     val parentEventId: Long?,
@@ -88,7 +88,6 @@ fun HomeScreen(
     mainViewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
     pickupTimestamp: Long = 0L, // 【修改 1】参数改为 Long
-    openCourseRequestId: Long = 0L,
     openEventId: Long? = null,
     openEventRequestId: Long = 0L,
     selectedPageKey: String = HomeEntryKey.TODAY,
@@ -97,7 +96,6 @@ fun HomeScreen(
     onDismissClipboardPrompt: () -> Unit = {},
     onSelectedPageKeyChange: (String) -> Unit = {},
     onOpenWeatherDetail: () -> Unit = {},
-    onOpenAccounting: (java.time.LocalDate, Boolean) -> Unit = { _, _ -> },
     onOpenQuickMemoDetail: (Long) -> Unit = {},
     onNavigateToSettings: (SettingsDestination) -> Unit
 ) {
@@ -179,62 +177,32 @@ fun HomeScreen(
     }
 
     // 状态管理
-    var isSidebarOpen by remember { mutableStateOf(false) }
-    var isScheduleExpanded by remember { mutableStateOf(false) } // 课表是否展开
+    var isScheduleExpanded by remember { mutableStateOf(false) } // 首页下滑展开状态
     var scheduleProgress by remember { mutableFloatStateOf(0f) }
     var scheduleOffsetPx by remember { mutableFloatStateOf(0f) }
     var isActionExpanded by remember { mutableStateOf(false) }
     var searchRequestId by remember { mutableIntStateOf(0) }
     var imageRequestId by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(useNavigationRail) {
-        if (useNavigationRail) isSidebarOpen = false
-    }
+    // 常驻底栏固定入口：今日日程 / 全部日程 / 随口记 / 设置
+    val homeBottomItems = remember { editionHomeEntries(fixedHomeBottomItems) }
+    val pagerPageOrder = remember { editionHomeEntries(swipeableHomeItems) }
+    val effectiveSelectedPageKey = if (selectedPageKey in homeBottomItems) selectedPageKey else HomeEntryKey.TODAY
 
-    val storedHomeBottomItems = remember(settings.homeBottomItems) {
-        sanitizeHomeBottomItems(settings.homeBottomItems)
-    }
-    val homeBottomItems = remember(storedHomeBottomItems, settings.voiceInputEnabled) {
-        editionHomeEntries(
-            visibleHomeBottomItems(
-                storedHomeBottomItems,
-                quickMemoEnabled = settings.voiceInputEnabled,
-            ),
-        )
-    }
-    val homeStartPageKey = remember(settings.homeStartPageKey, homeBottomItems) {
-        sanitizeHomeStartPageKey(settings.homeStartPageKey, homeBottomItems)
-    }
-
-    val effectiveSelectedPageKey = if (selectedPageKey in homeBottomItems) selectedPageKey else homeStartPageKey
-
-    LaunchedEffect(settings.homeBottomItems, settings.homeStartPageKey, storedHomeBottomItems) {
-        val storedStartPage = sanitizeHomeStartPageKey(settings.homeStartPageKey, storedHomeBottomItems)
-        if (storedHomeBottomItems != settings.homeBottomItems || storedStartPage != settings.homeStartPageKey) {
-            settingsViewModel.updatePreference(
-                homeBottomItems = storedHomeBottomItems,
-                homeStartPageKey = storedStartPage
-            )
-        }
-    }
-
-    LaunchedEffect(homeBottomItems, homeStartPageKey, selectedPageKey) {
+    LaunchedEffect(homeBottomItems, selectedPageKey) {
         if (selectedPageKey !in homeBottomItems) {
-            onSelectedPageKeyChange(homeStartPageKey)
+            onSelectedPageKeyChange(HomeEntryKey.TODAY)
         }
     }
 
     // 弹窗状态管理
     var detailDirty by remember { mutableStateOf(false) }
     var openedQuickMemoId by remember { mutableStateOf<Long?>(null) }
-    var showAddCourse by remember { mutableStateOf(false) }
     var showAddEventDialog by remember { mutableStateOf(false) }
     var editDraft by remember { mutableStateOf<com.antgskds.calendarassistant.feature.schedule.application.model.EditDraft?>(null) }
     var editContext by remember { mutableStateOf<EditContext?>(null) }
     var eventToEdit by remember { mutableStateOf<Event?>(null) }
     var draftEventToAdd by remember { mutableStateOf<Event?>(null) }
-    var editingVirtualCourse by remember { mutableStateOf<Event?>(null) }
-    var courseItemToEdit by remember { mutableStateOf<ScheduleDisplayItem?>(null) }
     var recurringEditSession by remember { mutableStateOf<RecurringEditSession?>(null) }
     var recurringEditCommitSession by remember { mutableStateOf<RecurringEditCommitSession?>(null) }
     var scheduleItemToDelete by remember { mutableStateOf<ScheduleDisplayItem?>(null) }
@@ -261,14 +229,9 @@ fun HomeScreen(
     }
 
     fun beginEdit(event: Event) {
-        if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allows(event, settings)) { showToast("课表功能已关闭"); return }
         pendingAddDialog = false
         draftEventToAdd = null
-        if (event.tag == "__removed_course__") {
-            editingVirtualCourse = event
-            eventToEdit = null
-            recurringEditSession = null
-        } else if (event.isRecurring) {
+        if (event.isRecurring) {
             val nextInstance = mainViewModel.findNextRecurringInstance(event)
             val previewEvent = if (nextInstance != null) {
                 nextInstance
@@ -288,7 +251,6 @@ fun HomeScreen(
                 showToast("未找到可编辑的下次实例")
             } else {
                 eventToEdit = previewEvent
-                editingVirtualCourse = null
                 recurringEditSession = RecurringEditSession(
                     parentEventId = event.id,
                     occurrenceTs = previewEvent.startTS,
@@ -311,7 +273,6 @@ fun HomeScreen(
                     rrule = "",
                     exdates = emptyList()
                 )
-                editingVirtualCourse = null
                 recurringEditSession = RecurringEditSession(
                     parentEventId = parentEvent.id,
                     occurrenceTs = event.startTS,
@@ -321,7 +282,6 @@ fun HomeScreen(
             }
         } else {
             eventToEdit = event
-            editingVirtualCourse = null
             recurringEditSession = null
         }
     }
@@ -344,24 +304,18 @@ fun HomeScreen(
      * RecurringOccurrence → 加载母事件，设置 recurringEditSession
      */
     fun beginEditItem(item: ScheduleDisplayItem) {
-        if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allowsTag(item.tag, settings)) { showToast("课表功能已关闭"); return }
         if (detailDirty) { showToast("请先保存或返回，处理当前未保存的内容"); return }
-        courseItemToEdit = null
-        showAddCourse = false
         showAddEventDialog = false
         editDraft = null
         dialogAttachments = emptyList()
         currentDialogSessionId = System.nanoTime()
         if (demoModeEnabled) {
-            if (item.tag == EventTags.COURSE) courseItemToEdit = item
-            else {
-                editDraft = com.antgskds.calendarassistant.feature.schedule.application.model.EditDraft(
-                    title = item.title, startDate = item.startDate, startTime = item.startLocalTime,
-                    endDate = item.endDate, endTime = item.endLocalTime, location = item.location,
-                    description = item.description, tag = item.tag, color = item.color,
-                )
-                showAddEventDialog = true
-            }
+            editDraft = com.antgskds.calendarassistant.feature.schedule.application.model.EditDraft(
+                title = item.title, startDate = item.startDate, startTime = item.startLocalTime,
+                endDate = item.endDate, endTime = item.endLocalTime, location = item.location,
+                description = item.description, tag = item.tag, color = item.color,
+            )
+            showAddEventDialog = true
             return
         }
         pendingAddDialog = false
@@ -371,10 +325,6 @@ fun HomeScreen(
         when (val target = item.action) {
             is ScheduleDisplayItem.ActionTarget.Single -> {
                 val event = mainViewModel.getEventById(target.eventId) ?: return
-                if (event.tag == EventTags.COURSE) {
-                    courseItemToEdit = item
-                    return
-                }
                 // 单次事件或已有子实例
                 val draft = mainViewModel.prepareEditSingle(target.eventId)
                 if (draft != null) {
@@ -397,10 +347,6 @@ fun HomeScreen(
                 }
             }
             is ScheduleDisplayItem.ActionTarget.RecurringOccurrence -> {
-                if (item.tag == EventTags.COURSE) {
-                    courseItemToEdit = item
-                    return
-                }
                 val draft = mainViewModel.prepareEditRecurringOccurrence(target.parentId, target.occurrenceTs)
                 if (draft != null) {
                     editDraft = draft
@@ -442,8 +388,6 @@ fun HomeScreen(
     fun openPrimaryCreateDialog() {
         if (demoModeEnabled) { showToast("演示模式仅供查看，请关闭演示模式后新建"); return }
         if (detailDirty) { showToast("请先保存或返回，处理当前未保存的内容"); return }
-        showAddCourse = false
-        courseItemToEdit = null
         isActionExpanded = false
         if (effectiveSelectedPageKey == HomeEntryKey.NOTE) {
             mainViewModel.createTextQuickMemo("") { id ->
@@ -475,18 +419,6 @@ fun HomeScreen(
     val hasAppBackground = settings.appBackgroundImagePath.isNotBlank()
 
     val editorContent: @Composable () -> Unit = {
-        if (showAddCourse) {
-            com.antgskds.calendarassistant.feature.schedule.ui.render.CourseEditDialog(
-                course = null,
-                maxNodes = TimeTableLayoutUtils.nodeCountFromJson(settings.timeTableJson),
-                timeTableJson = settings.timeTableJson,
-                hapticEnabled = settings.hapticFeedbackEnabled,
-                predictiveBackEnabled = settings.predictiveBackEnabled,
-                onSwitchType = { showAddCourse = false; openAddEventDialog() },
-                onDismiss = { showAddCourse = false },
-                onConfirm = { course -> mainViewModel.addCourse(course); showAddCourse = false },
-            )
-        }
     // 1. 普通日程编辑/添加
     val isDialogVisible = showAddEventDialog || editDraft != null
     val dialogKey = editDraft?.hashCode() ?: "add_$addDialogRequestId"
@@ -498,7 +430,6 @@ fun HomeScreen(
             currentEventsCount = uiState.rawEventCount,
             settings = settings,
             attachments = dialogAttachments,
-            onSwitchType = if (com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settings)) ({ showAddEventDialog = false; editDraft = null; showAddCourse = true }) else null,
             onAddAttachment = { uri ->
                 if (demoModeEnabled) return@AddEventDialog
                 val eventId = editDraft?.eventId ?: return@AddEventDialog
@@ -584,98 +515,51 @@ fun HomeScreen(
             }
         )
     }
-
-    courseItemToEdit?.let { item ->
-        val meta = CourseEventMapper.parseMeta(item.description)
-        val maxNodes = TimeTableLayoutUtils.nodeCountFromJson(settings.timeTableJson)
-        if (meta != null) {
-            key(item.stableKey) {
-            CourseSingleEditDialog(
-                initialName = item.title,
-                initialLocation = item.location,
-                initialStartNode = meta.startNode,
-                initialEndNode = meta.endNode,
-                initialDate = item.startDate,
-                maxNodes = maxNodes,
-                predictiveBackEnabled = settings.predictiveBackEnabled,
-                onDismiss = { courseItemToEdit = null },
-                onDelete = {
-                    if (demoModeEnabled) { showToast("演示模式不会保存修改"); return@CourseSingleEditDialog }
-                    mainViewModel.deleteCourseOccurrence(item)
-                    courseItemToEdit = null
-                },
-                onConfirm = { name, location, startNode, endNode, date ->
-                    if (demoModeEnabled) { showToast("演示模式不会保存修改"); return@CourseSingleEditDialog }
-                    mainViewModel.updateCourseOccurrence(item, name, location, startNode, endNode, date)
-                    courseItemToEdit = null
-                }
-            )
-            }
-        } else {
-            LaunchedEffect(item.stableKey) { courseItemToEdit = null }
-        }
-    }
     }
     CompositionLocalProvider(
         LocalDetailReadOnly provides demoModeEnabled,
         LocalDetailDirtyChanged provides { detailDirty = it },
         LocalDetailWorkspaceContent provides
-        if (adaptiveLayoutInfo.useTwoPaneContent && (showAddCourse || showAddEventDialog || editDraft != null || courseItemToEdit != null)) editorContent else null) {
+        if (adaptiveLayoutInfo.useTwoPaneContent && (showAddEventDialog || editDraft != null)) editorContent else null) {
     HomeScreenContent(
         state = HomeShellUiState(
             backgroundEnabled = hasAppBackground,
             backgroundMiuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled,
             backgroundCardAlphaPercent = settings.appBackgroundCardAlphaPercent,
-            isSidebarOpen = !useNavigationRail && isSidebarOpen,
-            sidebarGestureEnabled = !useNavigationRail && !isScheduleExpanded,
             useNavigationRail = useNavigationRail,
         ),
-        onAction = { action ->
-            when (action) {
-                is HomeShellUiAction.SetSidebarOpen -> isSidebarOpen = action.isOpen
-            }
-        },
-        sidebar = {
-            SettingsSidebar(
-                courseModuleEnabled = com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settings),
-                isDarkMode = settings.isDarkMode,
-                glassMode = hasAppBackground,
-                hasAppUpdate = appUpdateUiState.hasUpdate,
-                onThemeToggle = { isDark ->
-                    settingsViewModel.updateDarkMode(isDark)
-                },
-                onNavigate = { destination ->
-                    isSidebarOpen = false
-                    onNavigateToSettings(destination)
-                },
-            )
-        },
         content = {
+            // 设置页 = 原侧边栏内容，作为常驻底栏的固定入口原地切换
+            BackHandler(enabled = effectiveSelectedPageKey == HomeEntryKey.SETTINGS && !useNavigationRail) {
+                onSelectedPageKeyChange(HomeEntryKey.TODAY)
+            }
+            if (effectiveSelectedPageKey == HomeEntryKey.SETTINGS && !useNavigationRail) {
+                SettingsTabPage(
+                    glassMode = hasAppBackground,
+                    hasAppUpdate = appUpdateUiState.hasUpdate,
+                    onNavigate = { destination ->
+                        onNavigateToSettings(destination)
+                    },
+                )
+            } else {
             HomePageRoute(
                 viewModel = mainViewModel,
                 currentPageKey = effectiveSelectedPageKey,
-                pageOrder = homeBottomItems,
+                pageOrder = pagerPageOrder,
                 uiSize = settings.uiSize,
                 pickupTimestamp = pickupTimestamp,
-                openCourseRequestId = openCourseRequestId,
-                courseFeatureEnabled = com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.swipeEnabled(settings),
                 isActionExpanded = isActionExpanded,
                 onActionExpandedChange = { isActionExpanded = it },
                 searchRequestId = searchRequestId,
                 imageRequestId = imageRequestId,
-                isSidebarOpen = !useNavigationRail && isSidebarOpen,
+                isSidebarOpen = false,
                 isWideNavigation = useNavigationRail,
                 isTwoPane = adaptiveLayoutInfo.useTwoPaneContent,
                 onPageChange = { page ->
                     if (detailDirty) showToast("请先保存或返回，处理当前未保存的内容")
-                    else { editDraft = null; showAddEventDialog = false; showAddCourse = false; courseItemToEdit = null; onSelectedPageKeyChange(page) }
+                    else { editDraft = null; showAddEventDialog = false; onSelectedPageKeyChange(page) }
                 },
                 onAddEventClick = { openPrimaryCreateDialog() },
-                onAddCourseClick = {
-                    if (demoModeEnabled) showToast("演示模式仅供查看，请关闭演示模式后新建")
-                    else if (detailDirty) showToast("请先保存或返回，处理当前未保存的内容")
-                    else { editDraft = null; showAddEventDialog = false; courseItemToEdit = null; showAddCourse = true }
-                },
                 openQuickMemoId = openedQuickMemoId,
                 onQuickMemoOpened = { openedQuickMemoId = null },
                 onEditItem = { item -> beginEditItem(item) },
@@ -688,40 +572,31 @@ fun HomeScreen(
                 onScheduleProgressChange = { scheduleProgress = it },
                 onScheduleOffsetChange = { scheduleOffsetPx = it.coerceAtLeast(0f) },
                 onOpenWeatherDetail = onOpenWeatherDetail,
-                onOpenAccounting = onOpenAccounting,
                 onNavigateToSettings = onNavigateToSettings,
             )
+            }
         },
         chrome = {
         if (!useNavigationRail) {
             IntegratedFloatingBar(
             isExpanded = isActionExpanded,
             onExpandedChange = { isActionExpanded = it },
-            isSidebarOpen = isSidebarOpen,
             navItems = homeBottomItems,
             selectedPageKey = effectiveSelectedPageKey,
-            onMenuClick = {
-                isActionExpanded = false
-                isSidebarOpen = !isSidebarOpen
-            },
             onPageClick = { pageKey ->
                 isActionExpanded = false
-                isSidebarOpen = false
                 onSelectedPageKeyChange(pageKey)
             },
             onSearchClick = {
                 isActionExpanded = false
-                isSidebarOpen = false
                 searchRequestId += 1
             },
             onImageClick = {
                 isActionExpanded = false
-                isSidebarOpen = false
                 imageRequestId += 1
             },
             onEditClick = {
                 isActionExpanded = false
-                isSidebarOpen = false
                 openPrimaryCreateDialog()
             },
             backgroundMode = hasAppBackground,
@@ -731,11 +606,6 @@ fun HomeScreen(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(bottom = IntegratedFloatingBarBottomSpacing)
-                .offset { IntOffset(0, scheduleOffsetPx.roundToInt()) }
-                .graphicsLayer {
-                    val clamped = scheduleProgress.coerceIn(0f, 1f)
-                    alpha = 1f - clamped
-                }
                 .zIndex(3f)
             )
         }

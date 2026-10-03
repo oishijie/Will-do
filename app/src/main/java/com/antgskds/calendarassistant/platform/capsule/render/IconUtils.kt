@@ -73,7 +73,6 @@ object IconUtils {
             RuleMatchingEngine.RULE_FLIGHT -> R.drawable.ic_stat_flight
             RuleMatchingEngine.RULE_TICKET -> R.drawable.ic_stat_ticket
             RuleMatchingEngine.RULE_SENDER -> R.drawable.ic_stat_sender
-            EventTags.COURSE, RuleMatchingEngine.RULE_COURSE, "__removed_course__" -> R.drawable.ic_stat_course
             EventTags.GENERAL, RuleMatchingEngine.RULE_GENERAL, "event" -> R.drawable.ic_stat_event
             else -> R.drawable.ic_notification_small
         }

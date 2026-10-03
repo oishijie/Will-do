@@ -93,13 +93,6 @@ object RecognitionRuleCatalog {
             descriptionFormat = "【寄件】寄件码|品牌|地点",
             effectiveExamples = listOf("寄件码"),
             useCurrentTimeWhenMissing = true
-        ),
-        Rule(
-            tag = EventTags.COURSE,
-            promptName = "课程",
-            header = "课程",
-            aliases = setOf("course", "课程"),
-            includeInLocalPrompt = false
         )
     )
 

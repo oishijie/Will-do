@@ -38,7 +38,6 @@ class EventActionReceiver : BroadcastReceiver() {
         const val ACTION_CLEAR_QUICK_MEMO_REMINDER = "com.antgskds.calendarassistant.action.CLEAR_QUICK_MEMO_REMINDER"
         const val EXTRA_QUICK_MEMO_REMINDER_ID = "quick_memo_reminder_id"
         const val ACTION_STOP_QUICK_MEMO_RECORDING = "com.antgskds.calendarassistant.action.STOP_QUICK_MEMO_RECORDING"
-        const val EXTRA_ACCOUNTING_TASK_ID = "accounting_task_id"
         const val ACTION_CANCEL_RECOGNITION = "com.antgskds.calendarassistant.action.CANCEL_RECOGNITION"
         const val ACTION_DEBUG_PRIMARY = "com.antgskds.calendarassistant.action.DEBUG_PRIMARY"
         const val ACTION_DEBUG_SECONDARY = "com.antgskds.calendarassistant.action.DEBUG_SECONDARY"
@@ -102,8 +101,7 @@ class EventActionReceiver : BroadcastReceiver() {
             ACTION_CANCEL_RECOGNITION -> {
                 val service = TextAccessibilityService.instance
                 if (service != null) {
-                    val taskId = intent.getStringExtra(EXTRA_ACCOUNTING_TASK_ID)
-                    if (taskId == null) service.cancelCurrentAnalysis() else service.cancelAutomaticTask(taskId)
+                    service.cancelCurrentAnalysis()
                     Log.d(TAG, "recognition analysis cancelled from live capsule")
                 } else {
                     app.capsuleCommandApi.clearOcrCapsule()

@@ -450,8 +450,16 @@ class SyncV2LocalRepository(
         replaceAssetLinks(binding.recordKey, selected.attachments)
     }
 
-    private fun applyEvent(binding: SyncV2BindingEntity, selected: SyncV2Record): Long {
+    private suspend fun applyEvent(binding: SyncV2BindingEntity, selected: SyncV2Record): Long? {
         val payload = codec.decodePayload(selected.payloadJson, SyncV2EventPayload::class.java)
+        // 课表功能已下线：远端备份/同步中的课程事件不再落地，避免恢复时把课表复活。
+        if (isRetiredCourseTag(payload.tag)) {
+            binding.localId?.let { staleId ->
+                attachmentsDao.deleteAttachmentsForEvent(staleId)
+                scheduleStore.deleteRemoteEvent(staleId)
+            }
+            return null
+        }
         val existing = binding.localId?.let(eventsDao::getEventOrTaskWithId)
         val parentId = payload.parentSyncUuid?.let { parentUuid ->
             syncDao.getBinding(recordKey(SyncV2EntityType.EVENT.name, parentUuid))?.localId
@@ -488,6 +496,12 @@ class SyncV2LocalRepository(
             codeQrPayload = payload.codeQrPayload,
         )
         return scheduleStore.applyRemoteEvent(event)
+    }
+
+    /** 已下线的课表 tag：远端记录按过滤处理，不写回本地。 */
+    private fun isRetiredCourseTag(tag: String?): Boolean {
+        val normalized = tag?.trim()?.lowercase().orEmpty()
+        return normalized == "course" || normalized == "__removed_course__"
     }
 
     private suspend fun applyQuickMemo(binding: SyncV2BindingEntity, selected: SyncV2Record): Long {

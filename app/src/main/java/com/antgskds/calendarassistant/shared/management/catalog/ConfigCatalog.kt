@@ -89,7 +89,6 @@ object ConfigCatalog {
     const val ADAPTIVE_COMPACT_PANE_WIDTH_DP = 400
     const val ADAPTIVE_CONTENT_PADDING_DP = 24
     const val ADAPTIVE_FORM_MAX_WIDTH_DP = 840
-    const val ADAPTIVE_CHART_PAIR_MIN_WIDTH_DP = 800
     const val ADAPTIVE_WEATHER_TABLE_MIN_WIDTH_DP = 640
 
     // 右侧详情工作区：只按实际可用宽度分栏，无附件时正文限宽居中。
@@ -101,82 +100,7 @@ object ConfigCatalog {
     const val HOME_AGENDA_MOTION_MS = 420
     const val HOME_AGENDA_PULL_DP = 64
 
-    // 通知与短信正则资源上限及成功投递凭据数量。
-    const val ACCOUNTING_MESSAGE_MAX_TEXT = 8192
-    const val ACCOUNTING_MESSAGE_MAX_RULES = 128
-    const val ACCOUNTING_MESSAGE_RECEIPTS = 256
-
-    // 自动记账资源及调用策略；对用户只暴露总开关。
-    const val AUTO_ACCOUNTING_DEBOUNCE_MS = 700
-    // 原生截图接口返回请求过快时重试；仅在仍有效的截图候选内等待，不限制模型/账单间隔。
-    const val AUTO_ACCOUNTING_SCREENSHOT_RETRY_MS = 350
-    // 排除系统栏后粗检纯色/黑屏，不做 OCR，也不宣称内容一定可识别。
-    const val AUTO_ACCOUNTING_IMAGE_SAMPLE_SIDE = 64
-    const val AUTO_ACCOUNTING_IMAGE_BORDER_DIVISOR = 8
-    const val AUTO_ACCOUNTING_IMAGE_MIN_RANGE = 12
-    // 支付截图先保留，再给本地通知入库短暂优先期；仅关联本次现场，不抑制历史详情。
-    const val AUTO_ACCOUNTING_NOTIFICATION_WAIT_MS = 1_500
-    const val AUTO_ACCOUNTING_NOTIFICATION_MATCH_MS = 3_000
-    // 微信支付窗口上下文只在短会话内有效；成功事件过期后不再补拍其他页面。
-    const val AUTO_ACCOUNTING_WECHAT_SESSION_MS = 120_000
-    // 红包确认页等转场稳定后只缓存一次截图，不调用模型；会话沿用微信支付有效期。
-    const val AUTO_ACCOUNTING_RED_PACKET_CAPTURE_DELAY_MS = 500
-    const val AUTO_ACCOUNTING_SUCCESS_EVENT_MS = 5_000
-    // 详情信号只用于当前页面短时间内截图；不保留到稍后的其他页面。
-    const val AUTO_ACCOUNTING_DETAIL_SIGNAL_MS = 5_000
-    const val AUTO_ACCOUNTING_REPEAT_MS = 300_000
-    const val AUTO_ACCOUNTING_MAX_NODES = 512
-    const val AUTO_ACCOUNTING_MAX_TEXT = 16_000
-    const val AUTO_ACCOUNTING_MAX_PAYLOAD = 64_000
-    // 微信混淆模型仅扫描指定包，限制候选类数量与结构遍历深度。
-    const val AUTO_ACCOUNTING_MESSAGE_MAX_DEPTH = 16
-    const val AUTO_ACCOUNTING_QUEUE_SIZE = 8
-    const val AUTO_ACCOUNTING_PROVIDER_TIMEOUT_MS = 8_000
     const val RECOGNITION_SCREENSHOT_TIMEOUT_MS = 5_000
-    const val AUTO_ACCOUNTING_MAX_AGE_MS = 600_000
-    // 高频无障碍诊断按来源与阶段限流，避免窗口刷新占满每日日志。
-    const val AUTO_ACCOUNTING_DIAGNOSTIC_INTERVAL_MS = 5_000
-    // 一次性支付诊断的时间和资源上限；不改变正式支付触发条件。
-    const val PAYMENT_DIAGNOSTIC_DURATION_MS = 120_000
-    // 手动诊断会话的独立健康采样，不受截图耗时/次数上限影响。
-    const val PAYMENT_DIAGNOSTIC_HEALTH_INTERVAL_MS = 1_500
-    const val PAYMENT_DIAGNOSTIC_TREE_INTERVAL_MS = 300
-    const val PAYMENT_DIAGNOSTIC_DELAY_FIRST_MS = 100
-    const val PAYMENT_DIAGNOSTIC_DELAY_SECOND_MS = 700
-    const val PAYMENT_DIAGNOSTIC_DELAY_LAST_MS = 1_500
-    const val PAYMENT_DIAGNOSTIC_SCREENSHOT_INTERVAL_MS = 1_500
-    const val PAYMENT_DIAGNOSTIC_MAX_SCREENSHOTS = 80
-    const val PAYMENT_DIAGNOSTIC_MAX_IMAGE_BYTES = 64 * 1024 * 1024
-    const val PAYMENT_DIAGNOSTIC_MAX_LOG_BYTES = 16 * 1024 * 1024
-    const val PAYMENT_DIAGNOSTIC_MAX_EVENTS = 2_000
-    const val PAYMENT_DIAGNOSTIC_MAX_TREES = 2_048
-    const val PAYMENT_DIAGNOSTIC_MAX_NODES = 128
-    const val PAYMENT_DIAGNOSTIC_MAX_WINDOWS = 8
-    const val PAYMENT_DIAGNOSTIC_FIELD_CHARS = 512
-    const val PAYMENT_DIAGNOSTIC_QUEUE_SIZE = 256
-    const val PAYMENT_DIAGNOSTIC_RETAIN_SESSIONS = 3
-    // 跨页面账单去重：时间容差及名称相似门槛只用于暂存疑似重复，不直接合并交易。
-    const val ACCOUNTING_DUPLICATE_WINDOW_MS = 120_000
-    // 账单列表通常只显示到分钟；同一显示时间不因秒数或名称差异放行。
-    const val ACCOUNTING_DUPLICATE_TIME_PRECISION_MS = 60_000
-    const val ACCOUNTING_NAME_CONTAINMENT_MIN_LENGTH = 3
-    const val ACCOUNTING_NAME_FUZZY_MIN_LENGTH = 5
-    const val ACCOUNTING_NAME_SIMILARITY_PERCENT = 85
-    const val ACCOUNTING_NAME_FUZZY_MAX_LENGTH = 128
-    // 文件导入容量与解压/行数上限：限制内存占用，拒绝损坏或异常膨胀的表格。
-    const val ACCOUNTING_IMPORT_MAX_BYTES = 16 * 1024 * 1024
-    const val ACCOUNTING_IMPORT_EXPANDED_BYTES = 48 * 1024 * 1024
-    const val ACCOUNTING_IMPORT_MAX_ROWS = 100_000
-    const val ACCOUNTING_IMPORT_MAX_ZIP_ENTRIES = 2048
-
-    // 收支建议首版门槛；仅对已记录账单作描述，不等同于预算或完整账户流水。
-    const val ACCOUNTING_SUGGESTION_MIN_RECORDS = 3
-    const val ACCOUNTING_SUGGESTION_SHARE_PERCENT = 40
-    const val ACCOUNTING_SUGGESTION_CHANGE_PERCENT = 20
-    const val ACCOUNTING_SUGGESTION_STABLE_PERCENT = 10
-    const val ACCOUNTING_SUGGESTION_SMALL_MINOR = 2000
-    const val ACCOUNTING_SUGGESTION_SMALL_COUNT = 5
-    const val ACCOUNTING_SUGGESTION_LARGE_MINOR = 50000
 
     // 未成功发布时一分钟后重试；胶囊持续时间复用默认日程时长。
     const val QUICK_MEMO_REMINDER_RETRY_MS = 60_000L
@@ -206,15 +130,10 @@ object ConfigCatalog {
             "将图片挂起在岛上，并允许点击查看", ConfigExposure.DEVELOPER_ONLY,
             ConfigControl.Toggle, { if (it.imagePinEnabled) 1 else 0 },
             { s, v -> s.copy(imagePinEnabled = v != 0) }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.APPEARANCE, ConfigKind.USER_SETTING, "course.module_enabled", "启用课表功能",
-            "课表总开关：隐藏课程入口和展示，暂停课程提醒；保留数据和下滑偏好。", ConfigExposure.DEVELOPER_ONLY,
-            ConfigControl.Toggle, { if (it.courseModuleEnabled) 1 else 0 },
-            { s, v -> s.copy(courseModuleEnabled = v != 0) }, agentAccess = AgentConfigAccess.NONE),
         ConfigItem(ConfigDomain.APPEARANCE, ConfigKind.USER_SETTING, "home.agenda_only_scheduled", "日程视图显示模式",
             "默认仅日程；完整模式在已加载范围内补齐空日期，不影响其他日历视图。", ConfigExposure.DEVELOPER_ONLY,
             ConfigControl.IntOptions(listOf(ConfigControl.IntOptions.Option(0, "完整"), ConfigControl.IntOptions.Option(1, "仅日程"))),
             { if (it.homeAgendaOnlyScheduled) 1 else 0 }, { s, v -> s.copy(homeAgendaOnlyScheduled = v != 0) }),
-        // courseRemindersResumeAtMillis 是总开关恢复时记录的运行状态，不是可调参数。
 
         ConfigItem(
             domain = ConfigDomain.DIAGNOSTICS,
@@ -233,7 +152,6 @@ object ConfigCatalog {
             Triple("compact_pane_width_dp", ADAPTIVE_COMPACT_PANE_WIDTH_DP, "平板三栏中承载手机页面的固定中间栏宽度。"),
             Triple("content_padding_dp", ADAPTIVE_CONTENT_PADDING_DP, "平板右侧内容与左对齐标题的水平留白。"),
             Triple("form_max_width_dp", ADAPTIVE_FORM_MAX_WIDTH_DP, "平板设置表单最大阅读宽度。"),
-            Triple("chart_pair_min_width_dp", ADAPTIVE_CHART_PAIR_MIN_WIDTH_DP, "右侧分析内容可用宽度达到此值时并排展示图表。"),
             Triple("weather_table_min_width_dp", ADAPTIVE_WEATHER_TABLE_MIN_WIDTH_DP, "平板预报列表展开降水、风力列所需的最小内容宽度。"),
         ).map { (key, value, description) -> ConfigItem(
             ConfigDomain.APPEARANCE,
@@ -261,75 +179,6 @@ object ConfigCatalog {
             ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(HOME_AGENDA_PULL_DP, HOME_AGENDA_PULL_DP),
             { HOME_AGENDA_PULL_DP }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
 
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.USER_SETTING, "accounting.messages_enabled", "通知与短信记账", "通过本地正则自动捕获通知和短信中的账单", ConfigExposure.USER_EDITABLE, ConfigControl.Toggle, { if (it.accountingMessagesEnabled) 1 else 0 }, { s, v -> s.copy(accountingMessagesEnabled = v != 0) }, agentAccess = AgentConfigAccess.READ_ONLY),
-        *listOf("max_text" to ACCOUNTING_MESSAGE_MAX_TEXT, "max_rules" to ACCOUNTING_MESSAGE_MAX_RULES, "receipts" to ACCOUNTING_MESSAGE_RECEIPTS).map { (key, value) ->
-            ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.message_$key", "财务消息 $key", "限制本地正则输入、规则数量和重复投递凭据。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(value, value), { value }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE)
-        }.toTypedArray(),
-        *listOf(
-            Triple("min_records", ACCOUNTING_SUGGESTION_MIN_RECORDS, "频繁消费、同人转账及同期比较至少三笔"),
-            Triple("share_percent", ACCOUNTING_SUGGESTION_SHARE_PERCENT, "购物或餐饮达到本期已记录支出的百分比"),
-            Triple("change_percent", ACCOUNTING_SUGGESTION_CHANGE_PERCENT, "同期增减达到此百分比才提醒"),
-            Triple("stable_percent", ACCOUNTING_SUGGESTION_STABLE_PERCENT, "同期变化在此百分比以内视为平稳"),
-            Triple("small_minor", ACCOUNTING_SUGGESTION_SMALL_MINOR, "小额消费单笔上限，单位分"),
-            Triple("small_count", ACCOUNTING_SUGGESTION_SMALL_COUNT, "小额消费累计笔数门槛"),
-            Triple("large_minor", ACCOUNTING_SUGGESTION_LARGE_MINOR, "大额支出单笔门槛，单位分"),
-        ).map { (key, value, note) -> ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY,
-            "accounting.suggestion_$key", "收支建议 $key", note, ConfigExposure.SYSTEM_INTERNAL,
-            ConfigControl.IntInput(value, value), { value }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE)
-        }.toTypedArray(),
-        *listOf(
-            "duration_ms" to PAYMENT_DIAGNOSTIC_DURATION_MS,
-            "health_interval_ms" to PAYMENT_DIAGNOSTIC_HEALTH_INTERVAL_MS,
-            "tree_interval_ms" to PAYMENT_DIAGNOSTIC_TREE_INTERVAL_MS,
-            "delay_first_ms" to PAYMENT_DIAGNOSTIC_DELAY_FIRST_MS,
-            "delay_second_ms" to PAYMENT_DIAGNOSTIC_DELAY_SECOND_MS,
-            "delay_last_ms" to PAYMENT_DIAGNOSTIC_DELAY_LAST_MS,
-            "screenshot_interval_ms" to PAYMENT_DIAGNOSTIC_SCREENSHOT_INTERVAL_MS,
-            "max_screenshots" to PAYMENT_DIAGNOSTIC_MAX_SCREENSHOTS,
-            "max_image_bytes" to PAYMENT_DIAGNOSTIC_MAX_IMAGE_BYTES,
-            "max_log_bytes" to PAYMENT_DIAGNOSTIC_MAX_LOG_BYTES,
-            "max_events" to PAYMENT_DIAGNOSTIC_MAX_EVENTS,
-            "max_trees" to PAYMENT_DIAGNOSTIC_MAX_TREES,
-            "max_nodes" to PAYMENT_DIAGNOSTIC_MAX_NODES,
-            "max_windows" to PAYMENT_DIAGNOSTIC_MAX_WINDOWS,
-            "field_chars" to PAYMENT_DIAGNOSTIC_FIELD_CHARS,
-            "queue_size" to PAYMENT_DIAGNOSTIC_QUEUE_SIZE,
-            "retain_sessions" to PAYMENT_DIAGNOSTIC_RETAIN_SESSIONS,
-        ).map { (key, value) -> ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "diagnostics.payment_$key", "支付诊断 $key", "限制一次性支付诊断的时长、读取量和本地文件体积。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(value, value), { value }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE) }.toTypedArray(),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.USER_SETTING, "accounting.automatic_enabled", "自动记账（Beta）", "自动捕获支付信息", ConfigExposure.USER_EDITABLE, ConfigControl.Toggle, { if (it.automaticAccountingEnabled) 1 else 0 }, { s, v -> s.copy(automaticAccountingEnabled = v != 0) }, agentAccess = AgentConfigAccess.READ_ONLY),
-        *listOf(
-            Triple("notification_wait_ms", "支付通知优先等待", AUTO_ACCOUNTING_NOTIFICATION_WAIT_MS),
-            Triple("notification_match_ms", "支付通知关联时间窗", AUTO_ACCOUNTING_NOTIFICATION_MATCH_MS),
-            Triple("screenshot_retry_ms", "原生截图限频重试等待", AUTO_ACCOUNTING_SCREENSHOT_RETRY_MS),
-            Triple("image_sample_side", "截图内容采样边长", AUTO_ACCOUNTING_IMAGE_SAMPLE_SIDE),
-            Triple("image_border_divisor", "截图系统栏排除比例分母", AUTO_ACCOUNTING_IMAGE_BORDER_DIVISOR),
-            Triple("image_min_range", "截图非纯色最小亮度差", AUTO_ACCOUNTING_IMAGE_MIN_RANGE),
-            Triple("debounce_ms", "支付页面稳定等待", AUTO_ACCOUNTING_DEBOUNCE_MS),
-            Triple("red_packet_capture_delay_ms", "红包确认页截图等待", AUTO_ACCOUNTING_RED_PACKET_CAPTURE_DELAY_MS),
-            Triple("wechat_session_ms", "微信支付上下文有效期", AUTO_ACCOUNTING_WECHAT_SESSION_MS),
-            Triple("success_event_ms", "支付成功事件截图有效期", AUTO_ACCOUNTING_SUCCESS_EVENT_MS),
-            Triple("detail_signal_ms", "账单详情信号截图有效期", AUTO_ACCOUNTING_DETAIL_SIGNAL_MS),
-            Triple("repeat_ms", "自动采集重复抑制", AUTO_ACCOUNTING_REPEAT_MS),
-            Triple("max_nodes", "支付页面节点上限", AUTO_ACCOUNTING_MAX_NODES),
-            Triple("max_text", "支付页面文本上限", AUTO_ACCOUNTING_MAX_TEXT),
-            Triple("max_payload", "Hook 消息长度上限", AUTO_ACCOUNTING_MAX_PAYLOAD),
-            Triple("message_max_depth", "支付消息结构深度上限", AUTO_ACCOUNTING_MESSAGE_MAX_DEPTH),
-            Triple("queue_size", "Hook 转发队列上限", AUTO_ACCOUNTING_QUEUE_SIZE),
-            Triple("provider_timeout_ms", "支付消息处理超时", AUTO_ACCOUNTING_PROVIDER_TIMEOUT_MS),
-            Triple("screenshot_timeout_ms", "截图回调等待超时", RECOGNITION_SCREENSHOT_TIMEOUT_MS),
-            Triple("max_age_ms", "实时支付消息时效", AUTO_ACCOUNTING_MAX_AGE_MS),
-            Triple("diagnostic_interval_ms", "自动记账诊断日志最短间隔", AUTO_ACCOUNTING_DIAGNOSTIC_INTERVAL_MS),
-        ).map { (key, label, value) -> ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.auto_$key", label, "限制自动采集资源和重复请求，避免历史消息回放入账。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(value, value), { value }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE) }.toTypedArray(),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.duplicate_time_precision_ms", "账单相同时间精度", "同金额、同收支方向且同一分钟时独立判为疑似重复，不要求名称相似。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_DUPLICATE_TIME_PRECISION_MS, ACCOUNTING_DUPLICATE_TIME_PRECISION_MS), { ACCOUNTING_DUPLICATE_TIME_PRECISION_MS }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.duplicate_window_ms", "账单疑似重复时间范围", "同金额账单按交易时间前后两分钟筛选。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_DUPLICATE_WINDOW_MS, ACCOUNTING_DUPLICATE_WINDOW_MS), { ACCOUNTING_DUPLICATE_WINDOW_MS }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.name_containment_min_length", "账单简称最小长度", "限制短名称包含匹配，避免单字产生误判。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_NAME_CONTAINMENT_MIN_LENGTH, ACCOUNTING_NAME_CONTAINMENT_MIN_LENGTH), { ACCOUNTING_NAME_CONTAINMENT_MIN_LENGTH }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.name_fuzzy_min_length", "账单近似名称最小长度", "较短名称不进行编辑距离模糊匹配。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_NAME_FUZZY_MIN_LENGTH, ACCOUNTING_NAME_FUZZY_MIN_LENGTH), { ACCOUNTING_NAME_FUZZY_MIN_LENGTH }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.name_similarity_percent", "账单名称相似度", "达到门槛仅判为疑似重复并待核对。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_NAME_SIMILARITY_PERCENT, ACCOUNTING_NAME_SIMILARITY_PERCENT), { ACCOUNTING_NAME_SIMILARITY_PERCENT }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.name_fuzzy_max_length", "账单模糊匹配长度上限", "限制异常长名称的编辑距离计算开销。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_NAME_FUZZY_MAX_LENGTH, ACCOUNTING_NAME_FUZZY_MAX_LENGTH), { ACCOUNTING_NAME_FUZZY_MAX_LENGTH }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.import_max_zip_entries", "账单压缩条目上限", "限制账单导入资源占用。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_IMPORT_MAX_ZIP_ENTRIES, ACCOUNTING_IMPORT_MAX_ZIP_ENTRIES), { ACCOUNTING_IMPORT_MAX_ZIP_ENTRIES }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.import_max_rows", "账单行数上限", "限制账单导入资源占用。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_IMPORT_MAX_ROWS, ACCOUNTING_IMPORT_MAX_ROWS), { ACCOUNTING_IMPORT_MAX_ROWS }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.import_expanded_bytes", "账单解压容量", "限制账单导入资源占用。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_IMPORT_EXPANDED_BYTES, ACCOUNTING_IMPORT_EXPANDED_BYTES), { ACCOUNTING_IMPORT_EXPANDED_BYTES }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
-        ConfigItem(ConfigDomain.RECOGNITION, ConfigKind.POLICY, "accounting.import_max_bytes", "账单文件容量", "限制账单导入资源占用。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(ACCOUNTING_IMPORT_MAX_BYTES, ACCOUNTING_IMPORT_MAX_BYTES), { ACCOUNTING_IMPORT_MAX_BYTES }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
         ConfigItem(ConfigDomain.NOTIFICATION, ConfigKind.POLICY, "notification.quick_memo_retry_ms", "随口记提醒失败重试间隔", "发送失败保留记录，稍后重新尝试发布。", ConfigExposure.SYSTEM_INTERNAL, ConfigControl.IntInput(60000, 60000), { QUICK_MEMO_REMINDER_RETRY_MS.toInt() }, { s, _ -> s }, agentAccess = AgentConfigAccess.NONE),
         ConfigItem(
             domain = ConfigDomain.NOTIFICATION,
@@ -442,7 +291,7 @@ object ConfigCatalog {
             kind = ConfigKind.USER_SETTING,
             key = "agent.api.enabled",
             label = "允许 Agent 访问",
-            description = "开启后，官方 Agent 可以访问 WillDo 提供的日程、课程、随口记、设置和诊断能力。",
+            description = "开启后，官方 Agent 可以访问 WillDo 提供的日程、随口记、设置和诊断能力。",
             exposure = ConfigExposure.SYSTEM_INTERNAL,
             control = ConfigControl.Toggle,
             get = { if (it.agentApiEnabled) 1 else 0 },

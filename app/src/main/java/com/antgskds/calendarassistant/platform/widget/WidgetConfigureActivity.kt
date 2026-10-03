@@ -127,7 +127,3 @@ class ScheduleWidgetConfigureActivity : WidgetConfigureActivity() {
 class WeatherWidgetConfigureActivity : WidgetConfigureActivity() {
     override val widgetType: WidgetType = WidgetType.WEATHER
 }
-
-class CourseWidgetConfigureActivity : WidgetConfigureActivity() {
-    override val widgetType: WidgetType = WidgetType.COURSE
-}

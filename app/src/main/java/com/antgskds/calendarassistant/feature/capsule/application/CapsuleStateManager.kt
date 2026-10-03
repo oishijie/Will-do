@@ -131,14 +131,11 @@ class CapsuleStateManager(
         val voiceTranscription: OcrCapsuleState?,
         val textQuickMemo: OcrCapsuleState?,
         val quickMemoRecording: OcrCapsuleState?,
-        val accounting: OcrCapsuleState? = null,
         val imagePin: OcrCapsuleState? = null,
     )
 
     private val ocrCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
     private val imagePinCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
-    private val accountingCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
-    private var accountingAutoClearJob: Job? = null
     private val modelLoadingCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
     private val weatherCapsuleState = MutableStateFlow<List<OcrCapsuleState>>(emptyList())
     private val voiceTranscriptionCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
@@ -174,8 +171,6 @@ class CapsuleStateManager(
         content: String,
         actions: List<CapsuleActionSpec> = emptyList()
     ) {
-        accountingAutoClearJob?.cancel()
-        accountingCapsuleState.value = null
         val now = System.currentTimeMillis()
         val display = CapsuleMessageComposer.composeOcrProgress(title, content).copy(actions = actions)
         updateOcrCapsule(
@@ -239,21 +234,6 @@ class CapsuleStateManager(
             ),
             durationMs
         )
-    }
-
-    fun showAccountingResult(display: CapsuleDisplayModel) {
-        val now = System.currentTimeMillis()
-        val duration = ocrResultTimeoutMs()
-        accountingAutoClearJob?.cancel()
-        val state = OcrCapsuleState(id = "ACCOUNTING_RESULT", notifId = NotificationIds.liveCapsule("accounting_result"),
-            type = TYPE_OCR_RESULT, eventType = "accounting_result", title = display.shortText,
-            content = display.expandedText.orEmpty(), description = "", color = android.graphics.Color.parseColor("#4CAF50"),
-            startMillis = now, endMillis = now + duration, display = display, expiresAt = now + duration)
-        accountingCapsuleState.value = state
-        accountingAutoClearJob = appScope.launch {
-            kotlinx.coroutines.delay(duration)
-            accountingCapsuleState.compareAndSet(state, null)
-        }
     }
 
     fun clearOcrCapsule() {
@@ -566,10 +546,9 @@ class CapsuleStateManager(
         val capsuleTransientCombine = combine(
             baseTransientCombine,
             quickMemoRecordingCapsuleState,
-            accountingCapsuleState,
             imagePinCapsuleState,
-        ) { transient, quickMemoRecording, accounting, imagePin ->
-            transient.copy(quickMemoRecording = quickMemoRecording, accounting = accounting, imagePin = imagePin)
+        ) { transient, quickMemoRecording, imagePin ->
+            transient.copy(quickMemoRecording = quickMemoRecording, imagePin = imagePin)
         }
 
         return combine(baseCombine, networkSpeedState, capsuleTransientCombine) { (events, settings), networkSpeed, transient ->
@@ -647,12 +626,10 @@ class CapsuleStateManager(
             weatherCapsuleState.value = activeWeatherCapsules
         }
 
-        val activeAccounting = transient.accounting?.takeIf { it.expiresAt == null || nowMillis < it.expiresAt }
         val activeImagePin = transient.imagePin?.takeIf { com.antgskds.calendarassistant.feature.imagepin.ImagePinPolicy.canPublish(settings) }
-        if ((activeImagePin != null || activeAccounting != null || activeOcrCapsule != null || activeModelLoadingCapsule != null || activeWeatherCapsules.isNotEmpty() || activeVoiceTranscriptionCapsule != null || activeTextQuickMemoCapsule != null || activeQuickMemoRecordingCapsule != null) && settings.isLiveCapsuleEnabled) {
+        if ((activeImagePin != null || activeOcrCapsule != null || activeModelLoadingCapsule != null || activeWeatherCapsules.isNotEmpty() || activeVoiceTranscriptionCapsule != null || activeTextQuickMemoCapsule != null || activeQuickMemoRecordingCapsule != null) && settings.isLiveCapsuleEnabled) {
             val transientItems = buildList {
                 activeImagePin?.let { add(createTransientCapsuleItem(it)) }
-                activeAccounting?.let { add(createTransientCapsuleItem(it)) }
                 activeQuickMemoRecordingCapsule?.let { state ->
                     add(createTransientCapsuleItem(state))
                 }
@@ -859,7 +836,7 @@ class CapsuleStateManager(
         }
         val from = today.minusDays(1)
         val to = today.plusDays(advanceDays.toLong() + 1)
-        val activeEvents = events.filter { it.archivedAt == null && com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allows(it, settings) }
+        val activeEvents = events.filter { it.archivedAt == null }
         val eventsById = activeEvents.mapNotNull { event -> event.id?.let { id -> id to event } }.toMap()
 
         return ScheduleDisplayHelper.buildDisplayItems(activeEvents, from, to).mapNotNull { item ->
@@ -915,7 +892,6 @@ class CapsuleStateManager(
     }
 
     private fun isActiveCapsuleEntry(event: Event, settings: MySettings, now: LocalDateTime): Boolean {
-        if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.allowsReminder(event.tag, event.startTS * 1000L, settings)) return false
         return try {
             val endDateTime = LocalDateTime.of(event.endDate, LocalTime.parse(event.endTime, TIME_FORMATTER))
             val startDateTime = LocalDateTime.of(event.startDate, LocalTime.parse(event.startTime, TIME_FORMATTER))
@@ -997,11 +973,7 @@ class CapsuleStateManager(
     }
 
     private fun resolveCapsuleEventType(event: Event): String {
-        return if (event.tag == EventTags.COURSE || event.tag == "__removed_course__") {
-            RuleMatchingEngine.RULE_COURSE
-        } else {
-            resolveRuleId(event)
-        }
+        return resolveRuleId(event)
     }
 
     private fun resolveRuleId(event: Event): String {

@@ -11,8 +11,6 @@ interface PreferenceUiController {
     val availableSyncCalendars: StateFlow<List<CalendarManager.CalendarInfo>>
 
     fun refreshSyncStatus()
-    fun updateAccountingMessages(enabled: Boolean)
-    fun updateAutomaticAccounting(enabled: Boolean)
     fun refreshSyncCalendars()
     fun toggleCalendarSync(enabled: Boolean)
     fun enableCalendarSyncAndSyncNow(callback: suspend (Result<Unit>) -> Unit = {})
@@ -41,7 +39,7 @@ interface PreferenceUiController {
         edgeBarSingleTapAction: Int? = null, edgeBarDoubleTapAction: Int? = null,
         edgeBarLongPressAction: Int? = null, volumeUpLongPressEnabled: Boolean? = null,
         volumeUpLongPressAction: Int? = null, smsMonitoring: Boolean? = null,
-        courseFeatureEnabled: Boolean? = null, quickMemoRecordingDisplayMode: Int? = null,
+        quickMemoRecordingDisplayMode: Int? = null,
         voiceInputEnabled: Boolean? = null, floatingVoiceLongPressEnabled: Boolean? = null,
         floatingTextQuickMemoAutoPinEnabled: Boolean? = null,
         voiceQuickMemoAutoPinEnabled: Boolean? = null

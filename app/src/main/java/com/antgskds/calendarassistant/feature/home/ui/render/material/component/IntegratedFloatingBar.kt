@@ -1,19 +1,24 @@
 package com.antgskds.calendarassistant.feature.home.ui.render.material.component
 
 import com.antgskds.calendarassistant.shared.ui.material.component.AppFloatingActionSurface
-import com.antgskds.calendarassistant.shared.ui.material.component.AppFloatingActionButtonDefaults
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,31 +35,36 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.antgskds.calendarassistant.R
 import com.antgskds.calendarassistant.feature.home.domain.HomeEntryKey
+import com.antgskds.calendarassistant.feature.home.domain.homeEntryLabel
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.app.ui.theme.material.background.rememberAppBackgroundStylePalette
 
-// 统一高度设定为 68dp
-val IntegratedFloatingBarHeight = 68.dp
+// 统一高度设定为 80dp（图标 + 底部小字需要更充裕的纵向空间）
+val IntegratedFloatingBarHeight = 80.dp
 val IntegratedFloatingBarExtraHeight = 4.dp
 val IntegratedFloatingBarShadowPadding = 20.dp
 val IntegratedFloatingBarToastGap = 12.dp
@@ -70,14 +80,24 @@ val HydrogenContent = Color(0xFF44473E)
 val HydrogenFab = Color(0xFF4B5541)
 val HydrogenFabIcon = Color(0xFFF1F1EA)
 
+/** FAB 与展开操作区相对底栏顶部的间距。 */
+val IntegratedFloatingBarFabGap = 12.dp
+
+/**
+ * 常驻悬浮底栏（Hydrogen 风格）。
+ *
+ * 结构：底部大胶囊 = 四个「图标 + 小字」标签均匀分布；「＋」为独立圆钮悬浮在底栏右上方，
+ * 点击后向左横向撑开 [搜索/图片/新建] 操作胶囊，「＋」旋转为「✕」。
+ *
+ * 选中态：整 tab 填充 [secondaryContainer] 圆角胶囊，图标与文字使用 [onSecondaryContainer]。
+ * 「＋」圆钮使用 [primary] 实底，与选中态呼应。
+ */
 @Composable
 fun IntegratedFloatingBar(
     isExpanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    isSidebarOpen: Boolean = false,
     navItems: List<String>,
     selectedPageKey: String,
-    onMenuClick: () -> Unit,
     onPageClick: (String) -> Unit,
     onSearchClick: () -> Unit,
     onImageClick: () -> Unit,
@@ -85,309 +105,406 @@ fun IntegratedFloatingBar(
     backgroundMode: Boolean = false,
     miuiBlurEnabled: Boolean = false,
     cardAlphaPercent: Int = MySettings.APP_BACKGROUND_CARD_ALPHA_DEFAULT_PERCENT,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val haptics = rememberAppHaptics()
     val backgroundPalette = rememberAppBackgroundStylePalette(
         enabled = backgroundMode,
         miuiBlurEnabled = miuiBlurEnabled,
-        cardAlphaPercent = cardAlphaPercent
+        cardAlphaPercent = MySettings.normalizeAppBackgroundCardAlphaPercent(cardAlphaPercent)
     )
-    val rotation by animateFloatAsState(
-        targetValue = if (isExpanded) 45f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "fabRotation"
-    )
-
-    val mdBlend = 1.0f
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val barSurfaceAlpha = MySettings.normalizeAppBackgroundCardAlphaPercent(cardAlphaPercent) / 100f
+
     val navBg = if (backgroundMode) {
         backgroundPalette.surface.copy(alpha = barSurfaceAlpha)
     } else {
-        lerp(HydrogenBg, if (isDark) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface, mdBlend)
-    }
-    val navIndicator = if (backgroundMode) {
-        backgroundPalette.accent
-    } else {
-        lerp(HydrogenIndicator, MaterialTheme.colorScheme.secondaryContainer, mdBlend)
+        MaterialTheme.colorScheme.surface
     }
     val navContent = if (backgroundMode) {
         backgroundPalette.content
     } else {
-        lerp(HydrogenContent, MaterialTheme.colorScheme.onSurfaceVariant, mdBlend)
+        MaterialTheme.colorScheme.onSurface
     }
-    val fabBg = if (backgroundMode) {
-        backgroundPalette.surfaceStrong.copy(alpha = barSurfaceAlpha)
+    val unselectedContent = if (backgroundMode) {
+        backgroundPalette.content.copy(alpha = 0.6f)
     } else {
-        lerp(HydrogenFab, MaterialTheme.colorScheme.primary, mdBlend)
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
     }
-    val fabIcon = if (backgroundMode) {
-        backgroundPalette.content
+    val selectedContainer = if (backgroundMode) {
+        backgroundPalette.accent
     } else {
-        lerp(HydrogenFabIcon, MaterialTheme.colorScheme.onPrimary, mdBlend)
+        MaterialTheme.colorScheme.secondaryContainer
     }
+    val selectedContent = if (backgroundMode) {
+        backgroundPalette.accentContent
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    val fabBg = if (backgroundMode) backgroundPalette.accent else MaterialTheme.colorScheme.primary
+    val fabIcon = if (backgroundMode) backgroundPalette.accentContent else MaterialTheme.colorScheme.onPrimary
 
-    val navShape = CircleShape
-    val fabShape = RoundedCornerShape(22.dp)
+    val navShape = RoundedCornerShape(percent = 50)
+    val fabShape = RoundedCornerShape(24.dp)
+    val menuShape = RoundedCornerShape(26.dp)
+    val tabShape = RoundedCornerShape(percent = 50)
     val navElevation = if (backgroundMode) 0.dp else 6.dp
-    val fabElevation = if (backgroundMode) 0.dp else 6.dp
     val navHeight = IntegratedFloatingBarHeight + IntegratedFloatingBarExtraHeight
-    val fabSize = AppFloatingActionButtonDefaults.Size
-    val navItemWidth = 72.dp
-    val normalizedNavItems = navItems.distinct().filter {
-        it == HomeEntryKey.TODAY || it == HomeEntryKey.ALL || it == HomeEntryKey.NOTE
-    }
-    val navItemSpacing = if (normalizedNavItems.size >= 3) 0.dp else 4.dp
-    val navPaddingHorizontal = 6.dp
-    val navItemCount = normalizedNavItems.size.toFloat() + 1f
+    val fabSize = 52.dp
+    val fabRowBottom = IntegratedFloatingBarShadowPadding + navHeight + IntegratedFloatingBarFabGap
 
-    val navExpandedWidth = navItemWidth * navItemCount + navItemSpacing * (navItemCount - 1f) + navPaddingHorizontal * 2f
-    val navCollapsedWidth = navHeight
-    val fabCollapsedWidth = fabSize
-
-    val navWidth by animateDpAsState(
-        targetValue = if (isExpanded) navCollapsedWidth else navExpandedWidth,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "navWidth"
-    )
-    val iconAreaWidth by animateDpAsState(
-        targetValue = if (isExpanded) navExpandedWidth - navCollapsedWidth else 0.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "iconAreaWidth"
-    )
-    val actionWidth = fabCollapsedWidth + iconAreaWidth
-
-    val isMenuSelected = isSidebarOpen
-    val isTabHighlightEnabled = !isSidebarOpen
-    val menuIcon = painterResource(R.drawable.floatingbar_menu)
     val todayIcon = painterResource(R.drawable.floatingbar_today)
     val allIcon = painterResource(R.drawable.floatingbar_all)
     val quickMemoIcon = painterResource(R.drawable.ic_stat_quickmemo)
 
-    fun painterIconForPageKey(key: String): Painter? = when (key) {
-        HomeEntryKey.TODAY -> todayIcon
-        HomeEntryKey.ALL -> allIcon
-        HomeEntryKey.NOTE -> quickMemoIcon
-        else -> null
+    val normalizedNavItems = navItems.distinct().filter {
+        it == HomeEntryKey.TODAY || it == HomeEntryKey.ALL ||
+            it == HomeEntryKey.NOTE || it == HomeEntryKey.SETTINGS
     }
 
-    fun vectorIconForPageKey(key: String): ImageVector? = when (key) {
-        else -> null
-    }
+    val effectiveSelectedKey = effectiveSelectedKey(selectedPageKey, normalizedNavItems)
 
-    val effectiveSelectedKey = if (selectedPageKey in normalizedNavItems) {
-        selectedPageKey
-    } else {
-        normalizedNavItems.firstOrNull() ?: HomeEntryKey.TODAY
-    }
-    val currentTabClick = { onPageClick(effectiveSelectedKey) }
+    val rotation by animateFloatAsState(
+        targetValue = if (isExpanded) 45f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "fabRotation"
+    )
 
-    // 修改点 1：最外层 Box 允许内容溢出绘制，不强制裁剪
+    // FAB 形态：收起 = 圆形，展开 = 圆角方块（✕），参考稿的处理
+    val fabCorner by animateDpAsState(
+        targetValue = if (isExpanded) 17.dp else 26.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "fabCorner"
+    )
+    val fabMorphShape = RoundedCornerShape(fabCorner)
+
     Box(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.BottomCenter
     ) {
+        // 展开时的全屏透明遮罩：点击空白处收起
+        if (isExpanded) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onExpandedChange(false) }
+            )
+        }
+
+        // 主胶囊：四个「图标 + 小字」tab 均匀分布，撑满整行
         Row(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .padding(bottom = IntegratedFloatingBarShadowPadding)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .padding(bottom = IntegratedFloatingBarShadowPadding),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             AppFloatingActionSurface(
                 modifier = Modifier
-                    .height(navHeight)
-                    .width(navWidth),
+                    .fillMaxWidth()
+                    .height(navHeight),
                 shape = navShape,
                 containerColor = navBg,
                 elevation = navElevation
             ) {
-                if (isExpanded) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = navPaddingHorizontal, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        HydrogenNavIcon(
-                            icon = if (isSidebarOpen) menuIcon else painterIconForPageKey(effectiveSelectedKey),
-                            vectorIcon = if (isSidebarOpen) null else vectorIconForPageKey(effectiveSelectedKey),
-                            isSelected = true,
-                            indicatorColor = navIndicator,
-                            contentColor = navContent,
-                            onClick = {
-                                onExpandedChange(false)
-                                if (isSidebarOpen) {
-                                    onMenuClick()
-                                } else {
-                                    currentTabClick()
-                                }
-                            },
-                            width = navHeight
-                        )
-                    }
-                } else {
-                        Row(
-                            modifier = Modifier.padding(horizontal = navPaddingHorizontal, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(navItemSpacing)
-                    ) {
-                        HydrogenNavIcon(
-                            icon = menuIcon,
-                            isSelected = isMenuSelected,
-                            indicatorColor = navIndicator,
-                            contentColor = navContent,
-                            onClick = onMenuClick,
-                            width = navItemWidth
-                        )
-
-                        normalizedNavItems.forEach { key ->
-                            HydrogenNavIcon(
-                                icon = painterIconForPageKey(key),
-                                vectorIcon = vectorIconForPageKey(key),
-                                isSelected = isTabHighlightEnabled && effectiveSelectedKey == key,
-                                indicatorColor = navIndicator,
-                                contentColor = navContent,
-                                onClick = { onPageClick(key) },
-                                width = navItemWidth
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            AppFloatingActionSurface(
-                modifier = Modifier
-                    .height(fabSize)
-                    .width(actionWidth),
-                shape = fabShape,
-                containerColor = fabBg,
-                elevation = fabElevation
-            ) {
                 Row(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width(iconAreaWidth)
-                            .fillMaxHeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = isExpanded,
-                            enter = fadeIn(),
-                            exit = fadeOut()
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                ActionIconButton(Icons.Default.Search, "搜索", fabIcon, onSearchClick)
-                                ActionIconButton(Icons.Default.Image, "图片", fabIcon, onImageClick)
-                                ActionIconButton(Icons.Default.Edit, "新建", fabIcon, onEditClick)
-                            }
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .width(fabCollapsedWidth)
-                            .fillMaxHeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = { haptics.click(); onExpandedChange(!isExpanded) }) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "Toggle",
-                                tint = fabIcon,
-                                modifier = Modifier
-                                    .size(AppFloatingActionButtonDefaults.IconSize)
-                                    .rotate(rotation)
-                            )
-                        }
+                    normalizedNavItems.forEach { key ->
+                        HydrogenNavTab(
+                            icon = painterIconForPageKey(key, todayIcon, allIcon, quickMemoIcon),
+                            vectorIcon = vectorIconForPageKey(key),
+                            label = homeEntryLabel(key),
+                            isSelected = effectiveSelectedKey == key,
+                            selectedContainer = selectedContainer,
+                            selectedContent = selectedContent,
+                            unselectedContent = unselectedContent,
+                            onClick = {
+                                haptics.click()
+                                onPageClick(key)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
         }
+
+        // 右下 FAB 列：纵向菜单从 FAB 上方向上弹出（设置页不显示）
+        if (effectiveSelectedKey != HomeEntryKey.SETTINGS) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp)
+                .padding(bottom = fabRowBottom),
+            horizontalAlignment = Alignment.End
+        ) {
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                    expandFrom = Alignment.Bottom
+                ) + fadeIn(),
+                exit = shrinkVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                    shrinkTowards = Alignment.Bottom
+                ) + fadeOut()
+            ) {
+                AppFloatingActionSurface(
+                    shape = menuShape,
+                    containerColor = navBg,
+                    elevation = navElevation
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 10.dp, horizontal = 10.dp)) {
+                        HydrogenFabMenuItem(
+                            icon = Icons.Default.Search,
+                            label = "搜索日程",
+                            iconContainer = selectedContainer,
+                            iconTint = selectedContent,
+                            labelColor = navContent,
+                            onClick = onSearchClick
+                        )
+                        HydrogenFabMenuItem(
+                            icon = Icons.Default.Image,
+                            label = "图片识别",
+                            iconContainer = selectedContainer,
+                            iconTint = selectedContent,
+                            labelColor = navContent,
+                            onClick = onImageClick
+                        )
+                        HydrogenFabMenuItem(
+                            icon = Icons.Default.Edit,
+                            label = "新建日程",
+                            iconContainer = selectedContainer,
+                            iconTint = selectedContent,
+                            labelColor = navContent,
+                            onClick = onEditClick
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            HydrogenFabPlus(
+                rotation = rotation,
+                shape = fabMorphShape,
+                containerColor = fabBg,
+                iconColor = fabIcon,
+                contentDescription = if (isExpanded) "收起" else "展开操作",
+                elevation = navElevation,
+                onClick = {
+                    haptics.click()
+                    onExpandedChange(!isExpanded)
+                },
+                modifier = Modifier.size(fabSize)
+            )
+        }
+        }
     }
 }
 
+/** 选中态计算：不在列表内时回落到今日日程。 */
+private fun effectiveSelectedKey(selectedPageKey: String, navItems: List<String>): String =
+    if (selectedPageKey in navItems) selectedPageKey else HomeEntryKey.TODAY
+
+private fun painterIconForPageKey(
+    key: String,
+    todayIcon: androidx.compose.ui.graphics.painter.Painter,
+    allIcon: androidx.compose.ui.graphics.painter.Painter,
+    quickMemoIcon: androidx.compose.ui.graphics.painter.Painter,
+): androidx.compose.ui.graphics.painter.Painter? = when (key) {
+    HomeEntryKey.TODAY -> todayIcon
+    HomeEntryKey.ALL -> allIcon
+    HomeEntryKey.NOTE -> quickMemoIcon
+    else -> null
+}
+
+private fun vectorIconForPageKey(key: String): ImageVector? = when (key) {
+    HomeEntryKey.SETTINGS -> Icons.Outlined.Settings
+    else -> null
+}
+
+/**
+ * 底栏标签：图标 + 底部小字，选中时填充整 tab 高度的圆角胶囊。
+ * 内容垂直居中于固定高度内，任何字体缩放下都不会被裁切。
+ */
 @Composable
-private fun HydrogenNavIcon(
-    icon: Painter?,
-    vectorIcon: ImageVector? = null,
+private fun HydrogenNavTab(
+    icon: androidx.compose.ui.graphics.painter.Painter?,
+    vectorIcon: ImageVector?,
+    label: String,
     isSelected: Boolean,
-    indicatorColor: Color,
-    contentColor: Color,
+    selectedContainer: Color,
+    selectedContent: Color,
+    unselectedContent: Color,
     onClick: () -> Unit,
-    width: Dp
+    modifier: Modifier = Modifier
 ) {
     val haptics = rememberAppHaptics()
+    val contentColor = if (isSelected) selectedContent else unselectedContent
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxHeight()
-            .width(width),
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { haptics.click(); onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth()
-                .padding(vertical = 4.dp, horizontal = 4.dp)
-                .clip(CircleShape)
-                .clickable { haptics.click(); onClick() },
-            contentAlignment = Alignment.Center
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight(0.92f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 3.dp)
+                    .background(selectedContainer, RoundedCornerShape(percent = 50))
+            )
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth()
-                        .background(indicatorColor, CircleShape)
-                )
-            }
-            if (icon != null) {
-                Icon(
-                    painter = icon,
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(28.dp)
-                )
-            } else if (vectorIcon != null) {
-                Icon(
-                    imageVector = vectorIcon,
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+            TabIcon(icon, vectorIcon, contentColor)
+            Spacer(modifier = Modifier.size(3.dp))
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false
+            )
         }
     }
 }
 
 @Composable
-private fun ActionIconButton(
-    icon: ImageVector,
+private fun TabIcon(
+    icon: androidx.compose.ui.graphics.painter.Painter?,
+    vectorIcon: ImageVector?,
+    tint: Color
+) {
+    if (icon != null) {
+        Icon(
+            painter = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(24.dp)
+        )
+    } else if (vectorIcon != null) {
+        Icon(
+            imageVector = vectorIcon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+/** 展开态操作胶囊内的图标按钮。 */
+@Composable
+private fun HydrogenFabAction(
+    vectorIcon: ImageVector,
     contentDescription: String,
     tint: Color,
     onClick: () -> Unit
 ) {
     val haptics = rememberAppHaptics()
-    IconButton(
-        onClick = { haptics.click(); onClick() },
-        modifier = Modifier.size(44.dp)
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable { haptics.click(); onClick() },
+        contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = icon,
+            imageVector = vectorIcon,
             contentDescription = contentDescription,
             tint = tint,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+/** 独立悬浮的「＋」圆钮，展开时旋转为「✕」并渐变为圆角方块。与主胶囊同材质。 */
+@Composable
+private fun HydrogenFabPlus(
+    rotation: Float,
+    shape: Shape,
+    containerColor: Color,
+    iconColor: Color,
+    contentDescription: String,
+    elevation: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptics = rememberAppHaptics()
+    AppFloatingActionSurface(
+        modifier = modifier,
+        shape = shape,
+        containerColor = containerColor,
+        elevation = elevation
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable { haptics.click(); onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = contentDescription,
+                tint = iconColor,
+                modifier = Modifier
+                    .size(26.dp)
+                    .rotate(rotation)
+            )
+        }
+    }
+}
+
+/** FAB 展开菜单的纵向条目：淡色圆底图标 + 粗体标签（参考稿样式）。 */
+@Composable
+private fun HydrogenFabMenuItem(
+    icon: ImageVector,
+    label: String,
+    iconContainer: Color,
+    iconTint: Color,
+    labelColor: Color,
+    onClick: () -> Unit
+) {
+    val haptics = rememberAppHaptics()
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { haptics.click(); onClick() }
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .background(iconContainer, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = iconTint,
+                modifier = Modifier.size(21.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = label,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = labelColor
         )
     }
 }

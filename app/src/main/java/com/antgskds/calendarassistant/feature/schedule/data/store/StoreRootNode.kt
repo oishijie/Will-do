@@ -10,7 +10,6 @@ import com.antgskds.calendarassistant.feature.schedule.domain.calendar.TAG_FLIGH
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.TAG_TRAIN
 import com.antgskds.calendarassistant.feature.schedule.domain.calendar.TYPE_TASK
 import com.antgskds.calendarassistant.feature.schedule.domain.model.Event
-import com.antgskds.calendarassistant.feature.schedule.domain.model.EventTags
 import com.antgskds.calendarassistant.feature.schedule.domain.model.EventType
 import com.antgskds.calendarassistant.feature.schedule.domain.model.inferEventTagFromDescription
 import com.antgskds.calendarassistant.feature.recognition.domain.model.RecognitionDraft
@@ -685,7 +684,6 @@ class StoreRootNode(context: Context) {
 
     private fun validateTargetStateForTag(tagRaw: String, targetState: Int): OperationErrorCode? {
         val tag = tagRaw.lowercase()
-        if (tag == EventTags.COURSE) return OperationErrorCode.STATE_NOT_ALLOWED_FOR_TAG
         val isTransit = tag == TAG_FLIGHT || tag == TAG_TRAIN
         val allowed = if (isTransit) {
             targetState == STATE_PENDING || targetState == STATE_CHECKED_IN

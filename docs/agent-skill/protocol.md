@@ -71,7 +71,3 @@ Broadcast completed: result=-1, data="{...}"
 - 大型查询必须设置时间范围、文本过滤或较小 `limit`，避免终端输出截断。
 - 写操作超时后先查询结果，不要立即用新 `requestId` 重试，以免重复创建。
 - 同一个写请求因输出丢失而重试时，只能复用原 `requestId`、原方法和完全相同的请求 JSON。
-
-## 记账能力
-
-记账接口沿用协议版本 2，先确认 methods 中存在所需接口。新版能力信息额外返回 billTimeUnit:"milliseconds" 与 billAmountUnit:"minor"。旧版没有记账方法时提示升级 Will do，不使用数据库写操作代替记账。

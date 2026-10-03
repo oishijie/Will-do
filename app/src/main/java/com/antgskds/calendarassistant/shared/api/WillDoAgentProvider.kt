@@ -1,14 +1,6 @@
 package com.antgskds.calendarassistant.shared.api
 
 import android.content.ContentProvider
-import com.antgskds.calendarassistant.shared.operation.AgentBill
-import com.antgskds.calendarassistant.shared.operation.AgentBillDraft
-import com.antgskds.calendarassistant.shared.operation.AgentBillPatch
-import com.antgskds.calendarassistant.shared.operation.AgentBillFilter
-import com.antgskds.calendarassistant.shared.operation.AgentBillQuery
-import com.antgskds.calendarassistant.shared.operation.AgentBillPage
-import com.antgskds.calendarassistant.shared.operation.AgentBillCreation
-import com.antgskds.calendarassistant.shared.operation.AgentBillSummary
 import android.content.ContentValues
 import android.content.UriMatcher
 import android.database.Cursor
@@ -19,8 +11,6 @@ import android.os.ParcelFileDescriptor
 import com.antgskds.calendarassistant.shared.util.AppLogger as Log
 import com.antgskds.calendarassistant.App
 import com.antgskds.calendarassistant.shared.operation.AgentAttachmentInfo
-import com.antgskds.calendarassistant.shared.operation.AgentCourse
-import com.antgskds.calendarassistant.shared.operation.AgentCourseDraft
 import com.antgskds.calendarassistant.shared.operation.AgentConfiguration
 import com.antgskds.calendarassistant.shared.operation.AgentConnectionResult
 import com.antgskds.calendarassistant.shared.operation.AgentConnectionSummary
@@ -156,29 +146,6 @@ class WillDoAgentProvider : ContentProvider() {
     ): JsonElement = when (method) {
         WillDoAgentContract.GET_CAPABILITIES -> capabilities(isThirdPartyTransport)
 
-        WillDoAgentContract.CREATE_BILL -> encode(
-            service.createBill(payload.decode("bill", AgentBillDraft.serializer())).getOrThrow(),
-            AgentBillCreation.serializer()
-        )
-        WillDoAgentContract.GET_BILL -> encode(
-            service.getBill(payload.requiredString("id")).getOrThrow(), AgentBill.serializer()
-        )
-        WillDoAgentContract.QUERY_BILLS -> encode(
-            service.queryBills(AgentProtocolJson.json.decodeFromJsonElement<AgentBillQuery>(payload)).getOrThrow(),
-            AgentBillPage.serializer()
-        )
-        WillDoAgentContract.UPDATE_BILL -> encode(
-            service.updateBill(payload.requiredString("id"), payload.decode("patch", AgentBillPatch.serializer())).getOrThrow(),
-            AgentBill.serializer()
-        )
-        WillDoAgentContract.DELETE_BILL -> completed {
-            service.deleteBill(payload.requiredString("id")).getOrThrow()
-        }
-        WillDoAgentContract.GET_BILL_SUMMARY -> encode(
-            service.getBillSummary(AgentProtocolJson.json.decodeFromJsonElement<AgentBillFilter>(payload)).getOrThrow(),
-            ListSerializer(AgentBillSummary.serializer())
-        )
-
         WillDoAgentContract.CREATE_EVENT -> idResult(
             service.createEvent(payload.decode("event", AgentEventDraft.serializer())).getOrThrow()
         )
@@ -251,37 +218,6 @@ class WillDoAgentProvider : ContentProvider() {
         )
         WillDoAgentContract.DELETE_EVENT_ATTACHMENT -> completed {
             service.deleteEventAttachment(payload.requiredLong("attachmentId")).getOrThrow()
-        }
-
-        WillDoAgentContract.CREATE_COURSE -> stringIdResult(
-            service.createCourse(payload.decode("course", AgentCourseDraft.serializer())).getOrThrow()
-        )
-        WillDoAgentContract.BATCH_CREATE_COURSES -> buildJsonObject {
-            val drafts = payload.decode("courses", ListSerializer(AgentCourseDraft.serializer()))
-            put(
-                "ids",
-                AgentProtocolJson.json.encodeToJsonElement(
-                    ListSerializer(String.serializer()),
-                    service.batchCreateCourses(drafts).getOrThrow()
-                )
-            )
-        }
-        WillDoAgentContract.GET_COURSE -> encode(
-            service.getCourse(payload.requiredString("id")).getOrThrow(),
-            AgentCourse.serializer()
-        )
-        WillDoAgentContract.QUERY_COURSES -> encode(
-            service.queryCourses(payload["dayOfWeek"]?.jsonPrimitive?.intOrNull).getOrThrow(),
-            ListSerializer(AgentCourse.serializer())
-        )
-        WillDoAgentContract.UPDATE_COURSE -> completed {
-            service.updateCourse(
-                payload.requiredString("id"),
-                payload.decode("course", AgentCourseDraft.serializer())
-            ).getOrThrow()
-        }
-        WillDoAgentContract.DELETE_COURSE -> completed {
-            service.deleteCourse(payload.requiredString("id")).getOrThrow()
         }
 
         WillDoAgentContract.CREATE_QUICK_MEMO -> idResult(
@@ -450,8 +386,6 @@ class WillDoAgentProvider : ContentProvider() {
         put("protocolVersion", WillDoAgentContract.PROTOCOL_VERSION)
         put("maxBatchSize", WillDoAgentContract.MAX_BATCH_SIZE)
         put("maxQueryLimit", WillDoAgentContract.MAX_QUERY_LIMIT)
-        put("billTimeUnit", "milliseconds")
-        put("billAmountUnit", "minor")
         put("supportsContentUriFiles", !isThirdPartyTransport)
         put("supportsOccurrenceAttachments", !isThirdPartyTransport)
         put("accessEnabled", access.accessEnabled)
@@ -495,7 +429,6 @@ class WillDoAgentProvider : ContentProvider() {
 
     private fun idResult(id: Long): JsonObject = buildJsonObject { put("id", id) }
     private fun nullableIdResult(id: Long?): JsonObject = buildJsonObject { id?.let { put("id", it) } }
-    private fun stringIdResult(id: String): JsonObject = buildJsonObject { put("id", id) }
 
     private fun <T> encode(value: T, serializer: KSerializer<T>): JsonElement =
         AgentProtocolJson.json.encodeToJsonElement(serializer, value)
@@ -575,13 +508,6 @@ class WillDoAgentProvider : ContentProvider() {
         }
 
         val ALL_METHODS = listOf(
-            WillDoAgentContract.CREATE_BILL,
-            WillDoAgentContract.GET_BILL,
-            WillDoAgentContract.QUERY_BILLS,
-            WillDoAgentContract.UPDATE_BILL,
-            WillDoAgentContract.DELETE_BILL,
-            WillDoAgentContract.GET_BILL_SUMMARY,
-
             WillDoAgentContract.GET_CAPABILITIES,
             WillDoAgentContract.CREATE_EVENT,
             WillDoAgentContract.BATCH_CREATE_EVENTS,
@@ -597,12 +523,6 @@ class WillDoAgentProvider : ContentProvider() {
             WillDoAgentContract.ADD_EVENT_ATTACHMENT,
             WillDoAgentContract.LIST_EVENT_ATTACHMENTS,
             WillDoAgentContract.DELETE_EVENT_ATTACHMENT,
-            WillDoAgentContract.CREATE_COURSE,
-            WillDoAgentContract.BATCH_CREATE_COURSES,
-            WillDoAgentContract.GET_COURSE,
-            WillDoAgentContract.QUERY_COURSES,
-            WillDoAgentContract.UPDATE_COURSE,
-            WillDoAgentContract.DELETE_COURSE,
             WillDoAgentContract.CREATE_QUICK_MEMO,
             WillDoAgentContract.GET_QUICK_MEMO,
             WillDoAgentContract.QUERY_QUICK_MEMOS,
@@ -632,15 +552,10 @@ class WillDoAgentProvider : ContentProvider() {
         )
 
         val MUTATING_METHODS = ALL_METHODS.toSet() - setOf(
-            WillDoAgentContract.GET_BILL,
-            WillDoAgentContract.QUERY_BILLS,
-            WillDoAgentContract.GET_BILL_SUMMARY,
             WillDoAgentContract.GET_CAPABILITIES,
             WillDoAgentContract.GET_EVENT,
             WillDoAgentContract.QUERY_EVENTS,
             WillDoAgentContract.LIST_EVENT_ATTACHMENTS,
-            WillDoAgentContract.GET_COURSE,
-            WillDoAgentContract.QUERY_COURSES,
             WillDoAgentContract.GET_QUICK_MEMO,
             WillDoAgentContract.QUERY_QUICK_MEMOS,
             WillDoAgentContract.GET_SETTINGS,

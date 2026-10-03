@@ -47,7 +47,7 @@ object RecognitionFailureMessageMapper {
         return when (code) {
             "IMAGE_INPUT_UNSUPPORTED" -> "当前模型不支持图片输入"
             "EMPTY_RESULT",
-            "EMPTY_EVENTS" -> "未识别到有效日程或账单"
+            "EMPTY_EVENTS" -> "未识别到有效日程"
             "INVALID_JSON" -> "模型返回格式异常"
             "INVALID_SCHEMA" -> "模型返回内容不完整"
             "TIMEOUT_LOADING" -> "本地模型加载超时"

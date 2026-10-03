@@ -11,13 +11,6 @@ import kotlinx.serialization.Serializable
  * seconds, matching WillDo's internal event model.
  */
 interface AgentDataApi {
-    suspend fun createBill(draft: AgentBillDraft): Result<AgentBillCreation>
-    suspend fun getBill(id: String): Result<AgentBill>
-    suspend fun queryBills(query: AgentBillQuery): Result<AgentBillPage>
-    suspend fun updateBill(id: String, patch: AgentBillPatch): Result<AgentBill>
-    suspend fun deleteBill(id: String): Result<Unit>
-    suspend fun getBillSummary(filter: AgentBillFilter): Result<List<AgentBillSummary>>
-
     suspend fun createEvent(draft: AgentEventDraft): Result<Long>
     suspend fun batchCreateEvents(drafts: List<AgentEventDraft>): Result<List<Long>>
     suspend fun getEvent(id: Long): Result<AgentEvent>
@@ -43,13 +36,6 @@ interface AgentDataApi {
     suspend fun addEventAttachment(eventId: Long, input: AgentFileInput, occurrenceTs: Long? = null): Result<AgentAttachmentInfo>
     suspend fun listEventAttachments(eventId: Long, occurrenceTs: Long? = null): Result<List<AgentAttachmentInfo>>
     suspend fun deleteEventAttachment(attachmentId: Long): Result<Unit>
-
-    suspend fun createCourse(draft: AgentCourseDraft): Result<String>
-    suspend fun batchCreateCourses(drafts: List<AgentCourseDraft>): Result<List<String>>
-    suspend fun getCourse(id: String): Result<AgentCourse>
-    suspend fun queryCourses(dayOfWeek: Int? = null): Result<List<AgentCourse>>
-    suspend fun updateCourse(id: String, draft: AgentCourseDraft): Result<Unit>
-    suspend fun deleteCourse(id: String): Result<Unit>
 
     suspend fun createQuickMemo(draft: AgentQuickMemoDraft): Result<Long>
     suspend fun getQuickMemo(id: Long): Result<AgentQuickMemo>
@@ -94,12 +80,6 @@ object WillDoAgentContract {
     const val MAX_REQUEST_BYTES = 1_000_000
 
     const val GET_CAPABILITIES = "getCapabilities"
-    const val CREATE_BILL = "createBill"
-    const val GET_BILL = "getBill"
-    const val QUERY_BILLS = "queryBills"
-    const val UPDATE_BILL = "updateBill"
-    const val DELETE_BILL = "deleteBill"
-    const val GET_BILL_SUMMARY = "getBillSummary"
     const val CREATE_EVENT = "createEvent"
     const val BATCH_CREATE_EVENTS = "batchCreateEvents"
     const val GET_EVENT = "getEvent"
@@ -114,13 +94,6 @@ object WillDoAgentContract {
     const val ADD_EVENT_ATTACHMENT = "addEventAttachment"
     const val LIST_EVENT_ATTACHMENTS = "listEventAttachments"
     const val DELETE_EVENT_ATTACHMENT = "deleteEventAttachment"
-
-    const val CREATE_COURSE = "createCourse"
-    const val BATCH_CREATE_COURSES = "batchCreateCourses"
-    const val GET_COURSE = "getCourse"
-    const val QUERY_COURSES = "queryCourses"
-    const val UPDATE_COURSE = "updateCourse"
-    const val DELETE_COURSE = "deleteCourse"
 
     const val CREATE_QUICK_MEMO = "createQuickMemo"
     const val GET_QUICK_MEMO = "getQuickMemo"
@@ -437,35 +410,6 @@ enum class AgentRecurringMode { THIS, THIS_AND_FUTURE, ALL }
 
 @Serializable
 enum class AgentEventState { PENDING, COMPLETED, CHECKED_IN }
-
-@Serializable
-data class AgentCourseDraft(
-    val name: String,
-    val dayOfWeek: Int,
-    val startNode: Int,
-    val endNode: Int,
-    val startWeek: Int,
-    val endWeek: Int,
-    val weekType: Int = 0,
-    val location: String = "",
-    val teacher: String = "",
-    val color: Int
-)
-
-@Serializable
-data class AgentCourse(
-    val id: String,
-    val name: String,
-    val dayOfWeek: Int,
-    val startNode: Int,
-    val endNode: Int,
-    val startWeek: Int,
-    val endWeek: Int,
-    val weekType: Int,
-    val location: String,
-    val teacher: String,
-    val color: Int
-)
 
 @Serializable
 data class AgentQuickMemoDraft(

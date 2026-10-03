@@ -10,11 +10,6 @@ import java.time.temporal.ChronoUnit
 object DateCalculator {
     fun getToday(): LocalDate = LocalDate.now()
 
-    fun calculateWeek(semesterStart: LocalDate, targetDate: LocalDate): Int {
-        val days = ChronoUnit.DAYS.between(semesterStart, targetDate)
-        return (days / 7).toInt() + 1
-    }
-
     fun getDayOfWeek(date: LocalDate): Int {
         return date.dayOfWeek.value
     }

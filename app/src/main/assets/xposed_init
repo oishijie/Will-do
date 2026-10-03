@@ -1,3 +1,2 @@
 com.antgskds.calendarassistant.platform.xposed.SelfHook
 com.antgskds.calendarassistant.platform.xposed.MiuiIslandDispatcherHook
-com.antgskds.calendarassistant.platform.xposed.PaymentCaptureHook

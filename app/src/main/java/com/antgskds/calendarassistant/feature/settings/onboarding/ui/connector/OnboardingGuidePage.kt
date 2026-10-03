@@ -374,7 +374,6 @@ fun OnboardingGuidePage(
             FeatureKey.BRACELET_MODE -> settingsViewModel.updatePreference(braceletModeEnabled = enabled)
             FeatureKey.SMS_RECOGNITION -> settingsViewModel.updatePreference(smsMonitoring = enabled)
             FeatureKey.VOLUME_SHORTCUT -> settingsViewModel.updatePreference(volumeUpLongPressEnabled = enabled)
-            FeatureKey.COURSE -> if (com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settingsViewModel.settings.value)) settingsViewModel.updatePreference(courseFeatureEnabled = enabled)
         }
     }
 
@@ -552,12 +551,8 @@ fun OnboardingGuidePage(
                             itemVisibility = PreferenceItemVisibility(
                                 showUiSize = false,
                                 showTomorrowEvents = false,
-                                showBottomBarEditor = false,
                                 showWidgetSettings = false,
                             ),
-                            onNavigateToBottomBarEditor = {
-                                toast("可在完成引导后进入底栏编辑")
-                            },
                             onNavigateToWidgetSettings = {
                                 toast("可在完成引导后进入桌面小组件设置")
                             },
@@ -1260,74 +1255,6 @@ private fun FloatingQuickMemoConfigStep(
 }
 
 @Composable
-private fun CourseConfigStep(
-    settings: MySettings,
-    onCourseFeatureChange: (Boolean) -> Unit,
-    onImportCourses: () -> Unit,
-) {
-    val cardTitleStyle = MaterialTheme.typography.bodyLarge.copy(
-        fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    val cardSubtitleStyle = MaterialTheme.typography.bodyMedium.copy(
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-    )
-    val cardValueStyle = MaterialTheme.typography.bodyMedium.copy(
-        fontWeight = FontWeight.Normal,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    if (!com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settings)) {
-        Text("课表功能已在开发者设置中关闭")
-        return
-    }
-    AppSettingsCard {
-        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-            SwitchSettingItem(
-                title = "课程功能",
-                subtitle = "课程表、学期设置和课程提醒入口",
-                checked = settings.courseFeatureEnabled,
-                onCheckedChange = onCourseFeatureChange,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            ActionSettingItem(
-                title = "导入 WakeUp 课表",
-                subtitle = "支持 WakeUp 文件和分享口令，可同步学期与作息时间",
-                value = "导入",
-                enabled = settings.courseFeatureEnabled,
-                onClick = onImportCourses,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            ActionSettingItem(
-                title = "学期设置",
-                subtitle = if (settings.semesterStartDate.isBlank()) "未设置，可稍后在课程设置中完善" else "已设置：${settings.semesterStartDate}",
-                value = if (settings.semesterStartDate.isBlank()) "未配置" else "已配置",
-                enabled = false,
-                onClick = {},
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            ActionSettingItem(
-                title = "上课时间",
-                subtitle = if (settings.timeTableJson.isBlank()) "未配置，可稍后导入或手动编辑课程表" else "已配置课程时间表",
-                value = if (settings.timeTableJson.isBlank()) "未配置" else "已配置",
-                enabled = false,
-                onClick = {},
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-            )
-        }
-    }
-}
-
-@Composable
 private fun WeatherConfigStep(
     settings: MySettings,
     snapshot: PermissionSnapshot,
@@ -1704,7 +1631,6 @@ private fun onboardingFeatureItems(settings: MySettings, syncEnabled: Boolean, s
     FeatureItem(FeatureKey.WEATHER, "天气服务", "天气卡片和天气提醒基础能力", settings.weatherEnabled, snapshot.location || settings.weatherManualLocationId.isNotBlank(), "需要开启定位权限，或先在天气设置中选择手动城市"),
     FeatureItem(FeatureKey.WEATHER_ALERT, "天气预警", "天气预警和风险提醒通知", settings.weatherWarningEnabled || settings.weatherRiskWarningEnabled, snapshot.notification && settings.weatherEnabled, "需要先开启通知权限和天气服务"),
     FeatureItem(FeatureKey.BRACELET_MODE, "手环模式", "开启后，将同步发送一条普通通知以同步到手环", settings.braceletModeEnabled, snapshot.notification, "需要先开启通知权限"),
-    FeatureItem(FeatureKey.COURSE, "课程", "课程表、学期设置和课程提醒", com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.swipeEnabled(settings), com.antgskds.calendarassistant.feature.schedule.domain.course.CourseFeaturePolicy.enabled(settings), "课程功能可稍后在设置中完善"),
     FeatureItem(FeatureKey.SMS_RECOGNITION, "短信识别", "短信取件码/验证码类识别，敏感功能默认关闭", settings.isSmsMonitoringEnabled, snapshot.sms, "需要先开启短信权限"),
     FeatureItem(FeatureKey.VOLUME_SHORTCUT, "音量键快捷随口记", "通过无障碍监听音量键长按触发快捷功能", settings.volumeUpLongPressEnabled, snapshot.accessibility, "需要先开启无障碍服务"),
 )
@@ -1721,7 +1647,6 @@ private fun missingFeatureRequirement(featureKey: FeatureKey, snapshot: Permissi
     FeatureKey.BRACELET_MODE -> if (!snapshot.notification) "需要先开启通知权限" else null
     FeatureKey.SMS_RECOGNITION -> if (!snapshot.sms) "需要先开启短信权限" else null
     FeatureKey.VOLUME_SHORTCUT -> if (!snapshot.accessibility) "需要先开启无障碍服务" else null
-    FeatureKey.COURSE -> null
 }
 
 private fun liveNotificationRequirementMet(snapshot: PermissionSnapshot): Boolean =
@@ -2049,7 +1974,6 @@ private enum class FeatureKey {
     BRACELET_MODE,
     SMS_RECOGNITION,
     VOLUME_SHORTCUT,
-    COURSE,
 }
 
 private enum class RequirementLevel { REQUIRED, RECOMMENDED, OPTIONAL }

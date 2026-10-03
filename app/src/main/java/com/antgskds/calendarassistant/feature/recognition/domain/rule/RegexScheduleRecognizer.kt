@@ -48,8 +48,7 @@ object RegexScheduleRecognizer {
             EventTags.PICKUP,
             EventTags.FOOD,
             EventTags.TICKET,
-            EventTags.SENDER,
-            EventTags.COURSE -> 0
+            EventTags.SENDER -> 0
             else -> 1
         }
     }
