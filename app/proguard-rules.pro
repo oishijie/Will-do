@@ -31,11 +31,8 @@
 -keep class com.antgskds.calendarassistant.feature.cloudsync.domain.SyncV2** { *; }
 -keep class com.antgskds.calendarassistant.feature.schedule.domain.model.Attendee { *; }
 
-# Xposed loads hook entry classes by the fully qualified names listed in assets/xposed_init.
--keep class com.antgskds.calendarassistant.platform.xposed.** { *; }
-
-# Xposed API is compileOnly and provided by the framework at runtime.
--dontwarn de.robv.android.xposed.**
+# 小米 HyperOS 灵动岛的 Xposed 混淆规则已随该功能下线移除（原 -keep platform.xposed.**
+# 与 -dontwarn de.robv.android.xposed.**）。
 
 # Shizuku binder interfaces are used through AIDL/proxy calls.
 -keep class moe.shizuku.server.** { *; }

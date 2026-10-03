@@ -142,10 +142,10 @@ class ScheduleReminderCoordinator(
         return resolveCapsuleMode(capsuleRoutingQueryApi) == CapsuleRouteMode.STANDARD_NOTIFICATION
     }
 
-    fun isMiuiIslandMode(capsuleRoutingQueryApi: CapsuleRoutingQueryApi): Boolean {
-        return resolveCapsuleMode(capsuleRoutingQueryApi) == CapsuleRouteMode.MIUI_ISLAND
-    }
-
+    /**
+     * 灵动岛（MIUI_ISLAND）路由已随 Xposed 支持下线，理论上不会命中；保留分支仅为
+     * 维持 when 穷尽性与既有调用签名，实际会落到实况胶囊或标准通知。
+     */
     inline fun routeByCapsuleMode(
         capsuleRoutingQueryApi: CapsuleRoutingQueryApi,
         onMiuiIsland: () -> Unit,

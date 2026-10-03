@@ -6,17 +6,13 @@ import android.os.Build
 import com.antgskds.calendarassistant.shared.util.AppLogger as Log
 import com.antgskds.calendarassistant.shared.query.SettingsQueryApi
 import com.antgskds.calendarassistant.shared.util.FlymeUtils
-import com.antgskds.calendarassistant.shared.util.OsUtils
-import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.capsule.domain.model.CapsuleType
 import com.antgskds.calendarassistant.feature.capsule.domain.model.CapsuleUiState
-import com.antgskds.calendarassistant.platform.capsule.miui.MiuiIslandManager
 import com.antgskds.calendarassistant.platform.capsule.provider.FlymeCapsuleProvider
 import com.antgskds.calendarassistant.platform.capsule.provider.ICapsuleProvider
 import com.antgskds.calendarassistant.platform.capsule.provider.NativeCapsuleProvider
 import com.antgskds.calendarassistant.platform.capsule.render.IconUtils
 import com.antgskds.calendarassistant.platform.notification.alarmlegacy.NotificationIds
-import com.antgskds.calendarassistant.platform.xposed.XposedModuleStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -57,8 +53,8 @@ class CapsuleDispatcher(
         if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return@synchronized NotificationResult.Failure(payload.key, NotificationFailureReason.PERMISSION_DENIED, "通知权限未开启")
         }
-        if (!isMiuiIslandMode(settingsQueryApi.settings.value) &&
-            notificationManager.getNotificationChannel(com.antgskds.calendarassistant.App.CHANNEL_ID_LIVE)?.importance == NotificationManager.IMPORTANCE_NONE) {
+        // 灵动岛模式已下线，实况通知恒走通知渠道，故渠道关闭即视为不可用。
+        if (notificationManager.getNotificationChannel(com.antgskds.calendarassistant.App.CHANNEL_ID_LIVE)?.importance == NotificationManager.IMPORTANCE_NONE) {
             return@synchronized NotificationResult.Failure(payload.key, NotificationFailureReason.PERMISSION_DENIED, "实况通知渠道已关闭")
         }
         val now = System.currentTimeMillis()
@@ -144,27 +140,14 @@ class CapsuleDispatcher(
         }
         val combined = (state as? CapsuleUiState.Active)?.capsules.orEmpty() + publishedCapsules.values
         val effectiveState = if (combined.isEmpty()) CapsuleUiState.None else CapsuleUiState.Active(combined)
-        val useMiuiIsland = isMiuiIslandMode(settings)
         when (effectiveState) {
-            is CapsuleUiState.Active -> {
-                if (useMiuiIsland) {
-                    MiuiIslandManager.update(context, effectiveState.capsules)
-                    cancelAllCapsuleNotifications()
-                } else {
-                    updateCapsules(effectiveState.capsules)
-                }
-            }
+            is CapsuleUiState.Active -> updateCapsules(effectiveState.capsules)
             is CapsuleUiState.None -> {
                 monitorJob?.cancel()
                 isAggregateMode = false
-                MiuiIslandManager.clear(context)
                 cancelAllCapsuleNotifications()
             }
         }
-    }
-
-    private fun isMiuiIslandMode(settings: MySettings): Boolean {
-        return settings.isLiveCapsuleEnabled && OsUtils.isHyperOS() && XposedModuleStatus.isActive()
     }
 
     private fun updateCapsules(newCapsules: List<CapsuleUiState.Active.CapsuleItem>) {

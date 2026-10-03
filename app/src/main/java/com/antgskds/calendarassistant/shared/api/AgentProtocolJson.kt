@@ -2,6 +2,7 @@ package com.antgskds.calendarassistant.shared.api
 
 import com.antgskds.calendarassistant.shared.operation.WillDoAgentContract
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement

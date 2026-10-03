@@ -4,7 +4,7 @@ package com.antgskds.calendarassistant.feature.capsule.domain.model
  * 胶囊类型常量（厂商无关、纯数据）。
  *
  * 从 [com.antgskds.calendarassistant.feature.capsule.application.CapsuleStateManager] 抽出，
- * 让 vendor / display 层（Flyme/Xiaomi 模板、IconUtils、MiuiIslandManager）不再为了拿
+ * 让 vendor / display 层（Flyme/Xiaomi 模板、IconUtils）不再为了拿
  * 这几个 type 常量而反向 import 业务层 CapsuleStateManager——这是「一条线 + 普通/胶囊两分支」
  * 解耦的第一步，便于后续接入新胶囊厂商。
  *

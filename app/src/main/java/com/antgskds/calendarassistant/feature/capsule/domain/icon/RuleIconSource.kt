@@ -1,6 +1,7 @@
 package com.antgskds.calendarassistant.feature.capsule.domain.icon
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**

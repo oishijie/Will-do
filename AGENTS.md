@@ -72,7 +72,7 @@ UI、Receiver、Service 不直接写 DAO。同步失败不回滚本地入库。W
 
 - 业务层不直接调用 `NotificationManager.notify()` 或构建 `NotificationCompat.Builder`；普通通知走 `NotificationApi → NotificationOrchestrator → platform/notification`。
 - 单次、重复、错过补发日程提醒走 `feature/schedule/notification/ScheduleNotificationBridge`。旧 `NotificationScheduler` 仅承担胶囊闹钟等遗留职责，不用于新增普通提醒。
-- `CapsuleStateManager` 计算状态，发布交 `platform/capsule/CapsuleDispatcher`；小米超级岛的 Xposed/SystemUI 跨进程传输是平台例外。
+- `CapsuleStateManager` 计算状态，发布交 `platform/capsule/CapsuleDispatcher`；实况通知按 vendor 能力分流（Flyme 实况通知 provider / 原生胶囊），小米 HyperOS 灵动岛的 Xposed 跨进程通道已下线，实况通知不再有跨进程例外。
 - 展示模板 `shared/management/resource/notification/display/` 不引入 NotificationManager、Compat、Builder、PendingIntent、Repository、Room 或业务编排器。
 
 ## 数据、权限与日志

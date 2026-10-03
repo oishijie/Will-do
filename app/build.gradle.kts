@@ -192,9 +192,9 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("dev.rikka.shizuku:aidl:13.1.5")
 
-    // === MIUI 超级岛 (LSPosed/Xposed) ===
-    implementation("io.github.d4viddf:hyperisland_kit:0.4.3")
-    compileOnly("de.robv.android.xposed:api:82")
+    // 小米 HyperOS 灵动岛（LSPosed/Xposed）支持已下线，随之移除：
+    //   io.github.d4viddf:hyperisland_kit —— 灵动岛 UI 库，仅 MiuiIslandManager 使用
+    //   de.robv.android.xposed:api     —— Xposed 桥接接口，仅 SelfHook/DispatcherHook 使用
     // 记账功能已下线：org.smali:dexlib2（原 AutoAccounting upstream DEX adaptation engine）随之移除。
 
     // === Room 数据库 ===

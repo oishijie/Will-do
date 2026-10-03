@@ -27,9 +27,7 @@ import com.antgskds.calendarassistant.feature.capsule.presentation.CapsuleMessag
 import com.antgskds.calendarassistant.platform.capsule.render.IconUtils
 import com.antgskds.calendarassistant.platform.capsule.network.NetworkSpeedMonitor
 import com.antgskds.calendarassistant.feature.weather.domain.WeatherWarningText
-import com.antgskds.calendarassistant.platform.capsule.miui.MiuiIslandManager
 import com.antgskds.calendarassistant.platform.notification.alarmlegacy.NotificationIds
-import com.antgskds.calendarassistant.platform.xposed.XposedModuleStatus
 import com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem
 import com.antgskds.calendarassistant.feature.capsule.domain.CapsuleActionSpec
 import kotlinx.coroutines.Dispatchers

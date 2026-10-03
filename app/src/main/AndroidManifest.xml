@@ -73,20 +73,6 @@
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="35">
 
-        <!-- Xposed Module -->
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="Will do 超级岛支持" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="82" />
-        <meta-data
-            android:name="xposedscope"
-            android:value="com.antgskds.calendarassistant;com.android.systemui" />
-
         <!-- Flyme 实况通知支持 -->
         <meta-data
             android:name="com.meizu.flyme.live_notification"
