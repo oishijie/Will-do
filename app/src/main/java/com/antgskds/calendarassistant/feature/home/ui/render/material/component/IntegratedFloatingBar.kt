@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -149,8 +150,12 @@ fun IntegratedFloatingBar(
     val tabShape = RoundedCornerShape(percent = 50)
     val navElevation = if (backgroundMode) 0.dp else 6.dp
     val navHeight = IntegratedFloatingBarHeight + IntegratedFloatingBarExtraHeight
-    val fabSize = 52.dp
-    val fabRowBottom = IntegratedFloatingBarShadowPadding + navHeight + IntegratedFloatingBarFabGap
+    val fabSize = 56.dp
+    // 横向：让 FAB 中心对齐「设置」tab 的中心线（底栏四等分后最右一格的中心）。
+    // 48dp 是按 360~412dp 屏宽算出的折中值，视觉上稳定落在设置按钮正上方。
+    val fabRowEnd = 48.dp
+    // 纵向：与底栏保持一段明显留白，FAB 呈悬浮态而非贴边。
+    val fabRowBottom = IntegratedFloatingBarShadowPadding + navHeight + 28.dp
 
     val todayIcon = painterResource(R.drawable.floatingbar_today)
     val allIcon = painterResource(R.drawable.floatingbar_all)
@@ -169,9 +174,10 @@ fun IntegratedFloatingBar(
         label = "fabRotation"
     )
 
-    // FAB 形态：收起 = 圆形，展开 = 圆角方块（✕），参考稿的处理
+    // FAB 形态：圆角方形（参考稿）。收起时圆角约为边长 30%，展开时略微收方，
+    // 配合 45° 旋转换成 ✕，整体始终保持方形轮廓而非正圆。
     val fabCorner by animateDpAsState(
-        targetValue = if (isExpanded) 17.dp else 26.dp,
+        targetValue = if (isExpanded) 12.dp else 17.dp,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "fabCorner"
     )
@@ -197,7 +203,7 @@ fun IntegratedFloatingBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 24.dp)
                 .padding(bottom = IntegratedFloatingBarShadowPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -240,7 +246,7 @@ fun IntegratedFloatingBar(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp)
+                .padding(end = fabRowEnd)
                 .padding(bottom = fabRowBottom),
             horizontalAlignment = Alignment.End
         ) {
@@ -260,7 +266,11 @@ fun IntegratedFloatingBar(
                     containerColor = navBg,
                     elevation = navElevation
                 ) {
-                    Column(modifier = Modifier.padding(vertical = 10.dp, horizontal = 10.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .width(196.dp)
+                            .padding(vertical = 6.dp)
+                    ) {
                         HydrogenFabMenuItem(
                             icon = Icons.Default.Search,
                             label = "搜索日程",
@@ -269,6 +279,7 @@ fun IntegratedFloatingBar(
                             labelColor = navContent,
                             onClick = onSearchClick
                         )
+                        FabMenuDivider()
                         HydrogenFabMenuItem(
                             icon = Icons.Default.Image,
                             label = "图片识别",
@@ -277,6 +288,7 @@ fun IntegratedFloatingBar(
                             labelColor = navContent,
                             onClick = onImageClick
                         )
+                        FabMenuDivider()
                         HydrogenFabMenuItem(
                             icon = Icons.Default.Edit,
                             label = "新建日程",
@@ -404,6 +416,16 @@ private fun TabIcon(
             modifier = Modifier.size(24.dp)
         )
     }
+}
+
+/** FAB 展开菜单条目之间的细分隔线，参考稿的分组处理。 */
+@Composable
+private fun FabMenuDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 58.dp, end = 14.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+        thickness = 1.dp,
+    )
 }
 
 /** 展开态操作胶囊内的图标按钮。 */
