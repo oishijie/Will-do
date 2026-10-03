@@ -6,6 +6,14 @@ import com.antgskds.calendarassistant.feature.settings.about.ui.contract.AboutUi
 import com.antgskds.calendarassistant.feature.settings.about.ui.contract.AboutUiState
 
 @Composable
-fun AboutScreen(state: AboutUiState, onAction: (AboutUiAction) -> Unit) {
-    MaterialAboutScreen(state = state, onAction = onAction)
+fun AboutScreen(
+    state: AboutUiState,
+    onAction: (AboutUiAction) -> Unit,
+    onNavigateToAppUpdate: () -> Unit = {},
+) {
+    MaterialAboutScreen(
+        state = state,
+        onAction = onAction,
+        onNavigateToAppUpdate = onNavigateToAppUpdate,
+    )
 }

@@ -535,7 +535,6 @@ fun HomeScreen(
             if (effectiveSelectedPageKey == HomeEntryKey.SETTINGS && !useNavigationRail) {
                 SettingsTabPage(
                     glassMode = hasAppBackground,
-                    hasAppUpdate = appUpdateUiState.hasUpdate,
                     onNavigate = { destination ->
                         onNavigateToSettings(destination)
                     },

@@ -15,7 +15,9 @@ import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
 @Composable
 fun AboutPage(
     uiSize: Int = 2,
+    hasAppUpdate: Boolean = false,
     onNavigateToDonate: () -> Unit = {},
+    onNavigateToAppUpdate: () -> Unit = {},
     settingsViewModel: SettingsViewModel? = null
 ) {
     val context = LocalContext.current
@@ -24,7 +26,8 @@ fun AboutPage(
             state = defaultAboutUiState(),
             onAction = { action ->
                 handleAboutAction(action, context::startActivity, onNavigateToDonate, null)
-            }
+            },
+            onNavigateToAppUpdate = onNavigateToAppUpdate,
         )
 
     val state = AboutUiState(
@@ -32,6 +35,7 @@ fun AboutPage(
         hasDonated = settings.hasDonated,
         developerOptionsUnlocked = settings.developerOptionsUnlocked,
         hapticFeedbackEnabled = settings.hapticFeedbackEnabled,
+        hasAppUpdate = hasAppUpdate,
     )
     AboutScreen(
         state = state,
@@ -40,9 +44,10 @@ fun AboutPage(
                 action = action,
                 openIntent = context::startActivity,
                 onNavigateToDonate = onNavigateToDonate,
-                onUnlockDeveloperOptions = settingsViewModel::unlockDeveloperOptions
+                onUnlockDeveloperOptions = settingsViewModel::unlockDeveloperOptions,
             )
-        }
+        },
+        onNavigateToAppUpdate = onNavigateToAppUpdate,
     )
 }
 

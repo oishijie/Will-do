@@ -13,6 +13,9 @@ import com.antgskds.calendarassistant.feature.recognition.ui.connector.RegexRule
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ArchivesPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ScheduleColorSettingsPage
 import com.antgskds.calendarassistant.feature.settings.quickmemo.ui.QuickMemoSettingsPage
+import com.antgskds.calendarassistant.feature.settings.floating.ui.FloatingEntrySettingsPage
+import com.antgskds.calendarassistant.feature.settings.schedule.ui.ScheduleNotificationSettingsPage
+import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.FeatureHubSettingsPage
 import com.antgskds.calendarassistant.feature.settings.about.ui.connector.DonatePage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.ConfigEditorPage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.DeveloperPage
@@ -127,6 +130,11 @@ private fun SettingsPageRouteContent(
             onNavigateToScheduleColors = { onNavigateTo(SettingsDestination.ScheduleColors) },
         )
 
+        SettingsDestination.FeatureHub -> FeatureHubSettingsPage(
+            glassMode = settingsViewModel.settings.value.appBackgroundImagePath.isNotBlank(),
+            onNavigate = onNavigateTo,
+        )
+
         SettingsDestination.ScheduleColors -> ScheduleColorSettingsPage(
             viewModel = settingsViewModel,
             uiSize = uiSize,
@@ -137,11 +145,24 @@ private fun SettingsPageRouteContent(
             uiSize = uiSize,
         )
 
+        SettingsDestination.FloatingEntry -> FloatingEntrySettingsPage(
+            viewModel = settingsViewModel,
+            uiSize = uiSize,
+        )
+
+        SettingsDestination.ScheduleNotification -> ScheduleNotificationSettingsPage(
+            viewModel = settingsViewModel,
+            uiSize = uiSize,
+            onNavigateToScheduleColors = { onNavigateTo(SettingsDestination.ScheduleColors) },
+        )
+
         SettingsDestination.Backup -> BackupSettingsPage(settingsViewModel, mainViewModel, uiSize)
         SettingsDestination.AppUpdate -> AppUpdatePage(mainViewModel, uiSize)
         SettingsDestination.About -> AboutPage(
             uiSize = uiSize,
+            hasAppUpdate = mainViewModel.appUpdateUiState.value.hasUpdate,
             onNavigateToDonate = { onNavigateTo(SettingsDestination.Donate) },
+            onNavigateToAppUpdate = { onNavigateTo(SettingsDestination.AppUpdate) },
             settingsViewModel = settingsViewModel,
         )
 

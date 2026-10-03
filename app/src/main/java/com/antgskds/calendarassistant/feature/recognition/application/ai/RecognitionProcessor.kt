@@ -147,7 +147,9 @@ object RecognitionProcessor {
                 apiKey = modelConfig.key,
                 baseUrl = modelConfig.url,
                 modelName = modelName,
-                disableThinking = settings.disableThinking
+                // 纯文字识别（悬浮日程/随手记）只需抽取结构化信息，推理模型的长思考会
+                // 让首字延迟成倍放大，因此这里固定关闭思考以压缩等待。
+                disableThinking = true
             )) {
                 is ApiCallResult.Success -> {
                     Log.d(TAG, "[AI文本输入] 原始响应(${response.content.length} chars): ${response.content}")

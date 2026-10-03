@@ -455,60 +455,104 @@ fun MaterialAdvanceReminderSettingItem(
     cardTitleStyle: TextStyle,
     cardSubtitleStyle: TextStyle,
 ) {
-    val sliderLabelStyle = settingsSliderLabelTextStyle()
-    HapticValueChangeEffect(valueKey = minutes)
     val haptics = rememberAppHaptics()
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        // 主行：开关 + 标题 + 副标题
+    var showPicker by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .then(
+                        if (checked) {
+                            Modifier.clickable {
+                                haptics.click()
+                                showPicker = true
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
                 Text(title, style = cardTitleStyle)
-                Text(subtitle, style = cardSubtitleStyle)
+                Text(
+                    text = if (checked) {
+                        "$subtitle · ${formatAdvanceReminderMinutes(minutes)}"
+                    } else {
+                        subtitle
+                    },
+                    style = cardSubtitleStyle,
+                )
             }
             Switch(
                 checked = checked,
                 onCheckedChange = {
                     haptics.selection()
                     onCheckedChange(it)
-                }
+                },
             )
         }
-
-        // 展开区：三档滑块（30/45/60分钟）
-        AnimatedVisibility(
-            visible = checked,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp)
-            ) {
-                // 标签行 - 添加与滑块轨道相同的 padding 以对齐节点
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp), // 与滑块轨道 padding 匹配
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "30分钟", style = sliderLabelStyle)
-                    Text(text = "45分钟", style = sliderLabelStyle)
-                    Text(text = "60分钟", style = sliderLabelStyle)
-                }
-                Slider(
-                    value = minutes.toFloat(),
-                    onValueChange = { onMinutesChange(it.toInt()) },
-                    valueRange = 30f..60f,
-                    steps = 1 // 30, 45, 60 三个离散值
-                )
-            }
-        }
     }
+
+    if (showPicker) {
+        AdvanceReminderPickerDialog(
+            selectedMinutes = minutes,
+            onDismiss = { showPicker = false },
+            onConfirm = {
+                showPicker = false
+                onMinutesChange(it)
+            },
+        )
+    }
+}
+
+/** 日程提前提醒可选档位（分钟）。0 表示仅在日程开始时提醒。 */
+private val ADVANCE_REMINDER_OPTIONS = listOf(0, 5, 10, 15, 30, 45, 60)
+
+private fun formatAdvanceReminderMinutes(minutes: Int): String =
+    if (minutes <= 0) "开始时" else "提前${minutes}分钟"
+
+@Composable
+fun AdvanceReminderPickerDialog(
+    selectedMinutes: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    val defaultIndex = ADVANCE_REMINDER_OPTIONS.indexOfFirst { it == selectedMinutes }
+        .takeIf { it >= 0 } ?: 0
+    var selectedIndex by remember(selectedMinutes) { mutableIntStateOf(defaultIndex) }
+    val haptics = rememberAppHaptics()
+
+    AppAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { CenteredDialogTitle("日程提前提醒") },
+        text = {
+            WheelPicker(
+                items = ADVANCE_REMINDER_OPTIONS.map { formatAdvanceReminderMinutes(it) },
+                initialIndex = defaultIndex,
+                onSelectionChanged = { selectedIndex = it },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { haptics.confirm(); onConfirm(ADVANCE_REMINDER_OPTIONS[selectedIndex]) }) {
+                Text("确定")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { haptics.click(); onDismiss() }) {
+                Text("取消")
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
+    )
 }
 
 /** 日程默认持续时间：设置行 + 选择对话框 + 选项表/格式化（簇内私有）。 */

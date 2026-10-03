@@ -47,7 +47,6 @@ import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
 @Composable
 fun SettingsTabPage(
     glassMode: Boolean,
-    hasAppUpdate: Boolean,
     onNavigate: (SettingsDestination) -> Unit,
 ) {
     val haptics = rememberAppHaptics()
@@ -79,41 +78,26 @@ fun SettingsTabPage(
             SettingsSectionLabel("常规设置")
             SettingsSectionCard(cardColor = cardColor, cardShape = cardShape) {
                 SettingsEntryItem(
-                    title = "主题设置",
-                    subtitle = "深色模式与主题颜色",
-                    chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.Theme) }
-                )
-                SettingsEntryItem(
-                    title = "模型与连接",
-                    subtitle = "AI 模型与识别策略",
-                    chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.AI) }
-                )
-                SettingsEntryItem(
-                    title = "天气",
-                    subtitle = "天气 API 与展示设置",
-                    chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.Weather) }
-                )
-                SettingsEntryItem(
-                    title = "随口记",
-                    subtitle = "语音转写与录音展示",
-                    chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.QuickMemo) }
-                )
-                SettingsEntryItem(
                     title = "通用偏好",
                     subtitle = "显示、操作与截图",
                     chevronTint = chevronTint,
                     onClick = { haptics.click(); onNavigate(SettingsDestination.Preference) }
                 )
                 SettingsEntryItem(
-                    title = "软件更新",
-                    subtitle = "版本日志与下载",
-                    showBadge = hasAppUpdate,
+                    title = "主题设置",
+                    subtitle = "深色模式与主题颜色",
                     chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.AppUpdate) }
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.Theme) }
+                )
+            }
+
+            SettingsSectionLabel("功能设置")
+            SettingsSectionCard(cardColor = cardColor, cardShape = cardShape) {
+                SettingsEntryItem(
+                    title = "功能设置",
+                    subtitle = "模型、天气、随口记、悬浮与日程",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.FeatureHub) }
                 )
             }
 
@@ -161,7 +145,7 @@ fun SettingsTabPage(
 }
 
 @Composable
-private fun SettingsSectionLabel(text: String) {
+fun SettingsSectionLabel(text: String) {
     Text(
         text = text,
         fontSize = 13.sp,
@@ -172,7 +156,7 @@ private fun SettingsSectionLabel(text: String) {
 }
 
 @Composable
-private fun SettingsSectionCard(
+fun SettingsSectionCard(
     cardColor: Color,
     cardShape: RoundedCornerShape,
     content: @Composable () -> Unit
@@ -191,7 +175,7 @@ private fun SettingsSectionCard(
 
 /** 条目：粗黑标题 + 灰色描述 + 右侧箭头（参考稿样式，无前置图标）。 */
 @Composable
-private fun SettingsEntryItem(
+fun SettingsEntryItem(
     title: String,
     subtitle: String,
     chevronTint: Color,

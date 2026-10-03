@@ -506,8 +506,6 @@ fun OnboardingGuidePage(
                             uiSize = uiSize,
                             visibleSections = setOf(
                                 PreferenceSection.OPERATION,
-                                PreferenceSection.NOTIFICATION,
-                                PreferenceSection.SCHEDULE,
                             ),
                             itemVisibility = PreferenceItemVisibility(
                                 showHapticFeedback = false,

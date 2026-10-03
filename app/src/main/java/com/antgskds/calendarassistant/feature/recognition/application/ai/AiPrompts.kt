@@ -258,19 +258,64 @@ object AiPrompts {
         val date = LocalDate.parse(dateToday)
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         val now = LocalDateTime.parse(timeStr.take(16), formatter)
-        return getMultimodalUnifiedPrompt(
-            context = context,
-            timeStr = timeStr,
-            dateToday = dateToday,
-            dateYesterday = date.minusDays(1).toString(),
-            dateBeforeYesterday = date.minusDays(2).toString(),
-            nowTime = now.format(formatter),
-            nowPlusHourTime = now.plusHours(1).format(formatter),
-            dayOfWeek = dayOfWeek,
-            rulePatch = rulePatch,
-            defaultDurationMinutes = defaultDurationMinutes
+        val prompts = activePrompts(context)
+        return appendRulePatch(
+            render(
+                template = getUserTextOnlyPromptTemplate(prompts),
+                values = mapOf(
+                    "timeStr" to timeStr,
+                    "dateToday" to dateToday,
+                    "dateYesterday" to date.minusDays(1).toString(),
+                    "dateBeforeYesterday" to date.minusDays(2).toString(),
+                    "nowTime" to now.format(formatter),
+                    "nowPlusHourTime" to now.plusHours(1).format(formatter),
+                    "dayOfWeek" to dayOfWeek,
+                    "defaultDuration" to formatDuration(defaultDurationMinutes)
+                )
+            ),
+            rulePatch
         )
     }
+
+    /**
+     * 纯文字输入专用的精简提示词。
+     *
+     * 与图文统一提示词分开的原因：悬浮日程/随手记这类场景的输入只有一行短文字，
+     * 背上「留意边缘细小时间戳、APP 界面或条形码凭证」这类图像指令纯属浪费，
+     * 反而会诱导模型展开长推理。这里只保留文字识别真正需要的规则与输出格式，
+     * 并显式要求「直接输出、不解释」，以压缩首字延迟。
+     */
+    private fun getUserTextOnlyPromptTemplate(prompts: RemotePrompts): String {
+        val header = prompts.promptHeader.trim()
+        val body = TEXT_ONLY_PROMPT_BODY.trim()
+        return if (header.isBlank()) body else "$header\n\n$body"
+    }
+
+    private val TEXT_ONLY_PROMPT_BODY = """
+        从用户输入中提取日程事件或取件/取餐信息。文本请结合上下文与当前时间理解语意。
+
+        请直接输出结果，不要解释、不要推理过程、不要复述原文。
+        无事件时输出 {"events":[]}。
+
+        当前时间：{{timeStr}}（{{dayOfWeek}}）
+
+        输出纯 JSON 对象：
+        {
+          "events": [
+            {
+              "title": "规范标题",
+              "startTime": "yyyy-MM-dd HH:mm",
+              "endTime": "yyyy-MM-dd HH:mm",
+              "location": "地址",
+              "description": "备注；取件类用格式：【取件】取件码|品牌|位置",
+              "type": "event",
+              "tag": "general | train | taxi | flight | pickup | food | ticket | sender"
+            }
+          ]
+        }
+
+        所有事件按默认时长计算 endTime，不要另行推测：{{defaultDuration}}。
+    """.trimIndent()
 
     fun getMultimodalUnifiedPrompt(
         context: Context,

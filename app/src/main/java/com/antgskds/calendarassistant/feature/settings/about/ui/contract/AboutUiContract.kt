@@ -5,6 +5,7 @@ data class AboutUiState(
     val hasDonated: Boolean,
     val developerOptionsUnlocked: Boolean,
     val hapticFeedbackEnabled: Boolean,
+    val hasAppUpdate: Boolean = false,
 )
 
 sealed interface AboutUiAction {

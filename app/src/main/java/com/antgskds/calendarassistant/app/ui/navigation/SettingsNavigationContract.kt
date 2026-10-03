@@ -20,4 +20,7 @@ enum class SettingsDestination {
     RegexRuleEditor,
     WidgetSettings,
     QuickMemo,
+    FloatingEntry,
+    ScheduleNotification,
+    FeatureHub,
 }
