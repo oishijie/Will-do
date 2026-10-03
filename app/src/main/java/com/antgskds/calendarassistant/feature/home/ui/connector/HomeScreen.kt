@@ -60,7 +60,6 @@ import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
 import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import java.time.LocalDate
 import kotlin.math.roundToInt
-import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.component.SettingsSidebar
 
 private data class RecurringEditSession(
     val parentEventId: Long?,

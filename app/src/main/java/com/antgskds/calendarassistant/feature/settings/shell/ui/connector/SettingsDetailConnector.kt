@@ -12,6 +12,7 @@ import com.antgskds.calendarassistant.feature.recognition.ui.connector.AiSetting
 import com.antgskds.calendarassistant.feature.recognition.ui.connector.RegexRuleEditorPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ArchivesPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ScheduleColorSettingsPage
+import com.antgskds.calendarassistant.feature.settings.quickmemo.ui.QuickMemoSettingsPage
 import com.antgskds.calendarassistant.feature.settings.about.ui.connector.DonatePage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.ConfigEditorPage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.DeveloperPage
@@ -127,6 +128,11 @@ private fun SettingsPageRouteContent(
         )
 
         SettingsDestination.ScheduleColors -> ScheduleColorSettingsPage(
+            viewModel = settingsViewModel,
+            uiSize = uiSize,
+        )
+
+        SettingsDestination.QuickMemo -> QuickMemoSettingsPage(
             viewModel = settingsViewModel,
             uiSize = uiSize,
         )

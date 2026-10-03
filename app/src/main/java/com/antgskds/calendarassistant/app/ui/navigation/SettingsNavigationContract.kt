@@ -18,5 +18,6 @@ enum class SettingsDestination {
     ConfigEditor,
     OnboardingGuide,
     RegexRuleEditor,
-    WidgetSettings
+    WidgetSettings,
+    QuickMemo,
 }

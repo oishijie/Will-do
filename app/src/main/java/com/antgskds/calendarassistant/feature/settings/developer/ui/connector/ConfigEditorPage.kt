@@ -51,7 +51,7 @@ import com.antgskds.calendarassistant.shared.ui.edition.EditionTextField
 /**
  * 配置编辑页 —— 完全由 [ConfigCatalog] 驱动。
  *
- * 落地页：把 catalog 里出现的域各列一行（SettingsNavRow），点一类进域子页。
+ * 落地页：把 catalog 里出现的域各列一行，点一类进域子页。
  * 域子页：遍历该域的配置项，按 control 类型渲染控件；改值写回 settingsOperationApi（唯一事实源 MySettings）。
  * 加一条配置 = 往 ConfigCatalog 登记一条，这里**自动出现**，无需改本页。
  */

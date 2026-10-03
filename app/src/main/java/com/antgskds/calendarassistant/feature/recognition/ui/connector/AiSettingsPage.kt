@@ -1,6 +1,8 @@
 package com.antgskds.calendarassistant.feature.recognition.ui.connector
 
 import com.antgskds.calendarassistant.shared.ui.material.settings.AppSettingsDivider
+import com.antgskds.calendarassistant.shared.ui.material.settings.RecognitionModePickerDialog
+import com.antgskds.calendarassistant.shared.ui.material.settings.RecognitionModeSettingItem
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -66,13 +68,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.antgskds.calendarassistant.feature.recognition.application.ai.ApiModelProvider
 import com.antgskds.calendarassistant.feature.recognition.application.ai.ModelListResult
-import com.antgskds.calendarassistant.feature.cloudsync.domain.WebDavConnectionInput
-import com.antgskds.calendarassistant.feature.cloudsync.domain.WebDavConnectionTestResult
 import com.antgskds.calendarassistant.shared.ui.material.component.AppCard
 import com.antgskds.calendarassistant.shared.ui.material.component.ToastType
 import com.antgskds.calendarassistant.shared.ui.material.component.UniversalToast
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
-import com.antgskds.calendarassistant.shared.ui.material.settings.SliderSettingItem
 import com.antgskds.calendarassistant.shared.ui.material.settings.SwitchSettingItem
 import com.antgskds.calendarassistant.app.ui.state.MainViewModel
 import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
@@ -80,7 +79,6 @@ import com.antgskds.calendarassistant.feature.recognition.ui.contract.AiSettings
 import com.antgskds.calendarassistant.feature.recognition.ui.contract.AiSettingsUiState
 import com.antgskds.calendarassistant.feature.recognition.ui.render.AiSettingsScreen
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 private const val PROVIDER_DEEPSEEK = "DeepSeek"
 private const val PROVIDER_OPENAI = "OpenAI"
@@ -120,13 +118,9 @@ fun AiSettingsPage(
     uiSize: Int = 2
 ) {
     val settings by viewModel.settings.collectAsState()
-    val webDavSyncStatus by viewModel.webDavSyncStatus.collectAsState()
     AiSettingsScreen(
         state = AiSettingsUiState(
             settings = settings,
-            webDavPasswordStored = viewModel.hasStoredWebDavPassword(),
-            syncPassphraseStored = viewModel.hasStoredSyncPassphrase(),
-            syncStatus = webDavSyncStatus,
         ),
         uiSize = uiSize,
         onAction = { action ->
@@ -139,18 +133,15 @@ fun AiSettingsPage(
                 is AiSettingsUiAction.SetAgentConnectionManagement -> {
                     viewModel.updateAgentAccessOptions(connectionManagementEnabled = action.enabled)
                 }
+                is AiSettingsUiAction.SetRecognitionMode -> {
+                    viewModel.updatePreference(recognitionMode = action.mode)
+                }
+                is AiSettingsUiAction.SetDisableThinking -> {
+                    viewModel.updatePreference(disableThinking = action.enabled)
+                }
             }
         },
         fetchModels = ApiModelProvider::fetchAvailableModels,
-        testWebDavConnection = viewModel::testAndSaveWebDavConnection,
-        readStoredWebDavPassword = viewModel::readStoredWebDavPassword,
-        readStoredSyncPassphrase = viewModel::readStoredSyncPassphrase,
-        onSyncEnabledChange = { viewModel.updateWebDavSyncOptions(enabled = it) },
-        onWifiOnlyChange = { viewModel.updateWebDavSyncOptions(wifiOnly = it) },
-        onForegroundSyncIntervalChange = {
-            viewModel.updateWebDavSyncOptions(foregroundIntervalSeconds = it)
-        },
-        onSyncNow = viewModel::syncWebDavNow,
     )
 }
 
@@ -161,13 +152,6 @@ fun MaterialAiSettingsScreen(
     uiSize: Int = 2,
     onAction: (AiSettingsUiAction) -> Unit,
     fetchModels: suspend (String, String) -> ModelListResult,
-    testWebDavConnection: suspend (WebDavConnectionInput) -> WebDavConnectionTestResult,
-    readStoredWebDavPassword: () -> String,
-    readStoredSyncPassphrase: () -> String,
-    onSyncEnabledChange: (Boolean) -> Unit,
-    onWifiOnlyChange: (Boolean) -> Unit,
-    onForegroundSyncIntervalChange: (Int) -> Unit,
-    onSyncNow: () -> Unit,
 ) {
     val settings = state.settings
     val scrollState = rememberScrollState()
@@ -188,15 +172,7 @@ fun MaterialAiSettingsScreen(
     var isProviderExpanded by remember { mutableStateOf(false) }
     var isModelExpanded by remember { mutableStateOf(false) }
     var actionLoading by remember { mutableStateOf(false) }
-    var webDavLoading by remember { mutableStateOf(false) }
-    var webDavBaseUrl by remember(settings.webDavBaseUrl) { mutableStateOf(settings.webDavBaseUrl) }
-    var webDavUsername by remember(settings.webDavUsername) { mutableStateOf(settings.webDavUsername) }
-    var webDavPassword by remember { mutableStateOf("") }
-    var webDavPasswordStored by remember(state.webDavPasswordStored) {
-        mutableStateOf(state.webDavPasswordStored)
-    }
-    var syncPassphrase by remember { mutableStateOf("") }
-    var syncPassphraseStored by remember(state.syncPassphraseStored) { mutableStateOf(state.syncPassphraseStored) }
+    var showRecognitionModePicker by remember { mutableStateOf(false) }
 
     val activeProvider = mmProvider
     val activeModelUrl = mmModelUrl
@@ -373,41 +349,6 @@ fun MaterialAiSettingsScreen(
         saveCurrent(normalizedUrl, effectiveModelName, activeModelKey)
     }
 
-    suspend fun onTestWebDavClick() {
-        if (webDavBaseUrl.isBlank()) {
-            showToast("请填写 WebDAV 地址", ToastType.ERROR)
-            return
-        }
-        if (webDavPassword.isBlank() && !webDavPasswordStored) {
-            showToast("请填写 WebDAV 密码", ToastType.ERROR)
-            return
-        }
-        if (syncPassphrase.isBlank() && !syncPassphraseStored) {
-            showToast("请填写同步密码", ToastType.ERROR)
-            return
-        }
-        webDavLoading = true
-        val result = try {
-            testWebDavConnection(
-                WebDavConnectionInput(
-                    baseUrl = webDavBaseUrl,
-                    username = webDavUsername,
-                    password = webDavPassword,
-                    syncPassphrase = syncPassphrase,
-                )
-            )
-        } finally {
-            webDavLoading = false
-        }
-        if (result.success) {
-            if (webDavPassword.isNotBlank()) webDavPasswordStored = true
-            if (syncPassphrase.isNotBlank()) syncPassphraseStored = true
-            showToast(result.message)
-        } else {
-            showToast(result.message, ToastType.ERROR)
-        }
-    }
-
     val modelOptions = activeCustomModels
     val modelDisplay = when {
         effectiveModelName.isNotBlank() -> effectiveModelName
@@ -496,6 +437,31 @@ fun MaterialAiSettingsScreen(
                 },
             )
 
+            Text("识别与推理", style = sectionTitleStyle)
+            AppCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    RecognitionModeSettingItem(
+                        mode = settings.recognitionMode,
+                        onClick = { showRecognitionModePicker = true },
+                        cardTitleStyle = cardTitleStyle,
+                        cardSubtitleStyle = cardSubtitleStyle,
+                        cardValueStyle = cardValueStyle,
+                    )
+                    AppSettingsDivider()
+                    SwitchSettingItem(
+                        title = "关闭思考",
+                        subtitle = "仅适配 OpenAI",
+                        checked = settings.disableThinking,
+                        onCheckedChange = { isChecked ->
+                            onAction(AiSettingsUiAction.SetDisableThinking(isChecked))
+                            showToast(if (isChecked) "快速模式已开启" else "快速模式已关闭")
+                        },
+                        cardTitleStyle = cardTitleStyle,
+                        cardSubtitleStyle = cardSubtitleStyle,
+                    )
+                }
+            }
+
             Text("Agent 访问", style = sectionTitleStyle)
             AppCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -543,67 +509,6 @@ fun MaterialAiSettingsScreen(
                     }
                 }
             }
-
-            Text("WebDAV 连接", style = sectionTitleStyle)
-            WebDavConfigForm(
-                baseUrl = webDavBaseUrl,
-                username = webDavUsername,
-                password = webDavPassword,
-                passwordStored = webDavPasswordStored,
-                syncPassphrase = syncPassphrase,
-                syncPassphraseStored = syncPassphraseStored,
-                syncEnabled = settings.webDavSyncEnabled,
-                wifiOnly = settings.webDavWifiOnly,
-                foregroundSyncIntervalSeconds = settings.webDavForegroundSyncIntervalSeconds,
-                loading = webDavLoading,
-                onBaseUrlChange = { webDavBaseUrl = it },
-                onUsernameChange = { webDavUsername = it },
-                onPasswordChange = { webDavPassword = it },
-                onPasswordFocusChange = { focused ->
-                    if (focused && webDavPasswordStored && webDavPassword.isBlank()) {
-                        webDavPassword = readStoredWebDavPassword()
-                    }
-                },
-                onSyncPassphraseChange = { syncPassphrase = it },
-                onSyncPassphraseFocusChange = { focused ->
-                    if (focused && syncPassphraseStored && syncPassphrase.isBlank()) {
-                        syncPassphrase = readStoredSyncPassphrase()
-                    }
-                },
-                onSyncEnabledChange = onSyncEnabledChange,
-                onWifiOnlyChange = onWifiOnlyChange,
-                onForegroundSyncIntervalChange = onForegroundSyncIntervalChange,
-                onTest = {
-                    focusManager.clearFocus()
-                    scope.launch { onTestWebDavClick() }
-                },
-                cardTitleStyle = cardTitleStyle,
-                cardValueStyle = cardValueStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-
-            AppCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text("同步状态", style = cardTitleStyle)
-                    Text(state.syncStatus.message, style = cardSubtitleStyle)
-                    if (state.syncStatus.pendingAssetCount > 0) {
-                        Text("${state.syncStatus.pendingAssetCount} 个附件等待同步", style = cardSubtitleStyle)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        Button(onClick = onSyncNow) { Text("立即同步") }
-                    }
-                }
-            }
         }
 
         SnackbarHost(
@@ -613,135 +518,19 @@ fun MaterialAiSettingsScreen(
                 .padding(bottom = 16.dp + bottomInset),
             snackbar = { data -> UniversalToast(message = data.visuals.message, type = currentToastType) }
         )
-    }
 
-}
-
-@Composable
-private fun WebDavConfigForm(
-    baseUrl: String,
-    username: String,
-    password: String,
-    passwordStored: Boolean,
-    syncPassphrase: String,
-    syncPassphraseStored: Boolean,
-    syncEnabled: Boolean,
-    wifiOnly: Boolean,
-    foregroundSyncIntervalSeconds: Int,
-    loading: Boolean,
-    onBaseUrlChange: (String) -> Unit,
-    onUsernameChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onPasswordFocusChange: (Boolean) -> Unit,
-    onSyncPassphraseChange: (String) -> Unit,
-    onSyncPassphraseFocusChange: (Boolean) -> Unit,
-    onSyncEnabledChange: (Boolean) -> Unit,
-    onWifiOnlyChange: (Boolean) -> Unit,
-    onForegroundSyncIntervalChange: (Int) -> Unit,
-    onTest: () -> Unit,
-    cardTitleStyle: TextStyle,
-    cardValueStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-) {
-    AppCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            SwitchSettingItem(
-                title = "多设备同步",
-                subtitle = "同步日程、随口记及其附件",
-                checked = syncEnabled,
-                onCheckedChange = onSyncEnabledChange,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-
-            SwitchSettingItem(
-                title = "仅在 Wi-Fi 下同步",
-                subtitle = "移动网络下暂停自动同步",
-                checked = wifiOnly,
-                onCheckedChange = onWifiOnlyChange,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-            SliderSettingItem(
-                title = "前台同步间隔",
-                subtitle = "应用在前台时自动同步的时间间隔",
-                value = foregroundSyncIntervalSeconds.toFloat(),
-                onValueChange = {
-                    onForegroundSyncIntervalChange(it.roundToInt().coerceIn(1, 300))
+        if (showRecognitionModePicker) {
+            RecognitionModePickerDialog(
+                selectedMode = settings.recognitionMode,
+                onDismiss = { showRecognitionModePicker = false },
+                onConfirm = { mode ->
+                    onAction(AiSettingsUiAction.SetRecognitionMode(mode))
+                    showRecognitionModePicker = false
                 },
-                valueRange = 1f..300f,
-                steps = 0,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-                showValueAsNumber = true,
-                valueUnit = " 秒",
             )
-            AppSettingsDivider()
-            TextInputItem(
-                title = "服务器地址",
-                value = baseUrl,
-                onValueChange = onBaseUrlChange,
-                placeholder = "https://example.com/dav",
-                cardTitleStyle = cardTitleStyle,
-                cardValueStyle = cardValueStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-            AppSettingsDivider()
-            TextInputItem(
-                title = "用户名",
-                value = username,
-                onValueChange = onUsernameChange,
-                placeholder = "WebDAV 用户名",
-                cardTitleStyle = cardTitleStyle,
-                cardValueStyle = cardValueStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-            AppSettingsDivider()
-            TextInputItem(
-                title = "WebDAV 密码",
-                value = password,
-                onValueChange = onPasswordChange,
-                placeholder = if (passwordStored) "••••••••" else "点击输入密码",
-                secret = true,
-                onFocusChange = onPasswordFocusChange,
-                cardTitleStyle = cardTitleStyle,
-                cardValueStyle = cardValueStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-            AppSettingsDivider()
-            TextInputItem(
-                title = "同步密码",
-                value = syncPassphrase,
-                onValueChange = onSyncPassphraseChange,
-                placeholder = if (syncPassphraseStored) "••••••••" else "点击输入同步密码",
-                secret = true,
-                onFocusChange = onSyncPassphraseFocusChange,
-                cardTitleStyle = cardTitleStyle,
-                cardValueStyle = cardValueStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                Button(
-                    onClick = onTest,
-                    enabled = !loading,
-                ) {
-                    if (loading) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("连接")
-                    }
-                }
-            }
         }
     }
+
 }
 
 @Composable

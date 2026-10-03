@@ -40,6 +40,7 @@ import com.antgskds.calendarassistant.app.ui.state.MainViewModel
 import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
 import com.antgskds.calendarassistant.feature.backup.ui.contract.BackupUiController
 import com.antgskds.calendarassistant.feature.backup.ui.connector.BackupUiControllerAdapter
+import com.antgskds.calendarassistant.feature.cloudsync.ui.WebDavSyncSection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,6 +48,9 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/** 数据备份页的两个分区：本地导入导出、多设备同步。 */
+private val BACKUP_TABS = listOf("备份与恢复", "多设备同步")
 
 @Composable
 fun BackupSettingsPage(viewModel: SettingsViewModel, mainViewModel: MainViewModel, uiSize: Int = 2) {
@@ -80,6 +84,10 @@ fun MaterialBackupSettingsScreen(controller: BackupUiController, uiSize: Int = 2
         )
     }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 备份与恢复 / 多设备同步 两个分区
+    var selectedTab by remember { mutableStateOf(0) }
+    val webDavStatus by controller.webDavSyncStatus.collectAsState()
     var pendingImportIsZip by remember { mutableStateOf(false) }
     val promptLocalVersion by controller.promptLocalVersion.collectAsState()
     val promptSource by controller.promptSource.collectAsState()
@@ -225,15 +233,33 @@ fun MaterialBackupSettingsScreen(controller: BackupUiController, uiSize: Int = 2
 
     androidx.compose.runtime.CompositionLocalProvider(LocalAppHapticsEnabled provides currentSettings.hapticFeedbackEnabled) {
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-                .padding(bottom = 80.dp + bottomInset),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+            .padding(bottom = 80.dp + bottomInset),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
         ) {
-            Text("数据管理", style = sectionTitleStyle)
+            BACKUP_TABS.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = {
+                        haptics.click()
+                        selectedTab = index
+                    },
+                    text = { Text(title, style = MaterialTheme.typography.titleSmall) },
+                )
+            }
+        }
+
+        if (selectedTab == 0) {
+        Text("数据管理", style = sectionTitleStyle)
 
             BackupCard(
                 title = "数据备份",
@@ -288,7 +314,34 @@ fun MaterialBackupSettingsScreen(controller: BackupUiController, uiSize: Int = 2
                 cardTitleStyle = cardTitleStyle,
                 cardSubtitleStyle = cardSubtitleStyle
             )
+        } else {
+            Text("多设备同步", style = sectionTitleStyle)
+
+            WebDavSyncSection(
+                settings = currentSettings,
+                webDavPasswordStored = controller.hasStoredWebDavPassword(),
+                syncPassphraseStored = controller.hasStoredSyncPassphrase(),
+                syncStatusMessage = webDavStatus.message,
+                pendingAssetCount = webDavStatus.pendingAssetCount,
+                testWebDavConnection = controller::testAndSaveWebDavConnection,
+                readStoredWebDavPassword = controller::readStoredWebDavPassword,
+                readStoredSyncPassphrase = controller::readStoredSyncPassphrase,
+                onSyncEnabledChange = { controller.updateWebDavSyncOptions(enabled = it) },
+                onWifiOnlyChange = { controller.updateWebDavSyncOptions(wifiOnly = it) },
+                onForegroundSyncIntervalChange = { controller.updateWebDavSyncOptions(foregroundIntervalSeconds = it) },
+                onSyncNow = {
+                    haptics.click()
+                    controller.syncWebDavNow()
+                },
+                onTestResult = { success, message ->
+                    showToast(message, if (success) ToastType.SUCCESS else ToastType.ERROR)
+                },
+                cardTitleStyle = cardTitleStyle,
+                cardValueStyle = cardValueStyle,
+                cardSubtitleStyle = cardSubtitleStyle,
+            )
         }
+    }
 
         SnackbarHost(
             hostState = snackbarHostState,

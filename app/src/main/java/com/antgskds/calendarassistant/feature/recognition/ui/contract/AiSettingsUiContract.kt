@@ -1,13 +1,9 @@
 package com.antgskds.calendarassistant.feature.recognition.ui.contract
 
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
-import com.antgskds.calendarassistant.feature.cloudsync.domain.SyncV2RuntimeStatus
 
 data class AiSettingsUiState(
     val settings: MySettings,
-    val webDavPasswordStored: Boolean,
-    val syncPassphraseStored: Boolean,
-    val syncStatus: SyncV2RuntimeStatus,
 )
 
 sealed interface AiSettingsUiAction {
@@ -15,4 +11,6 @@ sealed interface AiSettingsUiAction {
     data class SetAgentAccess(val enabled: Boolean) : AiSettingsUiAction
     data class SetThirdPartyAgentAccess(val enabled: Boolean) : AiSettingsUiAction
     data class SetAgentConnectionManagement(val enabled: Boolean) : AiSettingsUiAction
+    data class SetRecognitionMode(val mode: Int) : AiSettingsUiAction
+    data class SetDisableThinking(val enabled: Boolean) : AiSettingsUiAction
 }

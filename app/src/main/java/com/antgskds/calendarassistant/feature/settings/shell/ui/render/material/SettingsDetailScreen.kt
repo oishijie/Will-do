@@ -38,19 +38,16 @@ import com.antgskds.calendarassistant.shared.ui.material.component.PredictiveFlo
 import com.antgskds.calendarassistant.shared.ui.material.component.AppPageScaffold
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBarBackButton
-import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.component.SettingsSidebar
 import com.antgskds.calendarassistant.app.ui.navigation.SettingsDestination
 import com.antgskds.calendarassistant.feature.settings.shell.ui.contract.SettingsDetailUiAction
 import com.antgskds.calendarassistant.feature.settings.shell.ui.contract.SettingsDetailUiState
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
-import com.antgskds.calendarassistant.shared.ui.layout.PushSlideLayout
 import com.antgskds.calendarassistant.app.ui.navigation.navBackwardEnterTransition
 import com.antgskds.calendarassistant.app.ui.navigation.navBackwardExitTransition
 import com.antgskds.calendarassistant.app.ui.navigation.navForwardEnterTransition
 import com.antgskds.calendarassistant.app.ui.navigation.navForwardExitTransition
 import com.antgskds.calendarassistant.app.ui.theme.material.background.AppBackgroundStyleTheme
 import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneLayout
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
 
 private fun NavGraphBuilder.settingsPageComposable(
@@ -85,35 +82,18 @@ fun MaterialSettingsDetailScreen(
     val settingsNavController = rememberNavController()
     val backStackEntry by settingsNavController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: state.initialRoute
-    var isSidebarOpen by remember { mutableStateOf(false) }
-    val adaptiveLayoutInfo = LocalAdaptiveLayoutInfo.current
-    val usePersistentSidebar = adaptiveLayoutInfo.useTwoPaneContent
-    val selectedDestination = remember(currentRoute) {
-        if (currentRoute == PageCatalog.weatherDetailPage.route) {
-            PageCatalog.weatherDetailPage.parentDestination
-        } else {
-            PageCatalog.navigablePages.firstOrNull { it.route == currentRoute }?.destination
-        }
-    }
-
-    androidx.compose.runtime.LaunchedEffect(usePersistentSidebar) {
-        if (usePersistentSidebar) isSidebarOpen = false
-    }
 
     fun navigateToDestination(target: SettingsDestination) {
         if (target == SettingsDestination.Logout) {
-            isSidebarOpen = false
             onAction(SettingsDetailUiAction.Logout)
             return
         }
 
         val targetRoute = PageCatalog.routeFor(target) ?: return
         if (targetRoute == settingsNavController.currentDestination?.route) {
-            isSidebarOpen = false
             return
         }
 
-        isSidebarOpen = false
         settingsNavController.navigate(targetRoute) {
             launchSingleTop = true
         }
@@ -128,7 +108,6 @@ fun MaterialSettingsDetailScreen(
 
     fun handleBackNavigation() {
         when {
-            isSidebarOpen -> isSidebarOpen = false
             settingsNavController.previousBackStackEntry != null -> settingsNavController.popBackStack()
             else -> onAction(SettingsDetailUiAction.ExitSettings)
         }
@@ -194,54 +173,11 @@ fun MaterialSettingsDetailScreen(
             }
         }
 
-        if (usePersistentSidebar) {
-            AdaptiveTwoPaneLayout(
-                primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-                primary = {
-                    SettingsSidebar(
-                        modifier = Modifier.fillMaxSize(),
-                        isDarkMode = state.isDarkMode,
-                        glassMode = state.backgroundEnabled,
-                        hasAppUpdate = state.hasAppUpdate,
-                        reserveFloatingBarSpace = false,
-                        selectedDestination = selectedDestination,
-                        onThemeToggle = { isDark ->
-                            onAction(SettingsDetailUiAction.SetDarkMode(isDark))
-                        },
-                        onNavigate = ::navigateToDestination,
-                    )
-                },
-                secondary = settingsContent,
-            )
-        } else {
-            PushSlideLayout(
-                isOpen = isSidebarOpen,
-                onOpenChange = { isSidebarOpen = it },
-                enableGesture = true,
-                contentContainerColor = if (state.backgroundEnabled) {
-                    Color.Transparent
-                } else {
-                    MaterialTheme.colorScheme.background
-                },
-                sidebar = {
-                    SettingsSidebar(
-                        isDarkMode = state.isDarkMode,
-                        glassMode = state.backgroundEnabled,
-                        hasAppUpdate = state.hasAppUpdate,
-                        selectedDestination = selectedDestination,
-                        onThemeToggle = { isDark ->
-                            onAction(SettingsDetailUiAction.SetDarkMode(isDark))
-                        },
-                        onNavigate = ::navigateToDestination,
-                    )
-                },
-                bottomBar = {},
-                content = settingsContent,
-            )
-        }
+        // 设置页统一单栏全屏：手机与平板一致，页面切换只靠返回栈，不再提供侧栏/抽屉导航。
+        settingsContent()
     }
 
-    BackHandler(enabled = isSidebarOpen || !state.navigationPredictiveBackEnabled) {
+    BackHandler(enabled = !state.navigationPredictiveBackEnabled) {
         handleBackNavigation()
     }
 }

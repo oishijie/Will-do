@@ -56,14 +56,15 @@ object PageCatalog {
 
     val pages: List<PageEntry> = listOf(
         // —— 其他设置（普通用户）——
-        PageEntry(SettingsDestination.AI, "settings_ai", "模型与连接", PageVisibility.USER, "配置 AI 识别模型与 WebDAV 连接"),
+        PageEntry(SettingsDestination.AI, "settings_ai", "模型与连接", PageVisibility.USER, "配置 AI 识别模型、识别与推理策略及 Agent 访问"),
         PageEntry(SettingsDestination.Weather, "settings_weather", "天气", PageVisibility.USER, "天气位置与预警设置"),
-        PageEntry(SettingsDestination.Preference, "settings_preference", "偏好设置", PageVisibility.USER, "通用偏好：显示、操作、通知、日程等开关"),
-        PageEntry(SettingsDestination.ScheduleColors, "settings_schedule_colors", "日程颜色", PageVisibility.USER, "自定义新建和识别日程使用的颜色色盘（从偏好设置进入）"),
+        PageEntry(SettingsDestination.Preference, "settings_preference", "通用偏好", PageVisibility.USER, "通用偏好：显示、操作与截图等应用级开关"),
+        PageEntry(SettingsDestination.QuickMemo, "settings_quick_memo", "随口记", PageVisibility.USER, "随口记总开关、录音展示、自动结束与语音转写模型"),
+        PageEntry(SettingsDestination.ScheduleColors, "settings_schedule_colors", "日程颜色", PageVisibility.USER, "自定义新建和识别日程使用的颜色色盘（从通用偏好进入）"),
         PageEntry(SettingsDestination.Archives, "settings_archives", "归档", PageVisibility.USER, "查看与恢复已归档的过期日程"),
         PageEntry(SettingsDestination.Backup, "settings_backup", "数据备份", PageVisibility.USER, "导入导出备份"),
         PageEntry(SettingsDestination.AppUpdate, "settings_app_update", "软件更新", PageVisibility.USER, "检查与下载新版本"),
-        PageEntry(SettingsDestination.WidgetSettings, "settings_widget_settings", "桌面小组件", PageVisibility.USER, "桌面小组件外观设置（从偏好设置进入）"),
+        PageEntry(SettingsDestination.WidgetSettings, "settings_widget_settings", "桌面小组件", PageVisibility.USER, "桌面小组件外观设置（从通用偏好进入）"),
 
         // —— 操作类（不是导航页，直接执行）——
         PageEntry(SettingsDestination.Theme, "settings_theme", "主题设置", PageVisibility.ACTION, "切换深浅色/主题色"),

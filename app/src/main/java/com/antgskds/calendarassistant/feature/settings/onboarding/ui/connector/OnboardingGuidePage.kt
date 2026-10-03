@@ -97,6 +97,7 @@ import com.antgskds.calendarassistant.feature.settings.laboratory.ui.contract.La
 import com.antgskds.calendarassistant.feature.settings.laboratory.ui.contract.LaboratoryUiState
 import com.antgskds.calendarassistant.feature.settings.preference.ui.connector.PreferenceSection
 import com.antgskds.calendarassistant.feature.settings.preference.ui.connector.PreferenceItemVisibility
+import com.antgskds.calendarassistant.feature.settings.quickmemo.ui.QuickMemoSettingsPage
 import com.antgskds.calendarassistant.feature.settings.preference.ui.connector.PreferenceSettingsPage
 import com.antgskds.calendarassistant.feature.recognition.ui.connector.AiSettingsPage
 import com.antgskds.calendarassistant.feature.weather.ui.connector.WeatherSettingsPage
@@ -541,21 +542,9 @@ fun OnboardingGuidePage(
                                 toast("可在完成引导后进入日程颜色设置")
                             },
                         )
-                        OnboardingStep.FLOATING_QUICK_MEMO -> PreferenceSettingsPage(
+                        OnboardingStep.FLOATING_QUICK_MEMO -> QuickMemoSettingsPage(
                             viewModel = settingsViewModel,
                             uiSize = uiSize,
-                            visibleSections = setOf(
-                                PreferenceSection.DISPLAY,
-                                PreferenceSection.QUICK_MEMO,
-                            ),
-                            itemVisibility = PreferenceItemVisibility(
-                                showUiSize = false,
-                                showTomorrowEvents = false,
-                                showWidgetSettings = false,
-                            ),
-                            onNavigateToWidgetSettings = {
-                                toast("可在完成引导后进入桌面小组件设置")
-                            },
                         )
                         OnboardingStep.MODEL -> AiSettingsPage(
                             viewModel = settingsViewModel,

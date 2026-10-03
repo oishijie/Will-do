@@ -85,14 +85,8 @@ fun SettingsTabPage(
                     onClick = { haptics.click(); onNavigate(SettingsDestination.Theme) }
                 )
                 SettingsEntryItem(
-                    title = "偏好设置",
-                    subtitle = "通知、显示选项",
-                    chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.Preference) }
-                )
-                SettingsEntryItem(
                     title = "模型与连接",
-                    subtitle = "AI 模型与 WebDAV",
+                    subtitle = "AI 模型与识别策略",
                     chevronTint = chevronTint,
                     onClick = { haptics.click(); onNavigate(SettingsDestination.AI) }
                 )
@@ -101,6 +95,18 @@ fun SettingsTabPage(
                     subtitle = "天气 API 与展示设置",
                     chevronTint = chevronTint,
                     onClick = { haptics.click(); onNavigate(SettingsDestination.Weather) }
+                )
+                SettingsEntryItem(
+                    title = "随口记",
+                    subtitle = "语音转写与录音展示",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.QuickMemo) }
+                )
+                SettingsEntryItem(
+                    title = "通用偏好",
+                    subtitle = "显示、操作与截图",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.Preference) }
                 )
                 SettingsEntryItem(
                     title = "软件更新",
@@ -121,7 +127,7 @@ fun SettingsTabPage(
                 )
                 SettingsEntryItem(
                     title = "数据备份",
-                    subtitle = "导入导出",
+                    subtitle = "导入导出与多设备同步",
                     chevronTint = chevronTint,
                     onClick = { haptics.click(); onNavigate(SettingsDestination.Backup) }
                 )

@@ -3,7 +3,6 @@ package com.antgskds.calendarassistant.feature.settings.preference.ui.connector
 
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import com.antgskds.calendarassistant.shared.ui.edition.EditionCheckbox
-import com.antgskds.calendarassistant.shared.ui.edition.EditionButton
 import com.antgskds.calendarassistant.shared.ui.edition.EditionCategoricalPreference
 import com.antgskds.calendarassistant.shared.ui.edition.EditionDropdownActionSettingItem
 import com.antgskds.calendarassistant.shared.ui.edition.EditionSwitchSliderSettingItem
@@ -59,9 +58,6 @@ import com.antgskds.calendarassistant.shared.ui.material.component.UniversalSnac
 import com.antgskds.calendarassistant.shared.ui.material.component.WheelPicker
 import com.antgskds.calendarassistant.feature.settings.data.model.FloatingBallGestureAction
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
-import com.antgskds.calendarassistant.feature.settings.data.model.QuickMemoRecordingDisplayMode
-import com.antgskds.calendarassistant.feature.quickmemo.data.asr.QuickMemoAsrModelStatus
-import com.antgskds.calendarassistant.feature.quickmemo.data.asr.QuickMemoAsrModelStore
 import com.antgskds.calendarassistant.shared.ui.interaction.HapticValueChangeEffect
 import com.antgskds.calendarassistant.shared.ui.interaction.LocalAppHapticsEnabled
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
@@ -69,17 +65,13 @@ import com.antgskds.calendarassistant.shared.ui.permission.rememberPermissionGat
 import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
 import com.antgskds.calendarassistant.feature.settings.preference.ui.contract.PreferenceUiController
 import com.antgskds.calendarassistant.feature.settings.preference.ui.connector.PreferenceUiControllerAdapter
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 enum class PreferenceSection {
     DISPLAY,
-    QUICK_MEMO,
     OPERATION,
     NOTIFICATION,
-    AI,
     SCHEDULE,
     SCREENSHOT,
 }
@@ -139,28 +131,9 @@ fun MaterialPreferenceSettingsScreen(
     val bottomInset = LocalAppPageBottomPadding.current
     var showSourceCalendarSheet by remember { mutableStateOf(false) }
     var showEventDurationPicker by remember { mutableStateOf(false) }
-    var showRecognitionModePicker by remember { mutableStateOf(false) }
     var showDailySummaryMorningTimePicker by remember { mutableStateOf(false) }
     var showDailySummaryEveningTimePicker by remember { mutableStateOf(false) }
     var gestureActionPicker by remember { mutableStateOf<FloatingGestureActionPickerState?>(null) }
-    var quickMemoAsrModelStatus by remember { mutableStateOf(QuickMemoAsrModelStore.status(context)) }
-
-    val quickMemoAsrModelImportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                QuickMemoAsrModelStore.importModelFile(context, uri)
-            }
-            quickMemoAsrModelStatus = QuickMemoAsrModelStore.status(context)
-            val message = result.fold(
-                onSuccess = { fileName -> "已导入 $fileName" },
-                onFailure = { error -> error.message ?: "模型导入失败" }
-            )
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-        }
-    }
 
     val selectedSourceCalendars by remember(syncStatus.sourceCalendarIds, availableSyncCalendars) {
         derivedStateOf {
@@ -379,7 +352,7 @@ fun MaterialPreferenceSettingsScreen(
             // ================== 显示板块 ==================
             if (PreferenceSection.DISPLAY in visibleSections) {
             Text("显示", style = sectionTitleStyle)
-            SettingsCard {
+            AppSettingsCard {
                 if (itemVisibility.showUiSize) {
                     SliderSettingItem(
                         title = "界面大小",
@@ -460,7 +433,7 @@ fun MaterialPreferenceSettingsScreen(
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
-                SettingsCard {
+                AppSettingsCard {
                     if (settings.isFloatingWindowEnabled) {
                         FloatingEventRangeSlider(
                             title = "悬浮窗日程范围",
@@ -835,77 +808,10 @@ fun MaterialPreferenceSettingsScreen(
 
             }
 
-            // ================== 随口记板块 ==================
-            if (PreferenceSection.QUICK_MEMO in visibleSections) {
-            Text("随口记", style = sectionTitleStyle)
-            QuickMemoPreferenceCard(
-                settings = settings,
-                asrModelStatus = quickMemoAsrModelStatus,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                onVoiceInputEnabledChange = { enabled ->
-                    controller.updatePreference(voiceInputEnabled = enabled)
-                    if (enabled) {
-                        app?.runtimeCenter?.startEdgeBarIfNeeded()
-                    } else if (!settings.isFloatingWindowEnabled) {
-                        stopEdgeBarService()
-                        stopFloatingBallService()
-                    }
-                },
-                onFloatingLongPressChange = { enabled ->
-                    if (enabled) {
-                        permissionGate.require(
-                            permissionName = "麦克风权限",
-                            isGranted = ::hasRecordAudioPermission,
-                            requestPermission = ::requestRecordAudioPermission,
-                            onGranted = { controller.updatePreference(floatingVoiceLongPressEnabled = true) },
-                        )
-                    } else {
-                        controller.updatePreference(floatingVoiceLongPressEnabled = false)
-                    }
-                },
-                onRecordingDisplayModeChange = { mode ->
-                    controller.updatePreference(quickMemoRecordingDisplayMode = mode)
-                },
-                onAutoStopEnabledChange = { enabled ->
-                    controller.updateQuickMemoAutoStop(enabled = enabled)
-                },
-                onAutoStopSecondsChange = { seconds ->
-                    controller.updateQuickMemoAutoStop(seconds = seconds)
-                },
-                onTextAutoPinChange = { enabled ->
-                    if (enabled) {
-                        permissionGate.require(
-                            permissionName = "通知权限",
-                            isGranted = ::hasNotificationPermission,
-                            requestPermission = ::requestNotificationPermission,
-                            onGranted = { controller.updatePreference(floatingTextQuickMemoAutoPinEnabled = true) },
-                        )
-                    } else {
-                        controller.updatePreference(floatingTextQuickMemoAutoPinEnabled = false)
-                    }
-                },
-                onVoiceAutoPinChange = { enabled ->
-                    if (enabled) {
-                        permissionGate.require(
-                            permissionName = "通知权限",
-                            isGranted = ::hasNotificationPermission,
-                            requestPermission = ::requestNotificationPermission,
-                            onGranted = { controller.updatePreference(voiceQuickMemoAutoPinEnabled = true) },
-                        )
-                    } else {
-                        controller.updatePreference(voiceQuickMemoAutoPinEnabled = false)
-                    }
-                },
-                onImportAsrModel = { quickMemoAsrModelImportLauncher.launch(arrayOf("*/*")) }
-            )
-
-            }
-
             // ================== 操作板块 ==================
             if (PreferenceSection.OPERATION in visibleSections) {
             Text("操作", style = sectionTitleStyle)
-            SettingsCard {
+            AppSettingsCard {
                 if (itemVisibility.showHapticFeedback) {
                     SwitchSettingItem(
                         title = "触感反馈",
@@ -973,7 +879,7 @@ fun MaterialPreferenceSettingsScreen(
             // ================== 通知板块 ==================
             if (PreferenceSection.NOTIFICATION in visibleSections) {
             Text("通知", style = sectionTitleStyle)
-            SettingsCard {
+            AppSettingsCard {
                     SwitchSettingItem(
                         title = "每日提醒",
                         subtitle = "今日 ${formatMinuteOfDay(settings.dailySummaryMorningMinuteOfDay)}，明日 ${formatMinuteOfDay(settings.dailySummaryEveningMinuteOfDay)}",
@@ -1158,40 +1064,10 @@ fun MaterialPreferenceSettingsScreen(
 
             }
 
-            // ================== AI 板块 ==================
-            if (PreferenceSection.AI in visibleSections) {
-            Text("AI", style = sectionTitleStyle)
-            SettingsCard {
-                    RecognitionModeSettingItem(
-                        mode = settings.recognitionMode,
-                        onClick = { showRecognitionModePicker = true },
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle,
-                        cardValueStyle = cardValueStyle
-                    )
-
-                    AppSettingsDivider()
-
-                    SwitchSettingItem(
-                        title = "关闭思考",
-                        subtitle = "仅适配 OpenAI",
-                        checked = settings.disableThinking,
-                        onCheckedChange = { isChecked ->
-                            controller.updatePreference(disableThinking = isChecked)
-                            showToast(if (isChecked) "快速模式已开启" else "快速模式已关闭")
-                        },
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle
-                    )
-
-            }
-
-            }
-
             // ================== 日程板块 ==================
             if (PreferenceSection.SCHEDULE in visibleSections) {
             Text("日程", style = sectionTitleStyle)
-            SettingsCard {
+            AppSettingsCard {
                     SwitchSettingItem(
                         title = "日历同步",
                         subtitle = "将日程同步到系统日历",
@@ -1309,7 +1185,7 @@ fun MaterialPreferenceSettingsScreen(
             if (PreferenceSection.SCREENSHOT in visibleSections) {
             // 注意：现在它在 Column 内部，位于“日程”卡片之后
             Text("截图", style = sectionTitleStyle)
-            SettingsCard {
+            AppSettingsCard {
                     SliderSettingItem(
                         title = "截图延迟",
                         subtitle = "截图与分析之间的等待时间",
@@ -1367,17 +1243,6 @@ fun MaterialPreferenceSettingsScreen(
             )
         }
 
-        if (showRecognitionModePicker) {
-            RecognitionModePickerDialog(
-                selectedMode = settings.recognitionMode,
-                onDismiss = { showRecognitionModePicker = false },
-                onConfirm = { mode ->
-                    controller.updatePreference(recognitionMode = mode)
-                    showRecognitionModePicker = false
-                }
-            )
-        }
-
         if (showDailySummaryMorningTimePicker) {
             DailySummaryTimePickerDialog(
                 selectedMinuteOfDay = settings.dailySummaryMorningMinuteOfDay,
@@ -1431,166 +1296,6 @@ fun MaterialPreferenceSettingsScreen(
             )
         }
     }
-    }
-}
-
-@Composable
-private fun QuickMemoPreferenceCard(
-    settings: MySettings,
-    asrModelStatus: QuickMemoAsrModelStatus,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-    onVoiceInputEnabledChange: (Boolean) -> Unit,
-    onFloatingLongPressChange: (Boolean) -> Unit,
-    onRecordingDisplayModeChange: (Int) -> Unit,
-    onAutoStopEnabledChange: (Boolean) -> Unit,
-    onAutoStopSecondsChange: (Int) -> Unit,
-    onTextAutoPinChange: (Boolean) -> Unit,
-    onVoiceAutoPinChange: (Boolean) -> Unit,
-    onImportAsrModel: () -> Unit,
-) {
-    SettingsCard {
-        SwitchSettingItem(
-            title = "随口记",
-            subtitle = "随口记功能总开关",
-            checked = settings.voiceInputEnabled,
-            onCheckedChange = onVoiceInputEnabledChange,
-            cardTitleStyle = cardTitleStyle,
-            cardSubtitleStyle = cardSubtitleStyle
-        )
-
-        AnimatedVisibility(
-            visible = settings.voiceInputEnabled,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                AppSettingsDivider()
-                SwitchSettingItem(
-                    title = "悬浮窗长按随口记",
-                    subtitle = "呼出悬浮窗后，再次长按音量+开始随口记录音",
-                    checked = settings.floatingVoiceLongPressEnabled,
-                    onCheckedChange = onFloatingLongPressChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-
-                AppSettingsDivider()
-                QuickMemoRecordingDisplayPreference(
-                    mode = settings.quickMemoRecordingDisplayMode,
-                    onModeChange = onRecordingDisplayModeChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle,
-                )
-
-                AppSettingsDivider()
-                val normalizedSeconds = MySettings.normalizeQuickMemoAutoStopSeconds(
-                    settings.quickMemoAutoStopSeconds
-                )
-                HapticValueChangeEffect(valueKey = normalizedSeconds)
-                EditionSwitchSliderSettingItem(
-                    title = "自动结束录音",
-                    subtitle = if (settings.quickMemoAutoStopEnabled) {
-                        "录音 ${normalizedSeconds} 秒后自动保存"
-                    } else {
-                        "关闭时由用户手动结束并保存录音"
-                    },
-                    checked = settings.quickMemoAutoStopEnabled,
-                    onCheckedChange = onAutoStopEnabledChange,
-                    optionTitle = "自动结束时长",
-                    optionSummary = "录音达到设定时长后自动保存",
-                    value = normalizedSeconds.toFloat(),
-                    valueText = "${normalizedSeconds} 秒",
-                    onValueChange = { onAutoStopSecondsChange(it.roundToInt()) },
-                    valueRange = MySettings.QUICK_MEMO_AUTO_STOP_MIN_SECONDS.toFloat()..
-                        MySettings.QUICK_MEMO_AUTO_STOP_MAX_SECONDS.toFloat(),
-                    steps = 0,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-
-                AppSettingsDivider()
-                SwitchSettingItem(
-                    title = "文本随口记同步挂起",
-                    subtitle = "随口记文本保存后，同步挂起到实况通知",
-                    checked = settings.floatingTextQuickMemoAutoPinEnabled,
-                    onCheckedChange = onTextAutoPinChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-
-                AppSettingsDivider()
-                SwitchSettingItem(
-                    title = "语音随口记同步挂起",
-                    subtitle = "随口记语音转写后，同步挂起到实况通知",
-                    checked = settings.voiceQuickMemoAutoPinEnabled,
-                    onCheckedChange = onVoiceAutoPinChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-
-                AppSettingsDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f).padding(end = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "语音转写模型",
-                            style = cardTitleStyle,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = formatQuickMemoAsrModelStatus(asrModelStatus),
-                            style = cardSubtitleStyle,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    EditionButton(onClick = onImportAsrModel) {
-                        Text(if (asrModelStatus.ready) "更换模型" else "导入模型")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickMemoRecordingDisplayPreference(
-    mode: Int,
-    onModeChange: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-) {
-    val normalizedMode = QuickMemoRecordingDisplayMode.normalize(mode)
-    TwoOptionSettingItem(
-        title = "录音展示",
-        subtitle = if (normalizedMode == QuickMemoRecordingDisplayMode.FLOATING_WINDOW) {
-            "所有入口录音时使用悬浮窗"
-        } else {
-            "所有入口录音时使用实况通知"
-        },
-        selectedValue = normalizedMode,
-        firstValue = QuickMemoRecordingDisplayMode.LIVE_CAPSULE,
-        firstLabel = "实况通知",
-        secondValue = QuickMemoRecordingDisplayMode.FLOATING_WINDOW,
-        secondLabel = "悬浮窗",
-        onValueSelected = onModeChange,
-        cardTitleStyle = cardTitleStyle,
-        cardSubtitleStyle = cardSubtitleStyle,
-    )
-}
-
-private fun formatQuickMemoAsrModelStatus(status: QuickMemoAsrModelStatus): String {
-    return when {
-        status.ready -> "已导入本地模型，可离线转写"
-        !status.modelReady && !status.tokensReady -> "未导入模型，请依次导入 model.int8.onnx 和 tokens.txt"
-        !status.modelReady -> "缺少 model.int8.onnx 或 model.onnx"
-        else -> "缺少 tokens.txt"
     }
 }
 
@@ -1702,62 +1407,9 @@ private fun formatMinuteOfDay(minuteOfDay: Int): String {
     return "%02d:%02d".format(safeMinuteOfDay / 60, safeMinuteOfDay % 60)
 }
 
-@Composable
-private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    AppSettingsCard(content = content)
-}
-
 // SwitchSettingItem 已抽至 SettingsRowComponents.kt（公共组件，同包，无需改 import）
 
 // SideChoiceSettingItem 已抽至 SettingsRowComponents.kt
-
-@Composable
-private fun TwoOptionSettingItem(
-    title: String,
-    subtitle: String,
-    selectedValue: Int,
-    firstValue: Int,
-    firstLabel: String,
-    secondValue: Int,
-    secondLabel: String,
-    onValueSelected: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle
-) {
-    val haptics = rememberAppHaptics()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = cardTitleStyle)
-            Text(subtitle, style = cardSubtitleStyle)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (selectedValue == firstValue) {
-                Button(onClick = { haptics.selection(); onValueSelected(firstValue) }) {
-                    Text(firstLabel)
-                }
-            } else {
-                OutlinedButton(onClick = { haptics.selection(); onValueSelected(firstValue) }) {
-                    Text(firstLabel)
-                }
-            }
-            if (selectedValue == secondValue) {
-                Button(onClick = { haptics.selection(); onValueSelected(secondValue) }) {
-                    Text(secondLabel)
-                }
-            } else {
-                OutlinedButton(onClick = { haptics.selection(); onValueSelected(secondValue) }) {
-                    Text(secondLabel)
-                }
-            }
-        }
-    }
-}
 
 // ActionSettingItem 已抽至 SettingsRowComponents.kt
 
