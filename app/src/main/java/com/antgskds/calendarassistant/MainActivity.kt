@@ -100,6 +100,7 @@ import kotlinx.coroutines.withContext
 import com.antgskds.calendarassistant.shared.ui.material.component.appWindowBackdrop
 import com.antgskds.calendarassistant.shared.ui.material.component.rememberAppWindowBackdrop
 import kotlin.math.roundToInt
+import com.antgskds.calendarassistant.shared.ui.interaction.LocalAppHapticsEnabled
 
 private data class PendingWidgetLaunchAction(
     val action: String,
@@ -243,6 +244,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settingsViewModel: SettingsViewModel = viewModel(factory = viewModelFactory)
             val settings by settingsViewModel.settings.collectAsState()
+            // 全局触感开关注入：LocalAppHapticsEnabled 的默认值是 true，若不���根部提供，
+            // 任何未显式 provide 的页面（底栏、弹窗、共享组件等）都会无视用户的关闭操作而持续震动。
+            CompositionLocalProvider(LocalAppHapticsEnabled provides settings.hapticFeedbackEnabled) {
             val demoModeEnabled = settings.developerOptionsEnabled && settings.developerDemoModeEnabled
             val promptUpdateDialogState by mainViewModel.promptUpdateDialogState.collectAsState()
             val clipboardPrompt by app.clipboardCodeCenter.pendingPrompt.collectAsState()
@@ -773,6 +777,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
         }
     }
 

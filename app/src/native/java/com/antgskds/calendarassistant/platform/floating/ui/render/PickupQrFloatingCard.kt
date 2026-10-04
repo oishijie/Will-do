@@ -10,7 +10,8 @@ import com.antgskds.calendarassistant.platform.floating.ui.render.material.Mater
 fun PickupQrFloatingCardContent(
     state: PickupQrFloatingCardUiState,
     onAction: (PickupQrFloatingCardUiAction) -> Unit,
+    hapticEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    MaterialPickupQrFloatingCard(state = state, onAction = onAction, modifier = modifier)
+    MaterialPickupQrFloatingCard(state = state, onAction = onAction, hapticEnabled = hapticEnabled, modifier = modifier)
 }

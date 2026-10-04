@@ -10,7 +10,8 @@ import com.antgskds.calendarassistant.platform.floating.ui.render.material.Mater
 fun FloatingMediaCardContent(
     state: FloatingMediaCardUiState,
     onAction: (FloatingMediaCardUiAction) -> Unit,
+    hapticEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    MaterialFloatingMediaCard(state = state, onAction = onAction, modifier = modifier)
+    MaterialFloatingMediaCard(state = state, onAction = onAction, hapticEnabled = hapticEnabled, modifier = modifier)
 }

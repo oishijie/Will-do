@@ -63,9 +63,10 @@ private sealed interface MediaBitmapState {
 fun MaterialFloatingMediaCard(
     state: FloatingMediaCardUiState,
     onAction: (FloatingMediaCardUiAction) -> Unit,
+    hapticEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val haptics = rememberAppHaptics()
+    val haptics = rememberAppHaptics(hapticEnabled)
     if (state.pages.isEmpty()) {
         LaunchedEffect(Unit) { onAction(FloatingMediaCardUiAction.MediaUnavailable) }
         return

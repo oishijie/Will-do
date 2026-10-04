@@ -926,6 +926,7 @@ fun TimeWheelList(
                         FloatingWeatherCard(
                             weatherData = weatherData,
                             forecastRange = weatherForecastRange,
+                            hapticEnabled = hapticEnabled,
                             modifier = cardModifier
                         )
                     }
@@ -2058,11 +2059,12 @@ private fun floatingQuickMemoStatusText(memo: QuickMemoEntity): String {
 private fun FloatingWeatherCard(
     weatherData: WeatherData,
     forecastRange: Int,
+    hapticEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val now = remember { LocalDateTime.now() }
     var isExpanded by remember { mutableStateOf(false) }
-    val haptics = rememberAppHaptics()
+    val haptics = rememberAppHaptics(hapticEnabled)
     val forecastMode = remember(forecastRange) { FloatingWeatherForecastMode.fromValue(forecastRange) }
     val weekText = remember(now) {
         now.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale.CHINESE)

@@ -43,6 +43,7 @@ import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 fun MaterialPickupQrFloatingCard(
     state: PickupQrFloatingCardUiState,
     onAction: (PickupQrFloatingCardUiAction) -> Unit,
+    hapticEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val payload = state.qrPayload
@@ -52,7 +53,7 @@ fun MaterialPickupQrFloatingCard(
     val detailText = listOf(state.code, state.location)
         .filter { it.isNotBlank() }
         .joinToString(" · ")
-    val haptics = rememberAppHaptics()
+    val haptics = rememberAppHaptics(hapticEnabled)
 
     Box(
         modifier = modifier

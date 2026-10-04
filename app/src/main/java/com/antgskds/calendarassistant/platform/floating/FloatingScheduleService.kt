@@ -373,6 +373,12 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
             setContent {
                 val events by scheduleQueryApi.events.collectAsState()
                 val settings by settingsQueryApi.settings.collectAsState()
+                // 悬浮窗是独立 Window，不在 MainActivity 的 Compose 树内，需单独注入触感开关。
+                // 否则 LocalAppHapticsEnabled 取默认值 true，用户关闭也无法生效。
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.antgskds.calendarassistant.shared.ui.interaction.LocalAppHapticsEnabled
+                        provides settings.hapticFeedbackEnabled
+                ) {
                 val context = LocalContext.current
                 val weatherData by weatherQueryApi.weatherData.collectAsState()
                 val quickMemos by quickMemoCenter.quickMemos.collectAsState()
@@ -574,6 +580,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                     floatingContent()
                 }
             }
+        }
         }
 
         try {
