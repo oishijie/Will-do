@@ -9,9 +9,14 @@ object AppRoutes {
     private const val NoteEditorBase = "note_editor"
     const val NoteEditorArg = "noteId"
     const val NoteEditorPattern = "$NoteEditorBase/{$NoteEditorArg}"
+
     const val QuickMemoDetailBase = "quick_memo_detail"
     const val QuickMemoDetailArg = "memoId"
     const val QuickMemoDetailPattern = "$QuickMemoDetailBase/{$QuickMemoDetailArg}"
+
+    const val FlashNoteDetailBase = "flash_note_detail"
+    const val FlashNoteDetailArg = "noteId"
+    const val FlashNoteDetailPattern = "$FlashNoteDetailBase/{$FlashNoteDetailArg}"
 
     const val SettingsBase = "settings"
     const val SettingsTypeArg = "type"
@@ -20,4 +25,6 @@ object AppRoutes {
     fun settings(destinationName: String): String = "$SettingsBase/$destinationName"
 
     fun quickMemoDetail(memoId: Long): String = "$QuickMemoDetailBase/$memoId"
+
+    fun flashNoteDetail(noteId: Long): String = "$FlashNoteDetailBase/$noteId"
 }

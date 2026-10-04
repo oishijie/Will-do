@@ -6,6 +6,8 @@ import android.net.Uri
 import com.antgskds.calendarassistant.shared.util.AppLogger as Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.antgskds.calendarassistant.feature.quickmemo.ui.connector.toFlashNoteEntry
+import com.antgskds.calendarassistant.feature.note.flash.FlashNoteNavigator
 import com.antgskds.calendarassistant.feature.recognition.application.ai.AiPrompts
 import com.antgskds.calendarassistant.feature.recognition.application.ai.convertDraftToEvent
 import com.antgskds.calendarassistant.feature.recognition.application.ai.PromptCheckResult
@@ -411,6 +413,34 @@ class MainViewModel(
 
     fun setNotePinned(noteId: Long, pinned: Boolean) = viewModelScope.launch {
         noteCenter.setPinned(noteId, pinned)
+    }
+
+    /**
+     * 按列表条目 key 删除闪记。
+     *
+     * key 形如 `note:12`（列表适配层 [com.antgskds.calendarassistant.feature.quickmemo.ui.connector.buildFlashNoteStream]
+     * 生成的格式），前缀缺失或解析失败时不做任何操作，避免误删。
+     */
+    fun deleteFlashNote(itemKey: String) = viewModelScope.launch {
+        val noteId = itemKey.removePrefix("note:").toLongOrNull() ?: return@launch
+        noteCenter.deleteNote(noteId)
+    }
+
+    /**
+     * 打开闪记的原文。
+     *
+     * 优先走链接；纯文本闪记没有来源链接时不做任何事（正文已在详情页展示）。
+     * 微信文章由 [FlashNoteNavigator] 内部降级为复制链接。
+     */
+    fun openFlashNoteSource(noteId: Long) {
+        val entry = notes.value.firstOrNull { it.id == noteId }?.toFlashNoteEntry() ?: return
+        val url = entry.url
+        if (url.isBlank()) return
+        FlashNoteNavigator.open(
+            context = appContext,
+            url = url,
+            requiresClipboardRelay = entry.requiresClipboard
+        )
     }
 
     fun createTextQuickMemo(bodyText: String, asTodo: Boolean = false, onCreated: (Long) -> Unit = {}) = viewModelScope.launch {

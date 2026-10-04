@@ -128,6 +128,7 @@ import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarExtraHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarShadowPadding
+import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoDetailUiState
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoListUiState
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoUiAction
@@ -204,37 +205,86 @@ fun MaterialQuickMemoScreen(
         }
     }
 
-    if (filteredMemos.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(
-                modifier = Modifier.padding(horizontal = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+    // 速记与闪记共用这个 Tab，顶部给一个分段选择器；闪记没有双栏详情，切到该段时不占secondary。
+    val segmentHeader: @Composable () -> Unit = {
+        MemoStreamSegmentBar(
+            current = state.segment,
+            flashCount = state.flashNotes.size,
+            onSelect = { onAction(QuickMemoUiAction.SelectSegment(it)) },
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+        )
+    }
+
+    if (state.segment == MemoStreamSegment.FLASH_NOTE) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 0.dp, bottom = bottomSafePadding + 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = if (searchQuery.isBlank()) "还没有随口记" else "未找到相关随口记",
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = if (searchQuery.isBlank()) {
-                        "从悬浮窗快速记下一句话，之后可以继续整理。"
-                    } else {
-                        "换个关键词试试，搜索会匹配随口记正文。"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
-                )
+                item(key = "segment") { segmentHeader() }
+                if (state.flashNotes.isEmpty()) {
+                    item(key = "flash_empty") {
+                        FlashNoteEmptyState(
+                            searching = searchQuery.isNotBlank(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 28.dp, vertical = 72.dp)
+                        )
+                    }
+                } else {
+                    items(state.flashNotes, key = { it.key }) { entry ->
+                        FlashNoteListRow(
+                            entry = entry,
+                            hapticEnabled = hapticEnabled,
+                            onClick = { onAction(QuickMemoUiAction.OpenFlashNote(entry.key)) },
+                            onLongPress = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
+                            onDeleteRequest = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
+                            uiSize = uiSize,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        )
+                    }
+                }
             }
         }
         return
     }
 
+    // 空态也走 LazyColumn，否则分段选择器会被空态分支吞掉，
+    // 导致「速记为空时无法切到闪记段」。
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 10.dp, bottom = bottomSafePadding + 24.dp)
+        contentPadding = PaddingValues(top = 0.dp, bottom = bottomSafePadding + 24.dp)
     ) {
-        groupedMemos.forEach { (date, memos) ->
+        item(key = "segment") { segmentHeader() }
+        if (filteredMemos.isEmpty()) {
+            item(key = "empty") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 120.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (searchQuery.isBlank()) "还没有随口记" else "未找到相关随口记",
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = if (searchQuery.isBlank()) {
+                            "从悬浮窗快速记下一句话，之后可以继续整理。"
+                        } else {
+                            "换个关键词试试，搜索会匹配随口记正文。"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
+                    )
+                }
+            }
+        } else {
+            groupedMemos.forEach { (date, memos) ->
             item(key = "header_$date") {
                 Text(
                     text = "—— ${formatDateGroup(date)}",
@@ -278,6 +328,7 @@ fun MaterialQuickMemoScreen(
                         vertical = metrics.listVerticalPadding
                     )
                 )
+            }
             }
         }
     }

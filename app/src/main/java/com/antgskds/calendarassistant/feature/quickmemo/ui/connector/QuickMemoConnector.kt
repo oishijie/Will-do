@@ -37,7 +37,94 @@ import com.antgskds.calendarassistant.feature.quickmemo.application.QuickMemoAut
 import com.antgskds.calendarassistant.app.ui.state.MainViewModel
 import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneLayout
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
+import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.FlashNoteListEntry
+import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
+import com.antgskds.calendarassistant.feature.note.data.local.NoteEntity
+import com.antgskds.calendarassistant.feature.note.data.attachment.NoteAttachmentStore
+import com.antgskds.calendarassistant.feature.note.domain.model.NoteParagraph
+import com.antgskds.calendarassistant.feature.note.domain.model.NoteParagraphType
+import com.antgskds.calendarassistant.feature.note.domain.model.plainTextContent
+import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSource
+import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSummaryState
+import com.antgskds.calendarassistant.feature.note.flash.FlashNoteNavigator
 import com.antgskds.calendarassistant.feature.settings.developer.application.DemoModeDataFactory
+
+/**
+ * 闪记条目列表：把 notes 表压成列表展示所需的最小信息，并按关键词过滤。
+ *
+ * 只收录闪记（有 SOURCE_LINK 段落）；历史迁移来的普通便签仍走设置页的独立列表。
+ */
+internal data class FlashNoteStream(
+    val entries: List<FlashNoteListEntry>,
+    val idByKey: Map<String, Long>,
+    val byKey: Map<String, FlashNoteListEntry>
+)
+
+internal fun buildFlashNoteStream(
+    notes: List<NoteEntity>,
+    searchQuery: String
+): FlashNoteStream {
+    val flashNotes = notes.filter { it.document().isFlashNote }
+
+    val entries = flashNotes.mapIndexed { index, note ->
+        val document = note.document()
+        val key = note.id?.let { "note:$it" } ?: "transient:${note.updatedAt}:$index"
+        val url = document.flashSourceUrl()
+        val summary = document.flashSummaryParagraph()?.text.orEmpty()
+        val imageParagraph = document.paragraphs.firstOrNull { it.type == NoteParagraphType.IMAGE }
+        val preview = document.paragraphs
+            .asSequence()
+            .filterNot {
+                it.type == NoteParagraphType.SUMMARY ||
+                    it.type == NoteParagraphType.SOURCE_LINK ||
+                    it.type == NoteParagraphType.TODO ||
+                    it.type == NoteParagraphType.IMAGE
+            }
+            .map { it.plainTextContent().trim() }
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        key to FlashNoteListEntry(
+            key = key,
+            title = note.displayTitle,
+            previewText = preview.takeIf { it.isNotBlank() },
+            summaryText = summary.takeIf {
+                it.isNotBlank() && !FlashNoteSummaryState.isPlaceholder(it)
+            },
+            summaryPending = document.flashSummaryPending(),
+            summaryFailed = document.flashSummaryFailed(),
+            siteName = document.flashSourceParagraph()?.attachmentName?.takeIf { it.isNotBlank() },
+            url = url,
+            requiresClipboard = url.isNotBlank() &&
+                FlashNoteSource(url = url).requiresClipboardRelay,
+            pinned = note.pinnedAt != null,
+            updatedAt = note.updatedAt,
+            imageRelativePath = imageParagraph?.attachmentPath.orEmpty(),
+            imageDisplayName = imageParagraph?.attachmentName.orEmpty()
+        )
+    }.sortedByDescending { it.second.updatedAt }
+
+    val filtered = if (searchQuery.isBlank()) {
+        entries
+    } else {
+        entries.filter { (_, entry) ->
+            entry.title.contains(searchQuery, ignoreCase = true) ||
+                entry.previewText?.contains(searchQuery, ignoreCase = true) == true ||
+                entry.summaryText?.contains(searchQuery, ignoreCase = true) == true ||
+                entry.siteName?.contains(searchQuery, ignoreCase = true) == true
+        }
+    }
+
+    return FlashNoteStream(
+        entries = filtered.map { it.second },
+        idByKey = filtered.mapNotNull { (key, entry) ->
+            entry.key.removePrefix("note:").toLongOrNull()?.let { key to it }
+        }.toMap(),
+        byKey = filtered.associate { it }
+    )
+}
 
 private const val TEXT_QUICK_MEMO_ID_PREFIX = "TEXT_QUICK_MEMO_"
 
@@ -52,9 +139,12 @@ fun QuickMemoPage(
     onMemoOpened: () -> Unit = {},
     onOpenDetail: (Long) -> Unit = {},
     onPendingDeleteChange: (QuickMemoEntity?) -> Unit = {},
+    onRequestDeleteFlashNote: (String) -> Unit = {},
+    onOpenFlashNoteDetail: (Long) -> Unit = {},
     hapticEnabled: Boolean = true
 ) {
     val quickMemos by viewModel.quickMemos.collectAsState()
+    val notes by viewModel.notes.collectAsState()
     val suggestions by viewModel.quickMemoSuggestions.collectAsState()
     val playbackState by viewModel.audioPlaybackState.collectAsState()
     val capsuleUiState by viewModel.capsuleUiState.collectAsState()
@@ -67,12 +157,32 @@ fun QuickMemoPage(
     }
     var demoVoicePlaying by remember(demoModeEnabled) { mutableStateOf(true) }
     val displayedPlayback = if (demoModeEnabled) AudioPlaybackState(DemoModeDataFactory.QUICK_MEMO_AUDIO_PATH, demoVoicePlaying) else playbackState
-    val state = remember(displayedMemos, suggestions, displayedPlayback, capsuleUiState, demoModeEnabled) {
+
+    // 闪记与速记共用同一个底栏 Tab，用分段切换；分段状态留在导航栈外，Tab 重建不丢。
+    var segmentKey by rememberSaveable { mutableStateOf(MemoStreamSegment.QUICK_MEMO.name) }
+    val segment = MemoStreamSegment.fromKey(segmentKey)
+
+    val flashConnection = remember(notes, searchQuery) {
+        buildFlashNoteStream(notes, searchQuery)
+    }
+
+    val state = remember(
+        displayedMemos,
+        suggestions,
+        displayedPlayback,
+        capsuleUiState,
+        demoModeEnabled,
+        segment,
+        flashConnection
+    ) {
         QuickMemoListUiState(
             memos = displayedMemos,
             suggestions = if (demoModeEnabled) emptyList() else suggestions,
             playbackState = displayedPlayback,
-            pinnedMemoId = activeTextQuickMemoId(capsuleUiState)
+            pinnedMemoId = activeTextQuickMemoId(capsuleUiState),
+            segment = segment,
+            flashNotes = flashConnection.entries,
+            flashNoteIds = flashConnection.idByKey
         )
     }
 
@@ -104,6 +214,63 @@ fun QuickMemoPage(
             reserveFloatingBarSpace = !twoPane,
             hapticEnabled = hapticEnabled,
             onAction = { action ->
+                // 闪记与速记的数据层不同，动作分派前先拦掉这一组。
+                when (action) {
+                    is QuickMemoUiAction.SelectSegment -> {
+                        segmentKey = action.segment.name
+                        return@QuickMemoScreen
+                    }
+
+                    is QuickMemoUiAction.OpenFlashNote -> {
+                        // 打开详情页：收藏的正文只有这里能看到。
+                        if (!demoModeEnabled) {
+                            flashConnection.idByKey[action.key]?.let { noteId ->
+                                onOpenFlashNoteDetail(noteId)
+                            }
+                        }
+                        return@QuickMemoScreen
+                    }
+
+                    is QuickMemoUiAction.OpenFlashNoteSource -> {
+                        if (!demoModeEnabled) {
+                            val entry = flashConnection.byKey[action.key]
+                            val url = entry?.url.orEmpty()
+                            if (url.isNotBlank()) {
+                                FlashNoteNavigator.open(
+                                    context = context,
+                                    url = url,
+                                    requiresClipboardRelay = entry?.requiresClipboard == true
+                                )
+                            } else if (!entry?.imageRelativePath.isNullOrBlank()) {
+                                val paragraph = NoteParagraph(
+                                    type = NoteParagraphType.IMAGE,
+                                    attachmentPath = entry?.imageRelativePath.orEmpty(),
+                                    attachmentName = entry?.imageDisplayName.orEmpty()
+                                )
+                                NoteAttachmentStore.openAttachmentIntent(context, paragraph)
+                                    ?.let(context::startActivity)
+                            }
+                        }
+                        return@QuickMemoScreen
+                    }
+
+                    is QuickMemoUiAction.RequestDeleteFlashNote -> {
+                        // 交给上层弹确认框，与速记删除走同一套交互。
+                        onRequestDeleteFlashNote(action.key)
+                        return@QuickMemoScreen
+                    }
+
+                    is QuickMemoUiAction.ConfirmDeleteFlashNote -> {
+                        if (!demoModeEnabled) {
+                            flashConnection.idByKey[action.key]?.let { noteId ->
+                                viewModel.deleteNote(noteId)
+                            }
+                        }
+                        return@QuickMemoScreen
+                    }
+
+                    else -> Unit
+                }
                 if (demoModeEnabled && action is QuickMemoUiAction.ToggleAudio) {
                     demoVoicePlaying = !demoVoicePlaying
                     return@QuickMemoScreen
@@ -122,7 +289,8 @@ fun QuickMemoPage(
         )
     }
 
-    if (!twoPane) {
+    // 闪记没有双栏详情（点击直接跳原文），故闪记段始终单栏铺满。
+    if (!twoPane || segment == MemoStreamSegment.FLASH_NOTE) {
         listContent()
         return
     }
@@ -245,6 +413,13 @@ private fun handleQuickMemoAction(
     onPendingDeleteChange: (QuickMemoEntity?) -> Unit
 ) {
     when (action) {
+        // 分段与闪记动作在 QuickMemoPage 的 onAction 里已先行处理，
+        // 走到这里说明是演示模式或误入，此处按无操作处理避免误改速记。
+        is QuickMemoUiAction.SelectSegment,
+        is QuickMemoUiAction.OpenFlashNote,
+        is QuickMemoUiAction.OpenFlashNoteSource,
+        is QuickMemoUiAction.RequestDeleteFlashNote,
+        is QuickMemoUiAction.ConfirmDeleteFlashNote -> Unit
         is QuickMemoUiAction.OpenDetail -> onOpenDetail(action.memoId)
         is QuickMemoUiAction.RequestDelete -> onPendingDeleteChange(action.memo)
         is QuickMemoUiAction.Delete -> viewModel.deleteQuickMemo(action.memoId)

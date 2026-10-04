@@ -97,6 +97,7 @@ fun HomeScreen(
     onSelectedPageKeyChange: (String) -> Unit = {},
     onOpenWeatherDetail: () -> Unit = {},
     onOpenQuickMemoDetail: (Long) -> Unit = {},
+    onOpenFlashNoteDetail: (Long) -> Unit = {},
     onNavigateToSettings: (SettingsDestination) -> Unit
 ) {
     val app = LocalContext.current.applicationContext as App
@@ -207,6 +208,7 @@ fun HomeScreen(
     var recurringEditCommitSession by remember { mutableStateOf<RecurringEditCommitSession?>(null) }
     var scheduleItemToDelete by remember { mutableStateOf<ScheduleDisplayItem?>(null) }
     var selectedQuickMemoAction by remember { mutableStateOf<QuickMemoEntity?>(null) }
+    var selectedFlashNoteKey by remember { mutableStateOf<String?>(null) }
     var showClearQuickMemosConfirm by remember { mutableStateOf(false) }
     var dialogAttachments by remember { mutableStateOf<List<EventAttachment>>(emptyList()) }
     var currentDialogSessionId by remember { mutableStateOf(0L) }
@@ -572,9 +574,11 @@ fun HomeScreen(
                 onEditItem = { item -> beginEditItem(item) },
                 onRequestDeleteItem = { item -> requestDeleteItem(item) },
                 onRequestDeleteQuickMemo = { memo -> selectedQuickMemoAction = memo },
+                onRequestDeleteFlashNote = { key -> selectedFlashNoteKey = key },
                 onRequestClearQuickMemos = { showClearQuickMemosConfirm = true },
                 quickMemoCount = quickMemoCount,
                 onOpenQuickMemoDetail = onOpenQuickMemoDetail,
+                onOpenFlashNoteDetail = onOpenFlashNoteDetail,
                 onScheduleExpandedChange = { isScheduleExpanded = it },
                 onScheduleProgressChange = { scheduleProgress = it },
                 onScheduleOffsetChange = { scheduleOffsetPx = it.coerceAtLeast(0f) },
@@ -674,6 +678,23 @@ fun HomeScreen(
                 selectedQuickMemoAction = null
             },
             onDismiss = { selectedQuickMemoAction = null },
+            modifier = Modifier
+                .padding(bottom = cardFloatingBarOffset + 16.dp)
+        )
+
+        HomeActionDialog(
+            visible = selectedFlashNoteKey != null,
+            title = "删除闪记",
+            content = "删除后无法恢复，确认删除这条闪记吗？",
+            confirmText = "删除",
+            dismissText = "取消",
+            isDestructive = true,
+            predictiveBackEnabled = settings.predictiveBackEnabled,
+            onConfirm = {
+                selectedFlashNoteKey?.let { mainViewModel.deleteFlashNote(it) }
+                selectedFlashNoteKey = null
+            },
+            onDismiss = { selectedFlashNoteKey = null },
             modifier = Modifier
                 .padding(bottom = cardFloatingBarOffset + 16.dp)
         )

@@ -76,6 +76,7 @@ import com.antgskds.calendarassistant.app.ui.navigation.navForwardEnterTransitio
 import com.antgskds.calendarassistant.app.ui.navigation.navForwardExitTransition
 import com.antgskds.calendarassistant.feature.home.ui.connector.HomeScreen
 import com.antgskds.calendarassistant.feature.quickmemo.ui.connector.QuickMemoDetailPage
+import com.antgskds.calendarassistant.feature.quickmemo.ui.connector.FlashNoteDetailRoute
 import com.antgskds.calendarassistant.feature.settings.data.SettingsDataSource
 import com.antgskds.calendarassistant.feature.settings.developer.application.DemoModeDataFactory
 import com.antgskds.calendarassistant.feature.settings.onboarding.ui.connector.OnboardingGuidePage
@@ -646,6 +647,9 @@ class MainActivity : ComponentActivity() {
                                     onOpenQuickMemoDetail = { memoId ->
                                         navController.navigate(AppRoutes.quickMemoDetail(memoId))
                                     },
+                                    onOpenFlashNoteDetail = { noteId ->
+                                        navController.navigate(AppRoutes.flashNoteDetail(noteId))
+                                    },
                                     onNavigateToSettings = { destination ->
                                         if (destination == SettingsDestination.Logout) {
                                             finish()
@@ -697,13 +701,35 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable(
+                            route = AppRoutes.FlashNoteDetailPattern,
+                            arguments = listOf(navArgument(AppRoutes.FlashNoteDetailArg) { type = NavType.LongType }),
+                            enterTransition = { navForwardEnterTransition() },
+                            exitTransition = { null },
+                            popEnterTransition = { null },
+                            popExitTransition = { navBackwardExitTransition() }
+                        ) { backStackEntry ->
+                            BackHandler(enabled = !predictiveBackEnabled) {
+                                navController.popBackStack()
+                            }
+                            val noteId = backStackEntry.arguments?.getLong(AppRoutes.FlashNoteDetailArg) ?: -1L
+                            val uiState by mainViewModel.uiState.collectAsState()
+                            FlashNoteDetailRoute(
+                                noteId = noteId,
+                                viewModel = mainViewModel,
+                                onBack = { navController.popBackStack() },
+                                hapticEnabled = uiState.settings.hapticFeedbackEnabled,
+                                backgroundMode = settings.appBackgroundImagePath.isNotBlank(),
+                                miuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled
+                            )
+                        }
+
+                        composable(
                             route = AppRoutes.WeatherDetail,
                             enterTransition = { navForwardEnterTransition() },
                             exitTransition = { null },
                             popEnterTransition = { null },
                             popExitTransition = { navBackwardExitTransition() }
-                        ) {
-                            BackHandler(enabled = !predictiveBackEnabled) {
+                        ) {                            BackHandler(enabled = !predictiveBackEnabled) {
                                 navController.popBackStack()
                             }
                             WeatherDetailScreen(
