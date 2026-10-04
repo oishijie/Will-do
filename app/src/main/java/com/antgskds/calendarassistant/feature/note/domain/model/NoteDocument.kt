@@ -1,5 +1,6 @@
 package com.antgskds.calendarassistant.feature.note.domain.model
 
+import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSummaryState
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -41,6 +42,8 @@ data class NoteDocument(
                 NoteParagraphType.TEXT -> appendLine(paragraph.text)
                 NoteParagraphType.DIVIDER -> appendLine("---")
                 NoteParagraphType.TABLE -> appendLine(paragraph.table?.copyableText().orEmpty())
+                NoteParagraphType.SUMMARY -> appendLine(paragraph.text)
+                NoteParagraphType.SOURCE_LINK -> appendLine(paragraph.text)
                 NoteParagraphType.IMAGE,
                 NoteParagraphType.FILE -> Unit
             }
@@ -64,6 +67,50 @@ data class NoteDocument(
     }
 
     fun todoCount(): Int = paragraphs.count { it.type == NoteParagraphType.TODO }
+
+    /** 闪记的摘要段落；非闪记条目返回 null。 */
+    fun flashSummaryParagraph(): NoteParagraph? =
+        paragraphs.firstOrNull { it.type == NoteParagraphType.SUMMARY }
+
+    /** 闪记的原文链接段落；非闪记条目返回 null。 */
+    fun flashSourceParagraph(): NoteParagraph? =
+        paragraphs.firstOrNull { it.type == NoteParagraphType.SOURCE_LINK }
+
+    /**
+     * 是否为闪记。
+     *
+     * 以 [NoteParagraphType.SUMMARY] 段落为标记，而不是 [NoteParagraphType.SOURCE_LINK]：
+     * 纯文本与图片闪记没有原文链接，若以链接判定会被误认成普通便签。
+     * 网页类闪记会同时写入 SUMMARY 与 SOURCE_LINK 两个段落。
+     */
+    val isFlashNote: Boolean get() = flashSummaryParagraph() != null
+
+    /** 闪记的原文链接；纯文本/图片闪记与普通便签都返回空串。 */
+    fun flashSourceUrl(): String = flashSourceParagraph()?.text.orEmpty()
+
+    /**
+     * 摘要是否仍在生成中。列表据此显示「摘要生成中…」。
+     */
+    fun flashSummaryPending(): Boolean =
+        flashSummaryParagraph()?.text == FlashNoteSummaryState.PENDING
+
+    /**
+     * 摘要是否已失败。列表据此显示失败提示，避免 Worker 无限重试。
+     */
+    fun flashSummaryFailed(): Boolean =
+        flashSummaryParagraph()?.text == FlashNoteSummaryState.FAILED
+
+    /** 回填摘要文本。非闪记条目返回 null，避免误改普通笔记。 */
+    fun withFlashSummary(summary: String): NoteDocument? {
+        if (!isFlashNote) return null
+        return copy(paragraphs = paragraphs.map { paragraph ->
+            if (paragraph.type == NoteParagraphType.SUMMARY) {
+                paragraph.copy(text = summary)
+            } else {
+                paragraph
+            }
+        })
+    }
 
     fun pendingTodoCount(): Int = paragraphs.count { it.type == NoteParagraphType.TODO && !it.checked }
 
@@ -106,7 +153,13 @@ enum class NoteParagraphType {
     IMAGE,
     FILE,
     DIVIDER,
-    TABLE
+    TABLE,
+
+    /** 闪记：AI 生成的摘要。内容为 [FlashNoteSummaryState] 定义的占位符或真实摘要。 */
+    SUMMARY,
+
+    /** 闪记：原文链接与来源站点。仅承载跳转信息，不参与正文展示。 */
+    SOURCE_LINK
 }
 
 @Serializable

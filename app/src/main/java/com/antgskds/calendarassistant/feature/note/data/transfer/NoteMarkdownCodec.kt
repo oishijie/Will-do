@@ -56,6 +56,10 @@ object NoteMarkdownCodec {
             NoteParagraphType.FILE -> "[${normalized.attachmentName.ifBlank { "file" }}](attachments/${File(normalized.attachmentPath).name})"
             NoteParagraphType.DIVIDER -> "---"
             NoteParagraphType.TABLE -> encodeTable(normalized.table)
+            // 闪记摘要以引用块呈现，便于在导出的 Markdown 里与正文区分。
+            NoteParagraphType.SUMMARY -> "> ${normalized.text}"
+            // 闪记原文链接用自动链接语法，导出后可直接点击跳转。
+            NoteParagraphType.SOURCE_LINK -> "<${normalized.text}>"
             NoteParagraphType.TEXT -> text
         }
         if (normalized.type == NoteParagraphType.TODO && normalized.effectiveListStyle() == NoteListStyle.NONE) return "- $body"
