@@ -14,4 +14,9 @@
     <string name="shortcut_disabled">无障碍服务未开启</string>
     <string name="share_target_recognize_schedule">识别信息</string>
     <string name="share_target_create_image_memo">创建图片随口记</string>
+    <!-- 闪记分享目标：与既有分享目标统一用「动词 + 对象」的短语式文案，
+         避免分享面板里出现三个同名「闪记」条目无法区分。 -->
+    <string name="share_target_flash_link">收藏到闪记</string>
+    <string name="share_target_flash_image">收藏图片到闪记</string>
+    <string name="share_target_flash_text">收藏文字到闪记</string>
 </resources>

@@ -183,6 +183,57 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- 闪记：收藏网页与公众号文章，异步生成 AI 摘要 -->
+        <activity android:name=".feature.note.flash.FlashNoteHandleActivity"
+            android:theme="@style/Theme.CalendarAssistant.ShareRelay"
+            android:resizeableActivity="false"
+            android:excludeFromRecents="true" android:taskAffinity="" android:exported="false" />
+        <activity-alias android:name=".feature.note.flash.FlashNoteShareActivity"
+            android:targetActivity=".feature.note.flash.FlashNoteHandleActivity"
+            android:label="@string/share_target_flash_link" android:icon="@drawable/ic_stat_quickmemo"
+            android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 闪记（图片）：收藏分享的图片，不做 OCR，保留原图与来源链接 -->
+        <activity android:name=".feature.note.flash.FlashImageHandleActivity"
+            android:theme="@style/Theme.CalendarAssistant.ShareRelay"
+            android:resizeableActivity="false"
+            android:excludeFromRecents="true" android:taskAffinity="" android:exported="false" />
+        <activity-alias android:name=".feature.note.flash.FlashImageShareActivity"
+            android:targetActivity=".feature.note.flash.FlashImageHandleActivity"
+            android:label="@string/share_target_flash_image" android:icon="@drawable/ic_share_image_pin"
+            android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 闪记（纯文本）：在任意 App 选中文字后从系统菜单直接收藏 -->
+        <activity android:name=".feature.note.flash.FlashTextHandleActivity"
+            android:theme="@style/Theme.CalendarAssistant.ShareRelay"
+            android:resizeableActivity="false"
+            android:excludeFromRecents="true" android:taskAffinity="" android:exported="false" />
+        <activity-alias android:name=".feature.note.flash.FlashTextShareActivity"
+            android:targetActivity=".feature.note.flash.FlashTextHandleActivity"
+            android:label="@string/share_target_flash_text" android:icon="@drawable/ic_stat_quickmemo"
+            android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <!-- PROCESS_TEXT 必须配PROCESS_TEXT 类别才会出现在系统文字选择菜单里，
+                     只写 DEFAULT 会导致 pm query-activities 查不到该目标。 -->
+                <category android:name="android.intent.category.PROCESS_TEXT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- 语音随口记中转 Activity：用于满足高版本系统麦克风前台服务的前台启动状态要求 -->
         <activity
             android:name=".core.service.voice.VoiceCaptureHandleActivity"
