@@ -317,9 +317,18 @@ fun MaterialFloatingScheduleScreen(
             .maxByOrNull { it.updatedAt }
     }
 
+    // 语音录制期间切到「随口记」模式（语音入口只服务速记）。
     LaunchedEffect(voiceCaptureState.status) {
         if (voiceCaptureState.isActive && quickMemoFloatingEnabled) {
             currentMode = FloatingInputMode.NOTE
+        }
+    }
+
+    // 录音结束后切回「日程」模式：语音只把内容送进速记，若不切回，
+    // 用户接着想记日程时会被静默写进 quick_memos 并弹出日程建议。
+    LaunchedEffect(voiceCaptureState.status) {
+        if (voiceCaptureState.status == QuickMemoVoiceCaptureStatus.SAVED) {
+            currentMode = FloatingInputMode.SCHEDULE
         }
     }
 
