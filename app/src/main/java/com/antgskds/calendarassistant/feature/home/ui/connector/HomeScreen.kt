@@ -60,6 +60,7 @@ import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
 import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import java.time.LocalDate
 import kotlin.math.roundToInt
+import com.antgskds.calendarassistant.shared.ui.interaction.LocalAppHapticsEnabled
 
 private data class RecurringEditSession(
     val parentEventId: Long?,
@@ -550,12 +551,20 @@ fun HomeScreen(
                 onActionExpandedChange = { isActionExpanded = it },
                 searchRequestId = searchRequestId,
                 imageRequestId = imageRequestId,
+                onRequestsHandled = { searchRequestId = 0; imageRequestId = 0 },
                 isSidebarOpen = false,
                 isWideNavigation = useNavigationRail,
                 isTwoPane = adaptiveLayoutInfo.useTwoPaneContent,
                 onPageChange = { page ->
                     if (detailDirty) showToast("请先保存或返回，处理当前未保存的内容")
-                    else { editDraft = null; showAddEventDialog = false; onSelectedPageKeyChange(page) }
+                    else {
+                        isActionExpanded = false
+                        searchRequestId = 0
+                        imageRequestId = 0
+                        editDraft = null
+                        showAddEventDialog = false
+                        onSelectedPageKeyChange(page)
+                    }
                 },
                 onAddEventClick = { openPrimaryCreateDialog() },
                 openQuickMemoId = openedQuickMemoId,
@@ -575,6 +584,11 @@ fun HomeScreen(
             }
         },
         chrome = {
+        // 底栏此前读的是 LocalAppHapticsEnabled 的默认值 true，导致「触感反馈」关闭后
+        // 底栏仍震动；此处按用户设置注入。
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalAppHapticsEnabled provides settings.hapticFeedbackEnabled
+        ) {
         if (!useNavigationRail) {
             IntegratedFloatingBar(
             isExpanded = isActionExpanded,
@@ -583,6 +597,8 @@ fun HomeScreen(
             selectedPageKey = effectiveSelectedPageKey,
             onPageClick = { pageKey ->
                 isActionExpanded = false
+                searchRequestId = 0
+                imageRequestId = 0
                 onSelectedPageKeyChange(pageKey)
             },
             onSearchClick = {
@@ -606,6 +622,7 @@ fun HomeScreen(
                 .padding(bottom = IntegratedFloatingBarBottomSpacing)
                 .zIndex(3f)
             )
+        }
         }
         },
         overlay = {

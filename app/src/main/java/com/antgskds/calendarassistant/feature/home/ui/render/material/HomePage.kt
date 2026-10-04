@@ -152,6 +152,7 @@ fun MaterialHomePage(
     onActionExpandedChange: (Boolean) -> Unit = {},
     searchRequestId: Int = 0,
     imageRequestId: Int = 0,
+    onRequestsHandled: () -> Unit = {},
     isSidebarOpen: Boolean = false,
     isWideNavigation: Boolean = false,
     isTwoPane: Boolean = false,
@@ -427,15 +428,19 @@ fun MaterialHomePage(
         }
     }
 
+    // 一次性信号：处理完立刻清零。否则切换底栏 tab 触发重组时 LaunchedEffect 重跑，
+    // 会再次弹出搜索框或图片选择器。
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0) {
             isSearchMode = true
+            onRequestsHandled()
         }
     }
 
     LaunchedEffect(imageRequestId) {
         if (imageRequestId > 0 && !isImageImporting) {
             imagePickerLauncher.launch("image/*")
+            onRequestsHandled()
         }
     }
 
