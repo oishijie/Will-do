@@ -34,9 +34,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow // ✅ 改用 StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -531,6 +534,24 @@ class CapsuleStateManager(
     }
 
     val uiState: StateFlow<CapsuleUiState> = createCapsuleStateFlow()
+
+    /**
+     * 当前挂在实况通知上的随手记 id（未挂起为 null），从已发布胶囊反推。
+     *
+     * 取 [uiState] 而不是内部的 `textFlashNoteCapsuleState`：只有实况胶囊总开关打开时
+     * 状态才会真的出现在状态栏，从 uiState 派生才能与「用户实际看到的」一致。
+     */
+    val pinnedFlashNoteId: StateFlow<Long?> = uiState
+        .map { state ->
+            (state as? CapsuleUiState.Active)
+                ?.capsules
+                ?.firstOrNull { it.type == TYPE_TEXT_FLASH_NOTE }
+                ?.id
+                ?.removePrefix(TEXT_FLASH_NOTE_ID_PREFIX)
+                ?.toLongOrNull()
+        }
+        .distinctUntilChanged()
+        .stateIn(appScope, SharingStarted.Eagerly, null)
 
     init {
         startNotificationManager()

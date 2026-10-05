@@ -10,7 +10,6 @@ data class AboutUiState(
 
 sealed interface AboutUiAction {
     data object OpenGithub : AboutUiAction
-    data object OpenBlog : AboutUiAction
     data object OpenDonate : AboutUiAction
     data object UnlockDeveloperOptions : AboutUiAction
 }

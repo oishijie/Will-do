@@ -10,4 +10,7 @@ class CapsuleStateManagerQueryApi(
 ) : CapsuleQueryApi {
     override val uiState: StateFlow<CapsuleUiState>
         get() = capsuleStateManager.uiState
+
+    override val pinnedFlashNoteId: StateFlow<Long?>
+        get() = capsuleStateManager.pinnedFlashNoteId
 }

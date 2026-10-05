@@ -66,11 +66,9 @@ private fun handleAboutAction(
 ) {
     when (action) {
         AboutUiAction.OpenGithub -> openIntent(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
-        AboutUiAction.OpenBlog -> openIntent(Intent(Intent.ACTION_VIEW, Uri.parse(BLOG_URL)))
         AboutUiAction.OpenDonate -> onNavigateToDonate()
         AboutUiAction.UnlockDeveloperOptions -> onUnlockDeveloperOptions?.invoke()
     }
 }
 
 private const val GITHUB_URL = "https://github.com/AIXINJUELUOAI/Will-do"
-private const val BLOG_URL = "https://aixinjueluoonline.top/"

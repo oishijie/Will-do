@@ -663,6 +663,12 @@ class MainViewModel(
         onResult(result)
     }
 
+    /**
+     * 当前挂在实况通知上的随手记 id（未挂起为 null）。
+     * 详情页铃铛按钮据此还原激活态，否则退出重进会复位成未挂起。
+     */
+    val pinnedFlashNoteId: StateFlow<Long?> = capsuleQueryApi.pinnedFlashNoteId
+
     /** 把一条随手记挂到实况通知（常驻，等用户点通知上的「移除」）。 */
     fun pinFlashNote(noteId: Long, onResult: (Result<Unit>) -> Unit = {}) = viewModelScope.launch {
         val result = runCatching {

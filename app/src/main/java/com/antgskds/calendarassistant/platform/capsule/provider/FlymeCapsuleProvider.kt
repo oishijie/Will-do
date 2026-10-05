@@ -119,12 +119,16 @@ class FlymeCapsuleProvider : ICapsuleProvider {
         }
         val tapEventId = item.display.tapEventId?.toLongOrNull()
         val tapQuickMemoId = item.display.tapQuickMemoId?.toLongOrNull()
+        // 随手记不走 PickupQrHandleActivity：它没有「浮窗媒体卡 → 回落开 App」那套中转，直接进详情页。
+        val tapFlashNoteId = item.display.tapFlashNoteId?.toLongOrNull()
         val tapIntent = Intent(context, if (tapEventId != null || tapQuickMemoId != null) PickupQrHandleActivity::class.java else MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             if (tapEventId != null) {
                 putExtra(MainActivity.EXTRA_OPEN_EVENT_ID, tapEventId)
             } else if (tapQuickMemoId != null) {
                 putExtra(MainActivity.EXTRA_OPEN_QUICK_MEMO_ID, tapQuickMemoId)
+            } else if (tapFlashNoteId != null) {
+                putExtra(MainActivity.EXTRA_OPEN_FLASH_NOTE_ID, tapFlashNoteId)
             } else if (item.type == CapsuleType.WEATHER_ALERT) {
                 putExtra(WidgetActions.EXTRA_WIDGET_ACTION, WidgetActions.ACTION_OPEN_WEATHER)
             } else if (tapOpensPickupList) {

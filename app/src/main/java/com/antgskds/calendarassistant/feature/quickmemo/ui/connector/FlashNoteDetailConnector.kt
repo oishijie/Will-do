@@ -33,6 +33,8 @@ fun FlashNoteDetailRoute(
     val note = remember(notes, noteId) {
         notes.firstOrNull { it.id == noteId } as NoteEntity?
     }
+    // 挂在实况上的随手记（全局唯一）。据此还原铃铛激活态，退出重进不再复位。
+    val pinnedFlashNoteId by viewModel.pinnedFlashNoteId.collectAsState()
 
     if (note == null) {
         FlashNoteMissingScreen(onBack = onBack)
@@ -43,6 +45,7 @@ fun FlashNoteDetailRoute(
 
     FlashNoteDetailScreen(
         entry = entry,
+        isPinned = pinnedFlashNoteId == noteId,
         onBack = onBack,
         hapticEnabled = hapticEnabled,
         backgroundMode = backgroundMode,
@@ -73,6 +76,7 @@ private fun FlashNoteMissingScreen(onBack: () -> Unit) {
             pinned = false,
             updatedAt = 0L
         ),
+        isPinned = false,
         onBack = onBack,
         hapticEnabled = true,
         onOpenSource = {}

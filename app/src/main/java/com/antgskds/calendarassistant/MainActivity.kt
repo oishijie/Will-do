@@ -110,6 +110,11 @@ private data class PendingQuickMemoDetailLaunch(
     val nonce: Long = System.nanoTime()
 )
 
+private data class PendingFlashNoteDetailLaunch(
+    val noteId: Long,
+    val nonce: Long = System.nanoTime()
+)
+
 private data class PendingEventDialogLaunch(
     val eventId: Long,
     val nonce: Long = System.nanoTime()
@@ -132,6 +137,7 @@ class MainActivity : ComponentActivity() {
 
     private val pendingWidgetAction = mutableStateOf<PendingWidgetLaunchAction?>(null)
     private val pendingQuickMemoDetailLaunch = mutableStateOf<PendingQuickMemoDetailLaunch?>(null)
+    private val pendingFlashNoteDetailLaunch = mutableStateOf<PendingFlashNoteDetailLaunch?>(null)
     private val pendingEventDialogLaunch = mutableStateOf<PendingEventDialogLaunch?>(null)
 
     private fun shouldShowOnboardingOnFirstLaunch(): Boolean {
@@ -187,6 +193,7 @@ class MainActivity : ComponentActivity() {
         requestRecordAudioPermissionIfNeeded(intent)
         consumeWidgetAction(intent)
         consumeQuickMemoDetailIntent(intent)
+        consumeFlashNoteDetailIntent(intent)
         consumeEventDialogIntent(intent)
 
         enableEdgeToEdge()
@@ -311,6 +318,7 @@ class MainActivity : ComponentActivity() {
                 var lastPickupEventTimestamp by rememberSaveable { mutableLongStateOf(0L) }
                 var lastWidgetActionNonce by rememberSaveable { mutableLongStateOf(0L) }
                 var lastQuickMemoDetailNonce by rememberSaveable { mutableLongStateOf(0L) }
+                var lastFlashNoteDetailNonce by rememberSaveable { mutableLongStateOf(0L) }
                 var lastEventDialogNonce by rememberSaveable { mutableLongStateOf(0L) }
                 val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 // 底栏常驻（一级导航栏已移除），Home 路由的悬浮卡片始终让开底栏高度。
@@ -443,6 +451,13 @@ class MainActivity : ComponentActivity() {
                     if (pending.nonce == lastQuickMemoDetailNonce) return@LaunchedEffect
                     lastQuickMemoDetailNonce = pending.nonce
                     navController.navigate(AppRoutes.quickMemoDetail(pending.memoId)) { launchSingleTop = true }
+                }
+
+                LaunchedEffect(pendingFlashNoteDetailLaunch.value) {
+                    val pending = pendingFlashNoteDetailLaunch.value ?: return@LaunchedEffect
+                    if (pending.nonce == lastFlashNoteDetailNonce) return@LaunchedEffect
+                    lastFlashNoteDetailNonce = pending.nonce
+                    navController.navigate(AppRoutes.flashNoteDetail(pending.noteId)) { launchSingleTop = true }
                 }
 
                 LaunchedEffect(pendingEventDialogLaunch.value) {
@@ -749,6 +764,7 @@ class MainActivity : ComponentActivity() {
         requestRecordAudioPermissionIfNeeded(intent)
         consumeWidgetAction(intent)
         consumeQuickMemoDetailIntent(intent)
+        consumeFlashNoteDetailIntent(intent)
         consumeEventDialogIntent(intent)
     }
 
@@ -769,6 +785,12 @@ class MainActivity : ComponentActivity() {
         val memoId = intent?.getLongExtra(EXTRA_OPEN_QUICK_MEMO_ID, -1L)?.takeIf { it > 0L } ?: return
         pendingQuickMemoDetailLaunch.value = PendingQuickMemoDetailLaunch(memoId)
         intent.removeExtra(EXTRA_OPEN_QUICK_MEMO_ID)
+    }
+
+    private fun consumeFlashNoteDetailIntent(intent: Intent?) {
+        val noteId = intent?.getLongExtra(EXTRA_OPEN_FLASH_NOTE_ID, -1L)?.takeIf { it > 0L } ?: return
+        pendingFlashNoteDetailLaunch.value = PendingFlashNoteDetailLaunch(noteId)
+        intent.removeExtra(EXTRA_OPEN_FLASH_NOTE_ID)
     }
 
     private fun consumeEventDialogIntent(intent: Intent?) {
@@ -898,6 +920,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         const val EXTRA_REQUEST_RECORD_AUDIO_PERMISSION = "request_record_audio_permission"
         const val EXTRA_OPEN_QUICK_MEMO_ID = "open_quick_memo_id"
+        const val EXTRA_OPEN_FLASH_NOTE_ID = "open_flash_note_id"
         const val EXTRA_OPEN_EVENT_ID = "open_event_id"
         private const val REQUEST_RECORD_AUDIO_PERMISSION = 2401
     }

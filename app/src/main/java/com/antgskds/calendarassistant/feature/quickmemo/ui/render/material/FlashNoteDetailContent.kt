@@ -271,6 +271,8 @@ internal fun FlashNoteDetailContent(
 @Composable
 internal fun FlashNoteDetailScreen(
     entry: FlashNoteListEntry,
+    /** 该条是否正挂在实况通知上。由胶囊真实状态驱动，不在此处维护本地副本。 */
+    isPinned: Boolean,
     onBack: () -> Unit,
     hapticEnabled: Boolean,
     backgroundMode: Boolean = false,
@@ -284,9 +286,6 @@ internal fun FlashNoteDetailScreen(
     val haptics = rememberAppHaptics(hapticEnabled)
     val context = LocalContext.current
 
-    // 实况挂起状态：胶囊侧没有把「当前挂着哪一条」暴露给 UI，
-    // 这里只维护页面内状态——退出重进会回到未挂起（已知限制）。
-    var isPinned by remember(entry.key) { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     AppBackgroundStyleTheme(enabled = backgroundMode, miuiBlurEnabled = miuiBlurEnabled) {
@@ -332,9 +331,7 @@ internal fun FlashNoteDetailScreen(
                     isPinned = isPinned,
                     onPinClick = {
                         haptics.confirm()
-                        val next = !isPinned
-                        isPinned = next
-                        onTogglePin(next)
+                        onTogglePin(!isPinned)
                     },
                     onDeleteClick = {
                         haptics.click()

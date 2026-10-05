@@ -70,7 +70,10 @@ object CapsuleMessageComposer {
             extraLongValue = noteId,
         ),
     ): CapsuleDisplayModel {
-        return SystemLiveDisplay.textQuickMemo(title, fixedTitleEnabled).copy(action = removeAction)
+        return SystemLiveDisplay.textQuickMemo(title, fixedTitleEnabled).copy(
+            tapFlashNoteId = noteId.toString(),
+            action = removeAction,
+        )
     }
 
     fun composeQuickMemoRecording(title: String, content: String): CapsuleDisplayModel {
