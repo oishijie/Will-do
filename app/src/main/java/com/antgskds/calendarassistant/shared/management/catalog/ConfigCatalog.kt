@@ -84,13 +84,6 @@ class ConfigItem(
 )
 
 object ConfigCatalog {
-    // 平板三栏：导航栏只在右侧仍有足够空间时展开，中间栏始终保持手机内容宽度。
-    const val ADAPTIVE_NAVIGATION_EXPAND_MIN_WIDTH_DP = 1116
-    const val ADAPTIVE_COMPACT_PANE_WIDTH_DP = 400
-    const val ADAPTIVE_CONTENT_PADDING_DP = 24
-    const val ADAPTIVE_FORM_MAX_WIDTH_DP = 840
-    const val ADAPTIVE_WEATHER_TABLE_MIN_WIDTH_DP = 640
-
     // 右侧详情工作区：只按实际可用宽度分栏，无附件时正文限宽居中。
     const val DETAIL_WORKSPACE_SPLIT_MIN_WIDTH_DP = 760
     const val DETAIL_WORKSPACE_FORM_MAX_WIDTH_DP = 560
@@ -147,24 +140,6 @@ object ConfigCatalog {
             set = { s, v -> s.copy(developerDemoModeEnabled = v != 0) },
             agentAccess = AgentConfigAccess.NONE,
         ),
-        *listOf(
-            Triple("navigation_expand_min_width_dp", ADAPTIVE_NAVIGATION_EXPAND_MIN_WIDTH_DP, "允许一级导航栏展开的最小窗口宽度。"),
-            Triple("compact_pane_width_dp", ADAPTIVE_COMPACT_PANE_WIDTH_DP, "平板三栏中承载手机页面的固定中间栏宽度。"),
-            Triple("content_padding_dp", ADAPTIVE_CONTENT_PADDING_DP, "平板右侧内容与左对齐标题的水平留白。"),
-            Triple("form_max_width_dp", ADAPTIVE_FORM_MAX_WIDTH_DP, "平板设置表单最大阅读宽度。"),
-            Triple("weather_table_min_width_dp", ADAPTIVE_WEATHER_TABLE_MIN_WIDTH_DP, "平板预报列表展开降水、风力列所需的最小内容宽度。"),
-        ).map { (key, value, description) -> ConfigItem(
-            ConfigDomain.APPEARANCE,
-            ConfigKind.POLICY,
-            "adaptive.$key",
-            "平板布局 $key",
-            description,
-            ConfigExposure.SYSTEM_INTERNAL,
-            ConfigControl.IntInput(value, value),
-            { value },
-            { s, _ -> s },
-            agentAccess = AgentConfigAccess.NONE,
-        ) }.toTypedArray(),
         ConfigItem(ConfigDomain.APPEARANCE, ConfigKind.USER_SETTING, "home.agenda_reverse", "日程视图排列方向",
             "只反转日期组；同日仍按时间先后。", ConfigExposure.DEVELOPER_ONLY,
             ConfigControl.IntOptions(listOf(ConfigControl.IntOptions.Option(0, "向下排列"), ConfigControl.IntOptions.Option(1, "向上排列"))),

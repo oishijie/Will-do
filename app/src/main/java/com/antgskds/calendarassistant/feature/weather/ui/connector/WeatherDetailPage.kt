@@ -83,9 +83,6 @@ import com.antgskds.calendarassistant.feature.weather.ui.contract.WeatherDetailU
 import com.antgskds.calendarassistant.feature.weather.ui.contract.WeatherDetailUiState
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneLayout
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneTopBar
-import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -114,23 +111,8 @@ fun WeatherDetailPage(uiSize: Int = 2) {
 fun MaterialWeatherDetailPage(state: WeatherDetailUiState, uiSize: Int = 2) {
     val weatherData = state.weatherData
     val bottomInset = LocalAppPageBottomPadding.current
-    val useTwoPane = LocalAdaptiveLayoutInfo.current.useTwoPaneContent
 
-    if (useTwoPane) {
-        AdaptiveTwoPaneLayout(
-            primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-            primary = {
-                WeatherScrollablePane(bottomInset) {
-                    WeatherCurrentContent(weatherData, expanded = true)
-                }
-            },
-            secondary = {
-                WeatherScrollablePane(bottomInset, horizontalPadding = ConfigCatalog.ADAPTIVE_CONTENT_PADDING_DP.dp) {
-                    WeatherForecastContent(weatherData, expanded = true)
-                }
-            },
-        )
-    } else Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
                 .widthIn(max = 960.dp)
@@ -139,38 +121,16 @@ fun MaterialWeatherDetailPage(state: WeatherDetailUiState, uiSize: Int = 2) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            WeatherCurrentContent(weatherData, expanded = false)
-            WeatherForecastContent(weatherData, expanded = false)
+            WeatherCurrentContent(weatherData)
+            WeatherForecastContent(weatherData)
             Spacer(modifier = Modifier.height(bottomInset + 24.dp))
         }
     }
 }
 
 @Composable
-private fun WeatherScrollablePane(
-    bottomInset: Dp,
-    horizontalPadding: Dp = 16.dp,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        content()
-        Spacer(modifier = Modifier.height(bottomInset + 24.dp))
-    }
-}
-
-@Composable
-private fun ColumnScope.WeatherCurrentContent(weatherData: WeatherData?, expanded: Boolean) {
+private fun ColumnScope.WeatherCurrentContent(weatherData: WeatherData?) {
     WeatherDetailCurrentCard(weatherData)
-    if (expanded && weatherData != null) {
-        SectionTitle("今日概况")
-        WeatherTodayOverview(weatherData)
-    }
     if (weatherData?.alerts?.isNotEmpty() == true || weatherData?.riskAlerts?.isNotEmpty() == true) {
         SectionTitle("预警与风险")
         WeatherWarningsCard(
@@ -181,28 +141,11 @@ private fun ColumnScope.WeatherCurrentContent(weatherData: WeatherData?, expande
 }
 
 @Composable
-private fun ColumnScope.WeatherForecastContent(weatherData: WeatherData?, expanded: Boolean) {
-    if (expanded) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("未来24小时")
-            WeatherHourlySummary(weatherData?.hourlyForecast.orEmpty())
-            HourlyTemperatureChart(weatherData?.hourlyForecast.orEmpty())
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("未来一周")
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                DailyForecastList(
-                    weatherData?.dailyForecast.orEmpty(),
-                    showDetails = maxWidth >= ConfigCatalog.ADAPTIVE_WEATHER_TABLE_MIN_WIDTH_DP.dp,
-                )
-            }
-        }
-    } else {
-        SectionTitle("未来24小时")
-        HourlyTemperatureChart(weatherData?.hourlyForecast.orEmpty())
-        SectionTitle("未来一周")
-        DailyForecastList(weatherData?.dailyForecast.orEmpty())
-    }
+private fun ColumnScope.WeatherForecastContent(weatherData: WeatherData?) {
+    SectionTitle("未来24小时")
+    HourlyTemperatureChart(weatherData?.hourlyForecast.orEmpty())
+    SectionTitle("未来一周")
+    DailyForecastList(weatherData?.dailyForecast.orEmpty())
     if (weatherData == null) {
         Text(
             text = "暂无天气缓存，请先在天气设置页保存并刷新。",
@@ -257,7 +200,6 @@ fun MaterialWeatherDetailScreen(
 ) {
     val pageContainerColor = if (state.hasAppBackground) Color.Transparent else MaterialTheme.colorScheme.background
     val haptics = rememberAppHaptics()
-    val useTwoPane = LocalAdaptiveLayoutInfo.current.useTwoPaneContent
     val settingsAction: @Composable RowScope.() -> Unit = {
         if (showSettings) {
             IconButton(onClick = {
@@ -275,28 +217,19 @@ fun MaterialWeatherDetailScreen(
     ) {
     AppPageScaffold(
         edgeToEdgeContent = true,
-        contentMaxWidth = if (useTwoPane) Dp.Unspecified else 960.dp,
+        contentMaxWidth = 960.dp,
         containerColor = pageContainerColor,
         topBar = {
-            if (useTwoPane) {
-                AdaptiveTwoPaneTopBar(
-                    primaryTitle = "天气",
-                    secondaryTitle = "天气预报",
-                    primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-                    secondaryActions = settingsAction,
-                )
-            } else {
-                AppTopBar(
-                    title = "天气详情",
-                    containerColor = pageContainerColor,
-                    navigationIcon = {
-                        if (showBack) {
-                            AppTopBarBackButton(onClick = { haptics.click(); onAction(WeatherDetailUiAction.NavigateBack) })
-                        }
-                    },
-                    actions = settingsAction,
-                )
-            }
+            AppTopBar(
+                title = "天气详情",
+                containerColor = pageContainerColor,
+                navigationIcon = {
+                    if (showBack) {
+                        AppTopBarBackButton(onClick = { haptics.click(); onAction(WeatherDetailUiAction.NavigateBack) })
+                    }
+                },
+                actions = settingsAction,
+            )
         },
     ) {
         MaterialWeatherDetailPage(state = state, uiSize = uiSize)

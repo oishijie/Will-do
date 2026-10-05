@@ -1,5 +1,6 @@
 package com.antgskds.calendarassistant.feature.home.ui.render.material
 
+import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
 import com.antgskds.calendarassistant.shared.ui.material.component.AppPageScaffold
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
@@ -9,7 +10,6 @@ import android.content.Intent
 import com.antgskds.calendarassistant.shared.util.AppLogger as Log
 import android.widget.Toast
 import android.provider.Settings
-import com.antgskds.calendarassistant.shared.ui.material.component.DetailWorkspaceOverlay
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,8 +42,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.CalendarViewDay
 import androidx.compose.material.icons.outlined.CalendarViewMonth
@@ -99,7 +97,6 @@ import com.antgskds.calendarassistant.shared.ui.material.component.AppGlassSetti
 import com.antgskds.calendarassistant.shared.ui.material.component.AppDropdownMenu
 import com.antgskds.calendarassistant.shared.ui.material.component.AppMenuItem
 import com.antgskds.calendarassistant.shared.ui.material.component.AppOverlayGlassSurface
-import com.antgskds.calendarassistant.shared.ui.material.component.AppSegmentedControl
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppGlassSettings
 import com.antgskds.calendarassistant.shared.ui.material.component.PredictiveFloatingActionCard
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
@@ -114,8 +111,6 @@ import com.antgskds.calendarassistant.feature.home.ui.contract.HomePageUiState
 import com.antgskds.calendarassistant.feature.schedule.ui.render.material.component.SwipeableEventItem
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneLayout
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneTopBar
 import com.antgskds.calendarassistant.shared.ui.material.dialog.DialogEdgeToEdgeEffect
 import com.antgskds.calendarassistant.shared.ui.material.dialog.DisableDialogWindowDimEffect
 import com.antgskds.calendarassistant.app.ui.theme.material.background.appBackgroundSurfaceAlpha
@@ -154,14 +149,21 @@ fun MaterialHomePage(
     imageRequestId: Int = 0,
     onRequestsHandled: () -> Unit = {},
     isSidebarOpen: Boolean = false,
-    isWideNavigation: Boolean = false,
-    isTwoPane: Boolean = false,
     onPageChange: (String) -> Unit = {},
     onAddEventClick: () -> Unit = {},
     onEditItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestClearQuickMemos: () -> Unit = {},
     quickMemoCount: Int = 0,
+    /** 速记/ 闪记列表的筛选值，默认「全部」即两类混排。 */
+    memoSegment: MemoStreamSegment = MemoStreamSegment.ALL,
+    onMemoSegmentChange: (MemoStreamSegment) -> Unit = {},
+    /** 顶栏「⋮ → 添加随口记」：弹出键盘上方的输入栏，内容存进随口记。 */
+    onAddQuickMemo: () -> Unit = {},
+    /** 顶栏「⋮ → 添加随手记」：同上，内容存进随手记。 */
+    onAddFlashNote: () -> Unit = {},
+    /** 顶栏「＋」回调：打开日程操作面板（搜索日程 / 图片识别 / 新建日程）。 */
+    onVoiceSchedule: () -> Unit = {},
     onScheduleExpandedChange: (Boolean) -> Unit = {},
     onScheduleProgressChange: (Float) -> Unit = {},
     onScheduleOffsetChange: (Float) -> Unit = {},
@@ -213,28 +215,19 @@ fun MaterialHomePage(
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
     var calendarViewName by rememberSaveable { mutableStateOf(HomeCalendarViewMode.TODAY.name) }
     var isCalendarViewMenuExpanded by remember { mutableStateOf(false) }
-    var isWideActionMenuExpanded by remember { mutableStateOf(false) }
     val calendarViewMode = HomeCalendarViewMode.valueOf(calendarViewName)
 
     val isTodayPage = currentPageKey == HomeEntryKey.TODAY
     val isAllPage = currentPageKey == HomeEntryKey.ALL
     val isNotePage = currentPageKey == HomeEntryKey.NOTE
     val homePageTitle = when {
-        isTodayPage -> if (isWideNavigation) "今日" else "今日日程"
-        isNotePage -> "随口记"
-        else -> if (isWideNavigation) "全部" else "全部日程"
+        isTodayPage -> "今日日程"
+        isNotePage -> "闪记"
+        else -> "全部日程"
     }
 
     LaunchedEffect(isTodayPage) {
         if (!isTodayPage) isCalendarViewMenuExpanded = false
-    }
-
-    LaunchedEffect(isTwoPane) {
-        if (isTwoPane && calendarViewMode !in HomeCalendarViewMode.wideModes) {
-            calendarViewName = HomeCalendarViewMode.WEEK.name
-        } else if (!isTwoPane && calendarViewMode !in HomeCalendarViewMode.phoneModes) {
-            calendarViewName = HomeCalendarViewMode.TODAY.name
-        }
     }
 
     var isImageImporting by remember { mutableStateOf(false) }
@@ -352,7 +345,6 @@ fun MaterialHomePage(
         object : NestedScrollConnection {
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (isTwoPane) return Offset.Zero
                 if (offsetY.value > 0f) {
                     val newOffset = (offsetY.value + available.y).coerceIn(0f, maxOffsetPx)
                     if (newOffset != offsetY.value) {
@@ -364,7 +356,6 @@ fun MaterialHomePage(
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (isTwoPane) return Offset.Zero
                 if (!isTodayPage) return Offset.Zero
                 if (calendarViewMode == HomeCalendarViewMode.AGENDA || todaySearchQuery.isNotBlank()) return Offset.Zero
 
@@ -457,16 +448,9 @@ fun MaterialHomePage(
         mutableStateOf(notificationManager.areNotificationsEnabled())
     }
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val floatingBarOffset = if (isWideNavigation) {
-        bottomInset
-    } else {
-        IntegratedFloatingBarHeight + IntegratedFloatingBarBottomSpacing + bottomInset
-    }
-    val floatingBarContentPadding = if (isWideNavigation) {
-        bottomInset + 24.dp
-    } else {
+    val floatingBarOffset = IntegratedFloatingBarHeight + IntegratedFloatingBarBottomSpacing + bottomInset
+    val floatingBarContentPadding =
         IntegratedFloatingBarVisualHeight + IntegratedFloatingBarBottomSpacing + bottomInset + 16.dp
-    }
 
     LifecycleResumeEffect(context) {
         val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
@@ -487,7 +471,7 @@ fun MaterialHomePage(
             .nestedScroll(nestedScrollConnection)
     ) {
         // === 背景层：下拉展开区（原课表视图位置，内容待定）===
-        if (!isTwoPane) Box(
+        Box(
             modifier = Modifier
                 .matchParentSize()
                 .padding(top = 50.dp)
@@ -530,9 +514,9 @@ fun MaterialHomePage(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(0, if (isTwoPane) 0 else offsetY.value.roundToInt()) }
+                .offset { IntOffset(0, offsetY.value.roundToInt()) }
                 .graphicsLayer {
-                    alpha = if (isTwoPane) 1f else 1f - progress
+                    alpha = 1f - progress
                 }
                 .pointerInput(isActionExpanded, isSearchMode) {
                     detectTapGestures(onTap = {
@@ -578,17 +562,14 @@ fun MaterialHomePage(
                         AppGlassSettingsProvider(homeOverlayGlassSettings) {
                             HomeTopBarActions(
                                 isTodayPage = isTodayPage,
+                                isAllPage = isAllPage,
                                 isNotePage = isNotePage,
-                                isWideNavigation = isWideNavigation,
-                                isTwoPane = isTwoPane,
                                 quickMemoCount = quickMemoCount,
                                 topBarIconSize = topBarIconSize,
                                 calendarViewMode = calendarViewMode,
-                                isWideActionMenuExpanded = isWideActionMenuExpanded,
-                                onWideActionMenuExpandedChange = { isWideActionMenuExpanded = it },
                                 onCycleCalendarMode = {
                                     haptics.selection()
-                                    calendarViewName = calendarViewMode.next(isTwoPane).name
+                                    calendarViewName = calendarViewMode.next().name
                                 },
                                 onOpenCalendarModeMenu = {
                                     haptics.longPress()
@@ -609,38 +590,40 @@ fun MaterialHomePage(
                                 },
                                 onSearch = {
                                     haptics.click()
-                                    isWideActionMenuExpanded = false
                                     isSearchMode = true
                                 },
                                 onImage = {
                                     haptics.click()
-                                    isWideActionMenuExpanded = false
                                     if (!isImageImporting) imagePickerLauncher.launch("image/*")
                                 },
                                 onClearQuickMemos = {
                                     haptics.click()
-                                    isWideActionMenuExpanded = false
                                     onRequestClearQuickMemos()
+                                },
+                                memoSegment = memoSegment,
+                                onMemoSegmentChange = onMemoSegmentChange,
+                                onAddQuickMemo = {
+                                    haptics.click()
+                                    onAddQuickMemo()
+                                },
+                                onAddFlashNote = {
+                                    haptics.click()
+                                    onAddFlashNote()
+                                },
+                                onVoiceSchedule = {
+                                    haptics.click()
+                                    onVoiceSchedule()
                                 },
                             )
                         }
                     }
                     /*设置为background后会导致深浅模式切换时topbar不同步;此注释严禁删除
                     containerColor = MaterialTheme.colorScheme.background,*/
-                    if (isTwoPane) {
-                        AdaptiveTwoPaneTopBar(
-                            primaryTitle = homePageTitle,
-                            secondaryTitle = if (isNotePage) "随口记详情" else "日历",
-                            primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-                            primaryActions = actions,
-                        )
-                    } else {
-                        AppTopBar(
-                            title = homePageTitle,
-                            containerColor = Color.Transparent,
-                            actions = actions,
-                        )
-                    }
+                    AppTopBar(
+                        title = homePageTitle,
+                        containerColor = Color.Transparent,
+                        actions = actions,
+                    )
                 },
             ) {
                 Box(
@@ -686,7 +669,6 @@ fun MaterialHomePage(
                             listState = listState,
                             contentBottomPadding = contentBottomPadding,
                             uiSize = uiSize,
-                            isTwoPane = isTwoPane,
                             serviceEnabled = serviceEnabled,
                             notificationEnabled = notificationEnabled,
                             onSelectDate = { date ->
@@ -718,55 +700,15 @@ fun MaterialHomePage(
                             onCalendarViewModeChange = { mode -> calendarViewName = mode.name },
                         )
                     } else if (animatedIsAllPage) {
-                        if (isTwoPane) {
-                            AdaptiveTwoPaneLayout(
-                                primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-                                primary = {
-                                    allEventsContent(
-                                        allSearchQuery,
-                                        if (showSearchBar) searchBarOffset else 0.dp,
-                                    )
-                                },
-                                secondary = {
-                                    HomeWideCalendarWorkspace(
-                                        state = state,
-                                        viewMode = calendarViewMode,
-                                        onViewModeChange = { mode -> calendarViewName = mode.name },
-                                        onSelectDate = { date ->
-                                            haptics.selection()
-                                            onAction(HomePageUiAction.SelectDate(date))
-                                        },
-                                        onEditItem = onEditItem,
-                                        onOpenWeatherDetail = {},
-                                    )
-                                },
-                            )
-                        } else {
-                            AdaptiveListPageContainer(
-                                enabled = isWideNavigation,
-                                maxContentWidth = 960.dp,
-                            ) {
-                                allEventsContent(
-                                    allSearchQuery,
-                                    if (showSearchBar) searchBarOffset else 0.dp,
-                                )
-                            }
-                        }
+                        allEventsContent(
+                            allSearchQuery,
+                            if (showSearchBar) searchBarOffset else 0.dp,
+                        )
                     } else {
-                        if (isTwoPane) {
-                            quickMemoContent(
-                                noteSearchQuery,
-                                if (showSearchBar) searchBarOffset else 0.dp,
-                            )
-                        } else AdaptiveListPageContainer(
-                            enabled = isWideNavigation,
-                            maxContentWidth = 960.dp,
-                        ) {
-                            quickMemoContent(
-                                noteSearchQuery,
-                                if (showSearchBar) searchBarOffset else 0.dp,
-                            )
-                        }
+                        quickMemoContent(
+                            noteSearchQuery,
+                            if (showSearchBar) searchBarOffset else 0.dp,
+                        )
                     }
                     }
 
@@ -799,28 +741,6 @@ fun MaterialHomePage(
                 )
             }
 
-            if (isTwoPane && (isTodayPage || isAllPage) && com.antgskds.calendarassistant.shared.ui.material.component.LocalDetailWorkspaceContent.current == null) {
-                HomeWideQuickActions(
-                    expanded = isWideActionMenuExpanded,
-                    onExpandedChange = { isWideActionMenuExpanded = it },
-                    onSearch = {
-                        isWideActionMenuExpanded = false
-                        isSearchMode = true
-                    },
-                    onImage = {
-                        isWideActionMenuExpanded = false
-                        if (!isImageImporting) imagePickerLauncher.launch("image/*")
-                    },
-                    onCreate = {
-                        isWideActionMenuExpanded = false
-                        onAddEventClick()
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 24.dp, bottom = bottomInset + 24.dp),
-                )
-            }
-
         }
 
         PredictiveFloatingActionCard(
@@ -843,32 +763,6 @@ fun MaterialHomePage(
 }
 
 @Composable
-private fun AdaptiveListPageContainer(
-    enabled: Boolean,
-    maxContentWidth: Dp = 960.dp,
-    content: @Composable () -> Unit,
-) {
-    if (!enabled) {
-        content()
-        return
-    }
-
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = maxContentWidth)
-                .fillMaxWidth()
-                .fillMaxHeight(),
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
 internal fun HomeCalendarContent(
     state: HomePageUiState,
     todayEvents: List<ScheduleDisplayItem>,
@@ -878,7 +772,6 @@ internal fun HomeCalendarContent(
     listState: LazyListState,
     contentBottomPadding: Dp,
     uiSize: Int,
-    isTwoPane: Boolean,
     serviceEnabled: Boolean,
     notificationEnabled: Boolean,
     onSelectDate: (LocalDate) -> Unit,
@@ -890,79 +783,35 @@ internal fun HomeCalendarContent(
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit,
     onCalendarViewModeChange: (HomeCalendarViewMode) -> Unit,
 ) {
-    if (!isTwoPane) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = contentBottomPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            item { Spacer(modifier = Modifier.height(0.dp)) }
-            homeCalendarPaneItems(
-                state = state,
-                calendarViewMode = calendarViewMode,
-                serviceEnabled = serviceEnabled,
-                notificationEnabled = notificationEnabled,
-                onSelectDate = onSelectDate,
-                onOpenWeatherDetail = onOpenWeatherDetail,
-                onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                onOpenNotificationSettings = onOpenNotificationSettings,
-            )
-            homeAgendaItems(
-                state = state,
-                todayEvents = todayEvents,
-                tomorrowEvents = tomorrowEvents,
-                searchQuery = searchQuery,
-                uiSize = uiSize,
-                onAction = onAction,
-                onEditItem = onEditItem,
-                onRequestDeleteItem = onRequestDeleteItem,
-            )
-        }
-        return
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = contentBottomPadding),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        item { Spacer(modifier = Modifier.height(0.dp)) }
+        homeCalendarPaneItems(
+            state = state,
+            calendarViewMode = calendarViewMode,
+            serviceEnabled = serviceEnabled,
+            notificationEnabled = notificationEnabled,
+            onSelectDate = onSelectDate,
+            onOpenWeatherDetail = onOpenWeatherDetail,
+            onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+            onOpenNotificationSettings = onOpenNotificationSettings,
+        )
+        homeAgendaItems(
+            state = state,
+            todayEvents = todayEvents,
+            tomorrowEvents = tomorrowEvents,
+            searchQuery = searchQuery,
+            uiSize = uiSize,
+            onAction = onAction,
+            onEditItem = onEditItem,
+            onRequestDeleteItem = onRequestDeleteItem,
+        )
     }
-
-    AdaptiveTwoPaneLayout(
-        primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-        primary = {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = contentBottomPadding),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                homePermissionItems(
-                    serviceEnabled = serviceEnabled,
-                    notificationEnabled = notificationEnabled,
-                    onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                    onOpenNotificationSettings = onOpenNotificationSettings,
-                )
-                homeAgendaItems(
-                state = state,
-                todayEvents = todayEvents,
-                tomorrowEvents = tomorrowEvents,
-                searchQuery = searchQuery,
-                uiSize = uiSize,
-                onAction = onAction,
-                onEditItem = onEditItem,
-                onRequestDeleteItem = onRequestDeleteItem,
-            )
-            }
-        },
-        secondary = {
-            HomeWideCalendarWorkspace(
-                state = state,
-                viewMode = calendarViewMode,
-                onViewModeChange = onCalendarViewModeChange,
-                onSelectDate = onSelectDate,
-                onEditItem = onEditItem,
-                onOpenWeatherDetail = onOpenWeatherDetail,
-            )
-        },
-    )
 }
 
 private fun LazyListScope.homeCalendarPaneItems(
@@ -1092,14 +941,11 @@ internal fun HomeAgendaEventItem(
 @Composable
 private fun RowScope.HomeTopBarActions(
     isTodayPage: Boolean,
+    isAllPage: Boolean,
     isNotePage: Boolean,
-    isWideNavigation: Boolean,
-    isTwoPane: Boolean,
     quickMemoCount: Int,
     topBarIconSize: Dp,
     calendarViewMode: HomeCalendarViewMode,
-    isWideActionMenuExpanded: Boolean,
-    onWideActionMenuExpandedChange: (Boolean) -> Unit,
     onCycleCalendarMode: () -> Unit,
     onOpenCalendarModeMenu: () -> Unit,
     isCalendarViewMenuExpanded: Boolean,
@@ -1112,8 +958,18 @@ private fun RowScope.HomeTopBarActions(
     onSearch: () -> Unit,
     onImage: () -> Unit,
     onClearQuickMemos: () -> Unit,
+    memoSegment: MemoStreamSegment,
+    onMemoSegmentChange: (MemoStreamSegment) -> Unit,
+    onAddQuickMemo: () -> Unit,
+    onAddFlashNote: () -> Unit,
+    onVoiceSchedule: () -> Unit,
 ) {
-    if (isTodayPage && !isTwoPane) {
+    // 日程页「⋮」菜单的展开状态：只服务顶栏自身，不必透传到上层。
+    var isScheduleMenuExpanded by remember { mutableStateOf(false) }
+    // 随口记页「⋮」菜单：上面两项是新增入口，下面一组是列表筛选。
+    var isNoteMenuExpanded by remember { mutableStateOf(false) }
+
+    if (isTodayPage) {
         Box {
             Box(
                 modifier = Modifier.size(48.dp).combinedClickable(
@@ -1134,7 +990,7 @@ private fun RowScope.HomeTopBarActions(
                 containerColor = menuContainerColor,
                 selectionColor = menuSelectionColor,
                 contentColor = menuContentColor,
-                items = (if (isTwoPane) HomeCalendarViewMode.wideModes else HomeCalendarViewMode.phoneModes).map { mode ->
+                items = HomeCalendarViewMode.phoneModes.map { mode ->
                     AppMenuItem(
                         text = mode.menuLabel,
                         selected = mode == calendarViewMode,
@@ -1151,16 +1007,19 @@ private fun RowScope.HomeTopBarActions(
         }
     }
 
-    if (isWideNavigation && (isNotePage || !isTwoPane)) {
-        IconButton(onClick = onCreate) {
+    if (isNotePage) {
+        // 随口记页：右上角「搜索 + ⋮」，跟日程页同一套。
+        // ⋮ 里上面两项是新增（点开弹出键盘上方的输入栏），
+        // 下面一组三项是列表筛选——筛选挪进菜单后不再占页面空间。
+        IconButton(onClick = onSearch) {
             Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = if (isNotePage) "新建随口记" else "新建日程",
+                imageVector = Icons.Default.Search,
+                contentDescription = "搜索随口记",
                 modifier = Modifier.size(topBarIconSize),
             )
         }
         Box {
-            IconButton(onClick = { onWideActionMenuExpandedChange(true) }) {
+            IconButton(onClick = { isNoteMenuExpanded = true }) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "更多操作",
@@ -1168,205 +1027,88 @@ private fun RowScope.HomeTopBarActions(
                 )
             }
             AppDropdownMenu(
-                expanded = isWideActionMenuExpanded,
-                onDismissRequest = { onWideActionMenuExpandedChange(false) },
+                expanded = isNoteMenuExpanded,
+                onDismissRequest = { isNoteMenuExpanded = false },
                 containerColor = menuContainerColor,
                 selectionColor = menuSelectionColor,
                 contentColor = menuContentColor,
-                items = buildList {
-                    add(AppMenuItem("搜索", onSearch, Icons.Default.Search))
-                    add(AppMenuItem("上传图片识别", onImage, Icons.Default.Image))
-                    if (isNotePage && quickMemoCount > 0) {
-                        add(AppMenuItem("清空随口记", onClearQuickMemos, Icons.Default.DeleteSweep, destructive = true))
-                    }
-                },
+                items = listOf(
+                    AppMenuItem(
+                        text = "添加随口记",
+                        onClick = { onAddQuickMemo() },
+                        icon = Icons.Default.Edit,
+                    ),
+                    AppMenuItem(
+                        text = "添加随手记",
+                        onClick = { onAddFlashNote() },
+                        icon = Icons.Default.Bookmark,
+                    ),
+                    AppMenuItem(
+                        text = "全部",
+                        onClick = { onMemoSegmentChange(MemoStreamSegment.ALL) },
+                        selected = memoSegment == MemoStreamSegment.ALL,
+                        dividerBefore = true,
+                    ),
+                    AppMenuItem(
+                        text = "随口记",
+                        onClick = { onMemoSegmentChange(MemoStreamSegment.QUICK_MEMO) },
+                        selected = memoSegment == MemoStreamSegment.QUICK_MEMO,
+                    ),
+                    AppMenuItem(
+                        text = "随手记",
+                        onClick = { onMemoSegmentChange(MemoStreamSegment.FLASH_NOTE) },
+                        selected = memoSegment == MemoStreamSegment.FLASH_NOTE,
+                    ),
+                ),
             )
         }
-    } else if (isNotePage && quickMemoCount > 0) {
-        IconButton(onClick = onClearQuickMemos) {
+    } else if (isTodayPage || isAllPage) {
+        // 日程页（今日日程 / 全部日程）：右上角「搜索 + ⋮」。
+        //
+        // 原来是「＋」弹底部面板；改成顶栏下拉菜单——三个动作不值得占一整层 sheet，
+        // 而且宽屏形态本来就是「⋮ + 下拉菜单」这套，手机跟它统一。
+        // 搜索从菜单里提出来常驻（高频动作，不该藏在菜单里）。
+        IconButton(onClick = onSearch) {
             Icon(
-                imageVector = Icons.Default.DeleteSweep,
-                contentDescription = "清空随口记",
+                imageVector = Icons.Default.Search,
+                contentDescription = "搜索日程",
                 modifier = Modifier.size(topBarIconSize),
             )
         }
-    }
-}
-
-@Composable
-private fun HomeWideQuickActions(
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onSearch: () -> Unit,
-    onImage: () -> Unit,
-    onCreate: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        AnimatedVisibility(visible = expanded) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                ExtendedFloatingActionButton(
-                    text = { Text("搜索") },
-                    icon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    onClick = onSearch,
-                )
-                ExtendedFloatingActionButton(
-                    text = { Text("上传图片") },
-                    icon = { Icon(Icons.Default.Image, contentDescription = null) },
-                    onClick = onImage,
-                )
-                ExtendedFloatingActionButton(
-                    text = { Text("新建日程") },
-                    icon = { Icon(Icons.Default.Event, contentDescription = null) },
-                    onClick = onCreate,
+        Box {
+            IconButton(onClick = { isScheduleMenuExpanded = true }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "更多操作",
+                    modifier = Modifier.size(topBarIconSize),
                 )
             }
-        }
-        FloatingActionButton(onClick = { onExpandedChange(!expanded) }) {
-            Icon(
-                imageVector = if (expanded) Icons.Default.Close else Icons.Default.Add,
-                contentDescription = if (expanded) "收起快捷操作" else "展开快捷操作",
+            AppDropdownMenu(
+                expanded = isScheduleMenuExpanded,
+                onDismissRequest = { isScheduleMenuExpanded = false },
+                containerColor = menuContainerColor,
+                selectionColor = menuSelectionColor,
+                contentColor = menuContentColor,
+                items = listOf(
+                    AppMenuItem(
+                        text = "图片识别",
+                        onClick = { isScheduleMenuExpanded = false; onImage() },
+                        icon = Icons.Default.Image,
+                    ),
+                    AppMenuItem(
+                        text = "新建日程",
+                        onClick = { isScheduleMenuExpanded = false; onCreate() },
+                        icon = Icons.Default.Event,
+                    ),
+                    AppMenuItem(
+                        text = "语音识别",
+                        onClick = { isScheduleMenuExpanded = false; onVoiceSchedule() },
+                        icon = Icons.Default.Mic,
+                    ),
+                ),
             )
         }
     }
-}
-
-@Composable
-private fun HomeWideCalendarWorkspace(
-    state: HomePageUiState,
-    viewMode: HomeCalendarViewMode,
-    onViewModeChange: (HomeCalendarViewMode) -> Unit,
-    onSelectDate: (LocalDate) -> Unit,
-    onEditItem: (ScheduleDisplayItem) -> Unit,
-    onOpenWeatherDetail: () -> Unit,
-) {
-    fun movePeriod(direction: Long) {
-        val nextDate = when (viewMode) {
-            HomeCalendarViewMode.MONTH -> state.selectedDate.plusMonths(direction)
-            HomeCalendarViewMode.WEEK -> state.selectedDate.plusWeeks(direction)
-            HomeCalendarViewMode.TODAY, HomeCalendarViewMode.AGENDA -> state.selectedDate.plusDays(direction)
-        }
-        onSelectDate(nextDate)
-    }
-
-    DetailWorkspaceOverlay {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            // 安全留白由网格的滚动内容末尾承担，不缩短可见视口。
-            .padding(top = 4.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = calendarWorkspacePeriodText(viewMode, state.selectedDate),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
-            TextButton(onClick = { onSelectDate(state.today) }) {
-                Text("今天")
-            }
-            IconButton(onClick = { movePeriod(-1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一时段")
-            }
-            IconButton(onClick = { movePeriod(1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一时段")
-            }
-        }
-        HomeWideTimeModeSelector(
-            selected = viewMode,
-            onSelected = onViewModeChange,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .pointerInput(viewMode, state.selectedDate) {
-                    var totalDrag = 0f
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            when {
-                                totalDrag < -50f -> movePeriod(1)
-                                totalDrag > 50f -> movePeriod(-1)
-                            }
-                            totalDrag = 0f
-                        },
-                        onDragCancel = { totalDrag = 0f },
-                        onHorizontalDrag = { change, amount ->
-                            change.consume()
-                            totalDrag += amount
-                        },
-                    )
-                },
-        ) {
-            HomeCalendarCard(
-                state = state,
-                viewMode = viewMode,
-                wide = true,
-                modifier = Modifier.fillMaxSize(),
-                onSelectDate = onSelectDate,
-                onEditItem = onEditItem,
-                onOpenWeatherDetail = onOpenWeatherDetail,
-            )
-        }
-    }    }
-
-}
-
-private fun calendarWorkspacePeriodText(
-    viewMode: HomeCalendarViewMode,
-    selectedDate: LocalDate,
-): String {
-    if (viewMode == HomeCalendarViewMode.MONTH) {
-        return "${selectedDate.year}年${selectedDate.monthValue}月"
-    }
-    val weekStart = selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val weekEnd = weekStart.plusDays(6)
-    return when {
-        weekStart.year != weekEnd.year -> {
-            "${weekStart.year}年${weekStart.monthValue}月${weekStart.dayOfMonth}日－${weekEnd.year}年${weekEnd.monthValue}月${weekEnd.dayOfMonth}日"
-        }
-        weekStart.monthValue != weekEnd.monthValue -> {
-            "${weekStart.year}年${weekStart.monthValue}月${weekStart.dayOfMonth}日－${weekEnd.monthValue}月${weekEnd.dayOfMonth}日"
-        }
-        else -> "${weekStart.year}年${weekStart.monthValue}月${weekStart.dayOfMonth}日－${weekEnd.dayOfMonth}日"
-    }
-}
-
-@Composable
-private fun HomeWideTimeModeSelector(
-    selected: HomeCalendarViewMode,
-    onSelected: (HomeCalendarViewMode) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    AppSegmentedControl(
-        options = HomeCalendarViewMode.wideModes,
-        selectedOption = selected,
-        onSelected = onSelected,
-        label = { mode ->
-            when (mode) {
-                HomeCalendarViewMode.WEEK -> "周"
-                HomeCalendarViewMode.MONTH -> "月"
-                else -> mode.menuLabel
-            }
-        },
-        modifier = modifier,
-    )
 }
 
 internal enum class HomeCalendarViewMode {
@@ -1375,8 +1117,8 @@ internal enum class HomeCalendarViewMode {
     MONTH,
     AGENDA;
 
-    fun next(twoPane: Boolean): HomeCalendarViewMode {
-        val modes = if (twoPane) wideModes else phoneModes
+    fun next(): HomeCalendarViewMode {
+        val modes = phoneModes
         return modes[(modes.indexOf(this).takeIf { it >= 0 } ?: 0).let { (it + 1) % modes.size }]
     }
 
@@ -1398,7 +1140,6 @@ internal enum class HomeCalendarViewMode {
 
     companion object {
         val phoneModes = listOf(TODAY, WEEK, MONTH, AGENDA)
-        val wideModes = listOf(WEEK, MONTH)
     }
 }
 

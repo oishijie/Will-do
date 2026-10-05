@@ -28,7 +28,6 @@ fun AllEventsRoute(
     uiSize: Int = 2,
     searchQuery: String = "",
     extraBottomPadding: Dp = 0.dp,
-    twoPane: Boolean = false,
     hapticEnabled: Boolean = true,
     onOpenWeatherDetail: () -> Unit = {},
 ) {
@@ -63,7 +62,6 @@ fun AllEventsRoute(
         state = connection.state.copy(weatherData = mainState.weatherData),
         uiSize = uiSize,
         extraBottomPadding = extraBottomPadding,
-        twoPane = twoPane,
         hapticEnabled = hapticEnabled,
         onAction = { action ->
             when (action) {
@@ -78,7 +76,7 @@ fun AllEventsRoute(
                 }
 
                 is AllEventsUiAction.EditItem -> {
-                    if (!demoModeEnabled || twoPane) connection.itemsByKey[action.itemKey]?.let(onEditItem)
+                    if (!demoModeEnabled) connection.itemsByKey[action.itemKey]?.let(onEditItem)
                 }
 
                 is AllEventsUiAction.RequestDeleteItem -> {

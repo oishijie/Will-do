@@ -47,7 +47,6 @@ import com.antgskds.calendarassistant.app.ui.navigation.navBackwardExitTransitio
 import com.antgskds.calendarassistant.app.ui.navigation.navForwardEnterTransition
 import com.antgskds.calendarassistant.app.ui.navigation.navForwardExitTransition
 import com.antgskds.calendarassistant.app.ui.theme.material.background.AppBackgroundStyleTheme
-import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
 
 private fun NavGraphBuilder.settingsPageComposable(
@@ -206,7 +205,7 @@ private fun MaterialSettingsPage(
     Box(modifier = Modifier.fillMaxSize()) {
         AppPageScaffold(
             containerColor = pageContainerColor,
-            contentMaxWidth = if (LocalAdaptiveLayoutInfo.current.useTwoPaneContent) ConfigCatalog.ADAPTIVE_FORM_MAX_WIDTH_DP.dp else 960.dp,
+            contentMaxWidth = 960.dp,
             scrollState = if (scrollWholePage) rememberScrollState() else null,
             edgeToEdgeContent = !scrollWholePage,
             topBar = {
@@ -238,7 +237,6 @@ private fun MaterialSettingsPage(
                 }
                 AppTopBar(
                     title = title,
-                    centered = !LocalAdaptiveLayoutInfo.current.useTwoPaneContent,
                     containerColor = pageContainerColor,
                     navigationIcon = navigationContent,
                     actions = actionsContent,

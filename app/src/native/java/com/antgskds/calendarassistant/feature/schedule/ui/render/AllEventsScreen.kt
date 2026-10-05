@@ -11,7 +11,6 @@ fun AllEventsScreen(
     state: AllEventsUiState,
     uiSize: Int,
     extraBottomPadding: Dp,
-    twoPane: Boolean = false,
     hapticEnabled: Boolean,
     onAction: (AllEventsUiAction) -> Unit
 ) {
@@ -19,7 +18,6 @@ fun AllEventsScreen(
         state = state,
         uiSize = uiSize,
         extraBottomPadding = extraBottomPadding,
-        twoPane = twoPane,
         hapticEnabled = hapticEnabled,
         onAction = onAction
     )

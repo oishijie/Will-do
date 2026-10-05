@@ -53,7 +53,6 @@ internal fun HomeTodayContent(
     listState: LazyListState,
     contentBottomPadding: Dp,
     uiSize: Int,
-    isTwoPane: Boolean,
     serviceEnabled: Boolean,
     notificationEnabled: Boolean,
     onSelectDate: (LocalDate) -> Unit,
@@ -163,7 +162,6 @@ internal fun HomeTodayContent(
                         listState = listState,
                         contentBottomPadding = contentBottomPadding,
                         uiSize = uiSize,
-                        isTwoPane = isTwoPane,
                         serviceEnabled = serviceEnabled,
                         notificationEnabled = notificationEnabled,
                         onSelectDate = selectManually,
@@ -186,8 +184,8 @@ internal fun HomeTodayContent(
                         contentBottomPadding = contentBottomPadding,
                         uiSize = uiSize,
                         onSelectDate = selectManually,
-                        keepDateAnchor = !isTwoPane && target == HomeTodayScene.AGENDA,
-                        followScrollSelection = !isTwoPane && target == HomeTodayScene.AGENDA && scene == HomeTodayScene.AGENDA,
+                        keepDateAnchor = target == HomeTodayScene.AGENDA,
+                        followScrollSelection = target == HomeTodayScene.AGENDA && scene == HomeTodayScene.AGENDA,
                         onScrollSelectDate = { date ->
                             autoSelectedDate = date
                             pendingScrollDates.add(date)

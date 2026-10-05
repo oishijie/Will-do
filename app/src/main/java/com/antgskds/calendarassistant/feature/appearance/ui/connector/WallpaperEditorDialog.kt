@@ -61,9 +61,6 @@ import com.antgskds.calendarassistant.feature.home.ui.render.material.component.
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarBottomSpacing
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneLayout
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveLayoutInfo
-import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import com.antgskds.calendarassistant.shared.ui.material.component.AppGlassSettings
 import com.antgskds.calendarassistant.shared.ui.material.component.AppGlassSettingsProvider
 import kotlin.math.roundToInt
@@ -111,7 +108,6 @@ internal fun WallpaperEditorDialog(
     val wallpaperBackdrop = rememberAppWindowBackdrop()
     val wallpaperBlurRadius = with(LocalDensity.current) { 28.dp.toPx() }
     val haptics = rememberAppHaptics(settings.hapticFeedbackEnabled)
-    val adaptiveLayoutInfo = LocalAdaptiveLayoutInfo.current
 
     LaunchedEffect(previewPages, previewPageKey) {
         if (previewPageKey !in previewPages) {
@@ -165,36 +161,34 @@ internal fun WallpaperEditorDialog(
                             appBackgroundImageOffsetX = imageOffsetX,
                             appBackgroundImageOffsetY = imageOffsetY
                         )
-                        CompositionLocalProvider(LocalAdaptiveLayoutInfo provides AdaptiveLayoutInfo()) {
-                            WallpaperHomePreview(
-                                mainViewModel = mainViewModel,
-                                settings = previewSettings,
-                                previewPages = previewPages,
-                                selectedPageKey = previewPageKey
-                            )
-                            WallpaperGestureLayer(
-                                source = source,
-                                imageSize = IntSize(imageBitmap.width, imageBitmap.height),
-                                viewportSize = viewportSize,
-                                imageScale = imageScale,
-                                imageOffsetX = imageOffsetX,
-                                imageOffsetY = imageOffsetY,
-                                previewPages = previewPages,
-                                previewPageKey = previewPageKey,
-                                onTransform = { scale, offsetX, offsetY ->
-                                    imageScale = scale
-                                    imageOffsetX = offsetX
-                                    imageOffsetY = offsetY
-                                },
-                                onCyclePage = {
-                                    val currentIndex = previewPages.indexOf(previewPageKey).coerceAtLeast(0)
-                                    if (previewPages.size > 1) {
-                                        previewPageKey = previewPages[(currentIndex + 1) % previewPages.size]
-                                        haptics.selection()
-                                    }
+                        WallpaperHomePreview(
+                            mainViewModel = mainViewModel,
+                            settings = previewSettings,
+                            previewPages = previewPages,
+                            selectedPageKey = previewPageKey
+                        )
+                        WallpaperGestureLayer(
+                            source = source,
+                            imageSize = IntSize(imageBitmap.width, imageBitmap.height),
+                            viewportSize = viewportSize,
+                            imageScale = imageScale,
+                            imageOffsetX = imageOffsetX,
+                            imageOffsetY = imageOffsetY,
+                            previewPages = previewPages,
+                            previewPageKey = previewPageKey,
+                            onTransform = { scale, offsetX, offsetY ->
+                                imageScale = scale
+                                imageOffsetX = offsetX
+                                imageOffsetY = offsetY
+                            },
+                            onCyclePage = {
+                                val currentIndex = previewPages.indexOf(previewPageKey).coerceAtLeast(0)
+                                if (previewPages.size > 1) {
+                                    previewPageKey = previewPages[(currentIndex + 1) % previewPages.size]
+                                    haptics.selection()
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
                 }
             }
@@ -226,55 +220,19 @@ internal fun WallpaperEditorDialog(
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
-            if (adaptiveLayoutInfo.isTabletop) {
-                AdaptiveTwoPaneLayout(
-                    primaryFraction = 0.5f,
-                    primary = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight(0.94f)
-                                    .aspectRatio(9f / 19.5f)
-                                    .onSizeChanged { viewportSize = it },
-                                content = previewContent,
-                            )
-                        }
-                    },
-                    secondary = {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            WallpaperEditorTopBar(
-                                saving = saving,
-                                centered = true,
-                                onDismiss = onDismiss,
-                                onReset = resetPreview,
-                                onApply = applyPreview,
-                            )
-                        }
-                    },
-                )
-            } else {
-                Box(
-                    modifier = if (adaptiveLayoutInfo.useNavigationRail) {
-                        Modifier
-                            .align(Alignment.Center)
-                            .fillMaxHeight(0.94f)
-                            .aspectRatio(9f / 19.5f)
-                            .onSizeChanged { viewportSize = it }
-                    } else {
-                        Modifier
-                            .fillMaxSize()
-                            .onSizeChanged { viewportSize = it }
-                    },
-                    content = previewContent,
-                )
-                WallpaperEditorTopBar(
-                    saving = saving,
-                    centered = false,
-                    onDismiss = onDismiss,
-                    onReset = resetPreview,
-                    onApply = applyPreview,
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { viewportSize = it },
+                content = previewContent,
+            )
+            WallpaperEditorTopBar(
+                saving = saving,
+                centered = false,
+                onDismiss = onDismiss,
+                onReset = resetPreview,
+                onApply = applyPreview,
+            )
         }
     }
 }

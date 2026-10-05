@@ -35,7 +35,6 @@ import com.antgskds.calendarassistant.feature.quickmemo.ui.render.QuickMemoDetai
 import com.antgskds.calendarassistant.feature.quickmemo.ui.render.QuickMemoScreen
 import com.antgskds.calendarassistant.feature.quickmemo.application.QuickMemoAutoStopPolicy
 import com.antgskds.calendarassistant.app.ui.state.MainViewModel
-import com.antgskds.calendarassistant.shared.ui.adaptive.AdaptiveTwoPaneLayout
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.FlashNoteListEntry
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
@@ -134,13 +133,16 @@ fun QuickMemoPage(
     searchQuery: String = "",
     uiSize: Int = 2,
     extraBottomPadding: Dp = 0.dp,
-    twoPane: Boolean = false,
-    openMemoId: Long? = null,
-    onMemoOpened: () -> Unit = {},
     onOpenDetail: (Long) -> Unit = {},
     onPendingDeleteChange: (QuickMemoEntity?) -> Unit = {},
     onRequestDeleteFlashNote: (String) -> Unit = {},
     onOpenFlashNoteDetail: (Long) -> Unit = {},
+    /**
+     * 当前分段。为 null 时本组件自持状态；外部传入则由调用方持有，
+     * 这样底栏 FAB 能知道处于哪个分段并给出对应操作。
+     */
+    segment: MemoStreamSegment? = null,
+    onSegmentChange: ((MemoStreamSegment) -> Unit)? = null,
     hapticEnabled: Boolean = true
 ) {
     val quickMemos by viewModel.quickMemos.collectAsState()
@@ -158,9 +160,10 @@ fun QuickMemoPage(
     var demoVoicePlaying by remember(demoModeEnabled) { mutableStateOf(true) }
     val displayedPlayback = if (demoModeEnabled) AudioPlaybackState(DemoModeDataFactory.QUICK_MEMO_AUDIO_PATH, demoVoicePlaying) else playbackState
 
-    // 闪记与速记共用同一个底栏 Tab，用分段切换；分段状态留在导航栈外，Tab 重建不丢。
-    var segmentKey by rememberSaveable { mutableStateOf(MemoStreamSegment.QUICK_MEMO.name) }
-    val segment = MemoStreamSegment.fromKey(segmentKey)
+    // 闪记与速记共用同一个底栏 Tab，用分段切换；分段状态可由外部持有以便 FAB 读取。
+    var internalSegmentKey by rememberSaveable { mutableStateOf(MemoStreamSegment.QUICK_MEMO.name) }
+    val segment = segment ?: MemoStreamSegment.fromKey(internalSegmentKey)
+    val setSegment: (MemoStreamSegment) -> Unit = onSegmentChange ?: { internalSegmentKey = it.name }
 
     val flashConnection = remember(notes, searchQuery) {
         buildFlashNoteStream(notes, searchQuery)
@@ -186,38 +189,18 @@ fun QuickMemoPage(
         )
     }
 
-    var selectedMemoId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val memoIds = remember(displayedMemos) { displayedMemos.mapNotNull { it.id } }
-
-    LaunchedEffect(twoPane, openMemoId, memoIds) {
-        if (twoPane && openMemoId != null && openMemoId in memoIds) {
-            selectedMemoId = openMemoId
-            onMemoOpened()
-        }
-    }
-
-    LaunchedEffect(twoPane, memoIds) {
-        if (!twoPane) {
-            selectedMemoId = null
-        } else if (selectedMemoId !in memoIds) {
-            selectedMemoId = memoIds.firstOrNull()
-        }
-    }
-
     val listContent: @Composable () -> Unit = {
         QuickMemoScreen(
             state = state,
             searchQuery = searchQuery,
             uiSize = uiSize,
             extraBottomPadding = extraBottomPadding,
-            selectedMemoId = selectedMemoId.takeIf { twoPane },
-            reserveFloatingBarSpace = !twoPane,
             hapticEnabled = hapticEnabled,
             onAction = { action ->
                 // 闪记与速记的数据层不同，动作分派前先拦掉这一组。
                 when (action) {
                     is QuickMemoUiAction.SelectSegment -> {
-                        segmentKey = action.segment.name
+                        setSegment(action.segment)
                         return@QuickMemoScreen
                     }
 
@@ -280,49 +263,14 @@ fun QuickMemoPage(
                     action = action,
                     viewModel = viewModel,
                     context = context,
-                    onOpenDetail = { memoId ->
-                        if (twoPane) selectedMemoId = memoId else onOpenDetail(memoId)
-                    },
+                    onOpenDetail = { memoId -> onOpenDetail(memoId) },
                     onPendingDeleteChange = onPendingDeleteChange
                 )
             }
         )
     }
 
-    // 闪记没有双栏详情（点击直接跳原文），故闪记段始终单栏铺满。
-    if (!twoPane || segment == MemoStreamSegment.FLASH_NOTE) {
-        listContent()
-        return
-    }
-
-    AdaptiveTwoPaneLayout(
-        primaryWidth = ConfigCatalog.ADAPTIVE_COMPACT_PANE_WIDTH_DP.dp,
-        primary = listContent,
-        secondary = {
-            val memoId = selectedMemoId
-            if (memoId == null) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        text = "选择一条随口记查看详情",
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                QuickMemoDetailPage(
-                    memoId = memoId,
-                    viewModel = viewModel,
-                    onBack = { selectedMemoId = null },
-                    uiSize = uiSize,
-                    hapticEnabled = hapticEnabled,
-                    backgroundMode = mainUiState.settings.appBackgroundImagePath.isNotBlank(),
-                    miuiBlurEnabled = mainUiState.settings.appBackgroundMiuiBlurTestEnabled,
-                    cardAlphaPercent = mainUiState.settings.appBackgroundCardAlphaPercent,
-                    embedded = true,
-                )
-            }
-        },
-    )
+    listContent()
 }
 
 @Composable

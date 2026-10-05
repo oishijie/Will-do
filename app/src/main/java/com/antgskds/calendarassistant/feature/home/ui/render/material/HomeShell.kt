@@ -24,24 +24,18 @@ fun MaterialHomeScreen(
         cardAlphaPercent = state.backgroundCardAlphaPercent
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (state.useNavigationRail) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    content()
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            if (state.backgroundEnabled) {
-                                Color.Transparent
-                            } else {
-                                MaterialTheme.colorScheme.background
-                            }
-                        )
-                ) {
-                    content()
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (state.backgroundEnabled) {
+                            Color.Transparent
+                        } else {
+                            MaterialTheme.colorScheme.background
+                        }
+                    )
+            ) {
+                content()
             }
 
             chrome()

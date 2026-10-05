@@ -60,7 +60,6 @@ import com.antgskds.calendarassistant.feature.home.domain.fixedHomeBottomItems
 import com.antgskds.calendarassistant.feature.home.ui.render.editionHomeEntries
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarBottomSpacing
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarHeight
-import com.antgskds.calendarassistant.feature.home.ui.render.material.component.AdaptiveHomeNavigationRail
 import com.antgskds.calendarassistant.shared.util.CrashHandler
 import com.antgskds.calendarassistant.shared.util.DensityConfigManager
 import com.antgskds.calendarassistant.app.ui.navigation.SettingsDestination
@@ -88,8 +87,6 @@ import com.antgskds.calendarassistant.app.ui.theme.material.background.LocalAppB
 import com.antgskds.calendarassistant.app.ui.theme.material.background.shouldUseLightSystemBarsForAppBackground
 import com.antgskds.calendarassistant.shared.ui.material.component.AppGlassSettings
 import com.antgskds.calendarassistant.shared.ui.material.component.AppGlassSettingsProvider
-import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
-import com.antgskds.calendarassistant.shared.ui.adaptive.rememberAdaptiveLayoutInfo
 import com.antgskds.calendarassistant.feature.weather.ui.connector.WeatherDetailScreen
 import com.antgskds.calendarassistant.app.ui.theme.CalendarAssistantStyleTheme
 import com.antgskds.calendarassistant.app.ui.theme.ThemeColorScheme
@@ -308,10 +305,6 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val currentBackStackEntry by navController.currentBackStackEntryAsState()
                 val predictiveBackEnabled = settings.predictiveBackEnabled
-                val adaptiveLayoutInfo = rememberAdaptiveLayoutInfo(this@MainActivity)
-                var preferExpandedPrimaryNavigation by rememberSaveable { mutableStateOf(false) }
-                val expandedPrimaryNavigation = adaptiveLayoutInfo.canExpandNavigation &&
-                    preferExpandedPrimaryNavigation
                 // 常驻底栏固定入口：今日日程 / 全部日程 / 随口记 / 设置
                 val homeBottomItems = remember { editionHomeEntries(fixedHomeBottomItems) }
                 var selectedHomePageKey by rememberSaveable { mutableStateOf(HomeEntryKey.TODAY) }
@@ -320,9 +313,9 @@ class MainActivity : ComponentActivity() {
                 var lastQuickMemoDetailNonce by rememberSaveable { mutableLongStateOf(0L) }
                 var lastEventDialogNonce by rememberSaveable { mutableLongStateOf(0L) }
                 val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                // 底栏常驻（一级导航栏已移除），Home 路由的悬浮卡片始终让开底栏高度。
                 val floatingActionCardBottomPadding = if (
-                    currentBackStackEntry?.destination?.route == AppRoutes.Home &&
-                    !adaptiveLayoutInfo.useNavigationRail
+                    currentBackStackEntry?.destination?.route == AppRoutes.Home
                 ) {
                     IntegratedFloatingBarHeight + IntegratedFloatingBarBottomSpacing + bottomInset + 16.dp
                 } else {
@@ -478,21 +471,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 var appBackgroundRootSize by remember { mutableStateOf(IntSize.Zero) }
-                val currentRoute = currentBackStackEntry?.destination?.route
-                    ?: if (shouldShowInitialOnboarding) AppRoutes.OnboardingGuide else AppRoutes.Home
-                val showAdaptivePrimaryNavigation = adaptiveLayoutInfo.useNavigationRail &&
-                    currentRoute in setOf(
-                        AppRoutes.Home,
-                        AppRoutes.SettingsPattern,
-                        AppRoutes.QuickMemoDetailPattern,
-                        AppRoutes.WeatherDetail,
-                    )
-                val adaptiveSettingsSelected = currentRoute == AppRoutes.SettingsPattern
-                val adaptiveWeatherSelected = currentRoute == AppRoutes.WeatherDetail
-                val adaptiveSelectedPageKey = when (currentRoute) {
-                    AppRoutes.QuickMemoDetailPattern -> HomeEntryKey.NOTE
-                    else -> selectedHomePageKey
-                }
                 val appGlassBackdrop = rememberAppWindowBackdrop()
                 val appSceneBackdrop = rememberAppWindowBackdrop()
                 val useMiuiBlurMaterial = settings.appBackgroundMiuiBlurTestEnabled &&
@@ -510,7 +488,6 @@ class MainActivity : ComponentActivity() {
                         LocalAppBackgroundWallpaperBitmap provides appBackgroundBitmap,
                         LocalAppBackgroundRootSize provides appBackgroundRootSize,
                         LocalAppBackgroundAverageLuminance provides settings.appBackgroundAverageLuminance,
-                        LocalAdaptiveLayoutInfo provides adaptiveLayoutInfo,
                     ) {
                     // 最外层容器（包裹 NavHost 和所有弹窗）
                     Box(
@@ -544,50 +521,6 @@ class MainActivity : ComponentActivity() {
                                 )
                         )
                         Row(modifier = Modifier.fillMaxSize()) {
-                            if (showAdaptivePrimaryNavigation) {
-                                AdaptiveHomeNavigationRail(
-                                    navItems = homeBottomItems.filterNot { it == HomeEntryKey.SETTINGS },
-                                    selectedPageKey = adaptiveSelectedPageKey,
-                                    weatherSelected = adaptiveWeatherSelected,
-                                    settingsSelected = adaptiveSettingsSelected,
-                                    expanded = expandedPrimaryNavigation,
-                                    canExpand = adaptiveLayoutInfo.canExpandNavigation,
-                                    backgroundMode = settings.appBackgroundImagePath.isNotBlank(),
-                                    miuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled,
-                                    onExpandedChange = { preferExpandedPrimaryNavigation = it },
-                                    onPageClick = { pageKey ->
-                                        selectedHomePageKey = if (pageKey in homeBottomItems) {
-                                            pageKey
-                                        } else {
-                                            HomeEntryKey.TODAY
-                                        }
-                                        if (currentRoute != AppRoutes.Home) {
-                                            navController.navigate(AppRoutes.Home) {
-                                                launchSingleTop = true
-                                                popUpTo(AppRoutes.Home) { inclusive = false }
-                                            }
-                                        }
-                                    },
-                                    onWeatherClick = {
-                                        if (currentRoute != AppRoutes.WeatherDetail) {
-                                            navController.navigate(AppRoutes.WeatherDetail) {
-                                                launchSingleTop = true
-                                                popUpTo(AppRoutes.Home) { inclusive = false }
-                                            }
-                                        }
-                                    },
-                                    onSettingsClick = {
-                                        if (currentRoute != AppRoutes.SettingsPattern) {
-                                            navController.navigate(
-                                                AppRoutes.settings(SettingsDestination.Preference.name),
-                                            ) {
-                                                launchSingleTop = true
-                                                popUpTo(AppRoutes.Home) { inclusive = false }
-                                            }
-                                        }
-                                    },
-                                )
-                            }
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -734,8 +667,8 @@ class MainActivity : ComponentActivity() {
                             }
                             WeatherDetailScreen(
                                 uiSize = settings.uiSize,
-                                showBack = !adaptiveLayoutInfo.useNavigationRail,
-                                showSettings = adaptiveLayoutInfo.useNavigationRail,
+                                showBack = true,
+                                showSettings = false,
                                 onOpenSettings = {
                                     navController.navigate(AppRoutes.settings(SettingsDestination.Weather.name)) {
                                         launchSingleTop = true

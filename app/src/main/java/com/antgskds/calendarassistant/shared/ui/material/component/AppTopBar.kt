@@ -51,7 +51,6 @@ fun AppTopBar(
         MaterialTheme.colorScheme.background
     },
     contentColor: Color = MaterialTheme.colorScheme.onBackground,
-    centered: Boolean = true,
     windowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
         .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
 ) {
@@ -59,7 +58,7 @@ fun AppTopBar(
         Layout(
             modifier = Modifier
                 .windowInsetsPadding(windowInsets)
-                .padding(horizontal = if (centered) 4.dp else ConfigCatalog.ADAPTIVE_CONTENT_PADDING_DP.dp)
+                .padding(horizontal = 4.dp)
                 .fillMaxWidth()
                 .heightIn(min = 64.dp),
             content = {
@@ -80,9 +79,7 @@ fun AppTopBar(
             val trailing = measurables[2].measure(sideConstraints)
             val sideWidth = maxOf(leading.width, trailing.width)
             val titleGap = if (sideWidth > 0) 8.dp.roundToPx() else 0
-            val titleStart = leading.width + if (leading.width > 0) titleGap else 0
-            val titleWidth = (if (centered) width - 2 * (sideWidth + titleGap)
-                else width - titleStart - trailing.width - titleGap).coerceAtLeast(0)
+            val titleWidth = (width - 2 * (sideWidth + titleGap)).coerceAtLeast(0)
             val titlePlaceable = measurables[1].measure(
                 constraints.copy(minWidth = 0, minHeight = 0, maxWidth = titleWidth)
             )
@@ -90,7 +87,7 @@ fun AppTopBar(
                 .coerceAtMost(constraints.maxHeight)
             layout(width, height) {
                 leading.placeRelative(0, (height - leading.height) / 2)
-                titlePlaceable.placeRelative(if (centered) (width - titlePlaceable.width) / 2 else titleStart, (height - titlePlaceable.height) / 2)
+                titlePlaceable.placeRelative((width - titlePlaceable.width) / 2, (height - titlePlaceable.height) / 2)
                 trailing.placeRelative(width - trailing.width, (height - trailing.height) / 2)
             }
         }

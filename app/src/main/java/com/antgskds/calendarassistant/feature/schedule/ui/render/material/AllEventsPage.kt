@@ -41,7 +41,6 @@ fun MaterialAllEventsScreen(
     state: AllEventsUiState,
     uiSize: Int = 2,
     extraBottomPadding: Dp = 0.dp,
-    twoPane: Boolean = false,
     hapticEnabled: Boolean = true,
     onAction: (AllEventsUiAction) -> Unit
 ) {
@@ -50,7 +49,7 @@ fun MaterialAllEventsScreen(
         uiSize = uiSize,
         extraBottomPadding = extraBottomPadding,
         hapticEnabled = hapticEnabled,
-        reserveFloatingBarSpace = !twoPane,
+        reserveFloatingBarSpace = true,
         selectedItemKey = null,
         onSelectItem = null,
         onAction = onAction,
