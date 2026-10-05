@@ -17,6 +17,13 @@ class PreferenceUiControllerAdapter(private val viewModel: SettingsViewModel) : 
     override fun hasDuplicateAdvanceReminder(minutes: Int) = viewModel.hasDuplicateAdvanceReminder(minutes)
     override fun updateUiSize(size: Int) = viewModel.updateUiSize(size)
     override fun updateScreenshotDelay(delay: Long) = viewModel.updateScreenshotDelay(delay)
+    override fun setRememberCalendarViewMode(enabled: Boolean) {
+        viewModel.setRememberCalendarViewMode(enabled)
+    }
+
+    override fun setHomeCalendarViewMode(mode: String) {
+        viewModel.setHomeCalendarViewMode(mode)
+    }
     override fun updateQuickMemoAutoStop(enabled: Boolean?, seconds: Int?) =
         viewModel.updateQuickMemoAutoStop(enabled = enabled, seconds = seconds)
     override fun updateDailySummaryTimes(morningMinuteOfDay: Int?, eveningMinuteOfDay: Int?, onUpdated: () -> Unit) =

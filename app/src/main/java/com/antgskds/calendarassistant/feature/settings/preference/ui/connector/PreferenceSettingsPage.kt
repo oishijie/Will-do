@@ -77,6 +77,7 @@ enum class PreferenceSection {
 data class PreferenceItemVisibility(
     val showUiSize: Boolean = true,
     val showTomorrowEvents: Boolean = true,
+    val showRememberCalendarViewMode: Boolean = true,
     val showWidgetSettings: Boolean = true,
     val showHapticFeedback: Boolean = true,
     val showNetworkSpeedCapsule: Boolean = true,
@@ -371,6 +372,17 @@ fun MaterialPreferenceSettingsScreen(
                         subtitle = "在今日日程列表底部预览明日安排",
                         checked = settings.showTomorrowEvents,
                         onCheckedChange = { controller.updatePreference(showTomorrow = it) },
+                        cardTitleStyle = cardTitleStyle,
+                        cardSubtitleStyle = cardSubtitleStyle
+                    )
+                    AppSettingsDivider()
+                }
+                if (itemVisibility.showRememberCalendarViewMode) {
+                    SwitchSettingItem(
+                        title = "记住日历视图",
+                        subtitle = "首页沿用上次选择的今日/周/月/日程视图；关闭后每次回到今日视图",
+                        checked = settings.rememberCalendarViewMode,
+                        onCheckedChange = { controller.setRememberCalendarViewMode(it) },
                         cardTitleStyle = cardTitleStyle,
                         cardSubtitleStyle = cardSubtitleStyle
                     )

@@ -868,6 +868,7 @@ fun HomeScreen(
                 onScheduleOffsetChange = { scheduleOffsetPx = it.coerceAtLeast(0f) },
                 onOpenWeatherDetail = onOpenWeatherDetail,
                 onNavigateToSettings = onNavigateToSettings,
+                onRememberCalendarViewMode = settingsViewModel::setHomeCalendarViewMode,
             )
             }
         },

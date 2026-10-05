@@ -109,6 +109,7 @@ import com.antgskds.calendarassistant.feature.home.ui.render.material.component.
 import com.antgskds.calendarassistant.feature.home.ui.contract.HomePageUiAction
 import com.antgskds.calendarassistant.feature.home.ui.contract.HomePageUiState
 import com.antgskds.calendarassistant.feature.schedule.ui.render.material.component.SwipeableEventItem
+import com.antgskds.calendarassistant.feature.settings.data.model.HomeCalendarViewModeName
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.shared.ui.material.dialog.DialogEdgeToEdgeEffect
@@ -168,6 +169,8 @@ fun MaterialHomePage(
     onScheduleProgressChange: (Float) -> Unit = {},
     onScheduleOffsetChange: (Float) -> Unit = {},
     onOpenWeatherDetail: () -> Unit = {},
+    /** 首页日历视图切换后回传，用于按设置「记住日历视图」持久化。 */
+    onRememberCalendarViewMode: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -213,9 +216,27 @@ fun MaterialHomePage(
     var allSearchQuery by rememberSaveable { mutableStateOf("") }
     var noteSearchQuery by rememberSaveable { mutableStateOf("") }
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
-    var calendarViewName by rememberSaveable { mutableStateOf(HomeCalendarViewMode.TODAY.name) }
+    // 本次会话内用户手动选过的视图；为 null 时跟随「记住日历视图」设置。
+    var pickedCalendarViewName by rememberSaveable { mutableStateOf<String?>(null) }
+    val rememberedCalendarViewName = if (state.settings.rememberCalendarViewMode) {
+        HomeCalendarViewModeName.normalize(state.settings.homeCalendarViewMode)
+    } else {
+        HomeCalendarViewModeName.TODAY
+    }
+    val calendarViewName = pickedCalendarViewName ?: rememberedCalendarViewName
+    // 切换视图：先改本次会话状态，再按设置决定是否记住。
+    val changeCalendarViewMode: (HomeCalendarViewMode) -> Unit = { mode ->
+        pickedCalendarViewName = mode.name
+        if (state.settings.rememberCalendarViewMode) onRememberCalendarViewMode(mode.name)
+    }
+    // 关闭「记住日历视图」后立即回到今日视图，与旧行为一致。
+    LaunchedEffect(state.settings.rememberCalendarViewMode) {
+        if (!state.settings.rememberCalendarViewMode) pickedCalendarViewName = null
+    }
     var isCalendarViewMenuExpanded by remember { mutableStateOf(false) }
-    val calendarViewMode = HomeCalendarViewMode.valueOf(calendarViewName)
+    val calendarViewMode = HomeCalendarViewMode.entries
+        .firstOrNull { it.name == calendarViewName }
+        ?: HomeCalendarViewMode.TODAY
 
     val isTodayPage = currentPageKey == HomeEntryKey.TODAY
     val isAllPage = currentPageKey == HomeEntryKey.ALL
@@ -569,7 +590,7 @@ fun MaterialHomePage(
                                 calendarViewMode = calendarViewMode,
                                 onCycleCalendarMode = {
                                     haptics.selection()
-                                    calendarViewName = calendarViewMode.next().name
+                                    changeCalendarViewMode(calendarViewMode.next())
                                 },
                                 onOpenCalendarModeMenu = {
                                     haptics.longPress()
@@ -579,7 +600,7 @@ fun MaterialHomePage(
                                 onDismissCalendarModeMenu = { isCalendarViewMenuExpanded = false },
                                 onSelectCalendarMode = { mode ->
                                     haptics.selection()
-                                    calendarViewName = mode.name
+                                    changeCalendarViewMode(mode)
                                 },
                                 menuContainerColor = calendarMenuContainerColor,
                                 menuSelectionColor = calendarMenuSelectionColor,
@@ -697,7 +718,7 @@ fun MaterialHomePage(
                             onAction = onAction,
                             onEditItem = onEditItem,
                             onRequestDeleteItem = onRequestDeleteItem,
-                            onCalendarViewModeChange = { mode -> calendarViewName = mode.name },
+                            onCalendarViewModeChange = changeCalendarViewMode,
                         )
                     } else if (animatedIsAllPage) {
                         allEventsContent(

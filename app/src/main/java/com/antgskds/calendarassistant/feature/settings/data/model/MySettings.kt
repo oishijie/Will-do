@@ -16,6 +16,17 @@ object LiveNotificationTemplateMode {
     }
 }
 
+object HomeCalendarViewModeName {
+    const val TODAY = "TODAY"
+    const val WEEK = "WEEK"
+    const val MONTH = "MONTH"
+    const val AGENDA = "AGENDA"
+
+    val ALL = listOf(TODAY, WEEK, MONTH, AGENDA)
+
+    fun normalize(value: String): String = if (value in ALL) value else TODAY
+}
+
 object RecognitionMode {
     const val AI_ONLY = 0
     const val REGEX_ONLY = 1
@@ -125,6 +136,11 @@ data class MySettings(
     val allEventsListReverseOrder: Boolean = false,   // 全部日程页，现状正序
     val floatingListReverseOrder: Boolean = true,     // 悬浮窗，现状倒序
     val archivesListReverseOrder: Boolean = true,     // 归档页，现状倒序
+
+    // 首页日历视图记忆：开启后首页沿用上次选中的视图（今日/周/月/日程视图）。
+    // 默认开启；关闭后每次进入首页都回到今日视图，与旧行为一致。
+    val rememberCalendarViewMode: Boolean = true,
+    val homeCalendarViewMode: String = HomeCalendarViewModeName.TODAY,
 
 
     // 识别设置

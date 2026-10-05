@@ -41,6 +41,7 @@ fun HomePageScreen(
     onScheduleOffsetChange: (Float) -> Unit,
     onOpenWeatherDetail: () -> Unit,
     onNavigateToSettings: (SettingsDestination) -> Unit,
+    onRememberCalendarViewMode: (String) -> Unit = {},
 ) {
     MaterialHomePage(
         state = state,
@@ -72,5 +73,6 @@ fun HomePageScreen(
         onScheduleProgressChange = onScheduleProgressChange,
         onScheduleOffsetChange = onScheduleOffsetChange,
         onOpenWeatherDetail = onOpenWeatherDetail,
+        onRememberCalendarViewMode = onRememberCalendarViewMode,
     )
 }

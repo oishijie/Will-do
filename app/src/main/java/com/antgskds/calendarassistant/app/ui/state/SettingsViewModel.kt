@@ -29,6 +29,7 @@ import com.antgskds.calendarassistant.feature.backup.data.model.AppBackupImportR
 import com.antgskds.calendarassistant.feature.backup.data.model.AppBackupOptions
 import com.antgskds.calendarassistant.feature.settings.data.model.DEFAULT_EVENT_COLOR_PALETTE_HEX
 import com.antgskds.calendarassistant.feature.settings.data.model.FloatingBallGestureAction
+import com.antgskds.calendarassistant.feature.settings.data.model.HomeCalendarViewModeName
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.settings.data.model.sanitizeEventColorPaletteHex
 import com.antgskds.calendarassistant.feature.appearance.domain.AppBackgroundImageStore
@@ -388,6 +389,21 @@ class SettingsViewModel(
 
     fun setHomeAgendaOnlyScheduled(enabled: Boolean) = viewModelScope.launch {
         settingsOperationApi.updateSettings(settings.value.copy(homeAgendaOnlyScheduled = enabled))
+    }
+
+    /** 首页日历视图记忆开关；关闭时不改动已记住的视图，仅停止使用。 */
+    fun setRememberCalendarViewMode(enabled: Boolean) = viewModelScope.launch {
+        val current = settings.value
+        if (current.rememberCalendarViewMode == enabled) return@launch
+        settingsOperationApi.updateSettings(current.copy(rememberCalendarViewMode = enabled))
+    }
+
+    /** 记住首页当前日历视图（今日/周/月/日程视图）；值非法时回落到今日视图。 */
+    fun setHomeCalendarViewMode(mode: String) = viewModelScope.launch {
+        val normalized = HomeCalendarViewModeName.normalize(mode)
+        val current = settings.value
+        if (current.homeCalendarViewMode == normalized) return@launch
+        settingsOperationApi.updateSettings(current.copy(homeCalendarViewMode = normalized))
     }
 
     fun setDemoModeEnabled(enabled: Boolean) = viewModelScope.launch {

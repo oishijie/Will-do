@@ -49,6 +49,7 @@ fun HomePageRoute(
     onScheduleOffsetChange: (Float) -> Unit = {},
     onOpenWeatherDetail: () -> Unit = {},
     onNavigateToSettings: (SettingsDestination) -> Unit = {},
+    onRememberCalendarViewMode: (String) -> Unit = {},
     settingsOverride: MySettings? = null,
 ) {
     val mainState by viewModel.uiState.collectAsState()
@@ -139,5 +140,6 @@ fun HomePageRoute(
         onScheduleOffsetChange = onScheduleOffsetChange,
         onOpenWeatherDetail = onOpenWeatherDetail,
         onNavigateToSettings = onNavigateToSettings,
+        onRememberCalendarViewMode = onRememberCalendarViewMode,
     )
 }

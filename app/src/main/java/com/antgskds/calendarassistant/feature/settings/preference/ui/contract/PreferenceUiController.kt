@@ -19,6 +19,8 @@ interface PreferenceUiController {
     fun hasDuplicateAdvanceReminder(minutes: Int): Boolean
     fun updateUiSize(size: Int)
     fun updateScreenshotDelay(delay: Long)
+    fun setRememberCalendarViewMode(enabled: Boolean)
+    fun setHomeCalendarViewMode(mode: String)
     fun updateQuickMemoAutoStop(enabled: Boolean? = null, seconds: Int? = null)
     fun updateDailySummaryTimes(morningMinuteOfDay: Int? = null, eveningMinuteOfDay: Int? = null, onUpdated: () -> Unit = {})
     fun updateEdgeBarSettings(enabled: Boolean? = null, side: String? = null, yPercent: Float? = null, widthDp: Int? = null, heightDp: Int? = null, alpha: Float? = null, singleTapAction: Int? = null, doubleTapAction: Int? = null, longPressAction: Int? = null)
