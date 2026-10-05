@@ -40,6 +40,13 @@ class FlashNoteSummaryWorker(
 
         val app = applicationContext as? App ?: return Result.failure()
         val settings = SettingsRepository(applicationContext).loadSettings()
+        // 用户在「设置 → 功能设置 → 随手记」关掉了 AI 摘要：直接把摘要段落标记为不生成并结束。
+        // 兜住两类情况——创建时按设置已落 SKIPPED 的条目不会走到这里，
+        // 但旧版本遗留的 PENDING 条目、以及将来新增的调用点都由这一层保证不白调模型。
+        if (!settings.flashNoteAiSummaryEnabled) {
+            app.noteCenter.updateFlashSummary(noteId, FlashNoteSummaryState.SKIPPED)
+            return Result.success()
+        }
         val config = settings.activeAiConfig()
         if (!config.isConfigured()) {
             // 未配置模型时不重试，等用户配好再手动重新收藏。

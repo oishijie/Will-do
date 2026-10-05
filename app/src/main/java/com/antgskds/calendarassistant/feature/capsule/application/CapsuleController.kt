@@ -55,12 +55,21 @@ class CapsuleController(
         capsuleCommandApi.clearVoiceTranscription()
     }
 
-    fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long = 0L) {
-        capsuleCommandApi.showTextQuickMemo(memoId, title, durationMs)
+    fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long = 0L, pinned: Boolean = false) {
+        capsuleCommandApi.showTextQuickMemo(memoId, title, durationMs, pinned)
     }
 
     fun clearTextQuickMemo() {
         capsuleCommandApi.clearTextQuickMemo()
+    }
+
+    /** 文本随手记上实况（常驻，用户手动移除）。 */
+    fun showTextFlashNote(noteId: Long, title: String) {
+        capsuleCommandApi.showTextFlashNote(noteId, title)
+    }
+
+    fun clearTextFlashNote() {
+        capsuleCommandApi.clearTextFlashNote()
     }
 
     fun showModelLoading(title: String, content: String) {

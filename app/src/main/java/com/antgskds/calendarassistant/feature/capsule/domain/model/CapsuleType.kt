@@ -24,4 +24,7 @@ object CapsuleType {
     const val QUICK_MEMO_RECORDING = 11
     const val QUICK_MEMO_REMINDER = 12
     const val IMAGE_PIN = 13
+
+    /** 文本随手记：与 [TEXT_QUICK_MEMO] 同族，但由用户手动「上实况」触发且常驻到手动清除。 */
+    const val TEXT_FLASH_NOTE = 14
 }

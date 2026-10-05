@@ -75,12 +75,14 @@ class CapsuleStateManager(
         const val TYPE_VOICE_TRANSCRIPTION = CapsuleType.VOICE_TRANSCRIPTION
         const val TYPE_TEXT_QUICK_MEMO = CapsuleType.TEXT_QUICK_MEMO
         const val TYPE_QUICK_MEMO_RECORDING = CapsuleType.QUICK_MEMO_RECORDING
+        const val TYPE_TEXT_FLASH_NOTE = CapsuleType.TEXT_FLASH_NOTE
 
         private const val OCR_PROGRESS_ID = "OCR_PROGRESS"
         private const val OCR_RESULT_ID = "OCR_RESULT"
         private const val MODEL_LOADING_ID = "MODEL_LOADING"
         private const val VOICE_TRANSCRIPTION_ID_PREFIX = "VOICE_TRANSCRIPTION_"
         private const val TEXT_QUICK_MEMO_ID_PREFIX = "TEXT_QUICK_MEMO_"
+        private const val TEXT_FLASH_NOTE_ID_PREFIX = "TEXT_FLASH_NOTE_"
         private const val QUICK_MEMO_RECORDING_ID = "QUICK_MEMO_RECORDING"
         private const val WEATHER_CAPSULE_ID_PREFIX = "WEATHER_"
         private const val OCR_NOTIF_ID = 88886
@@ -91,6 +93,7 @@ class CapsuleStateManager(
         private const val EVENT_TYPE_MODEL_LOADING = "model_loading"
         private const val EVENT_TYPE_VOICE_TRANSCRIPTION = "voice_transcription"
         private const val EVENT_TYPE_TEXT_QUICK_MEMO = "text_quick_memo"
+        private const val EVENT_TYPE_TEXT_FLASH_NOTE = "text_flash_note"
         private const val EVENT_TYPE_QUICK_MEMO_RECORDING = "quick_memo_recording"
         private const val EVENT_TYPE_WEATHER_ALERT = "weather_alert"
         private const val EVENT_TYPE_WEATHER_RISK = "weather_risk"
@@ -130,6 +133,7 @@ class CapsuleStateManager(
         val textQuickMemo: OcrCapsuleState?,
         val quickMemoRecording: OcrCapsuleState?,
         val imagePin: OcrCapsuleState? = null,
+        val textFlashNote: OcrCapsuleState? = null,
     )
 
     private val ocrCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
@@ -138,6 +142,7 @@ class CapsuleStateManager(
     private val weatherCapsuleState = MutableStateFlow<List<OcrCapsuleState>>(emptyList())
     private val voiceTranscriptionCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
     private val textQuickMemoCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
+    private val textFlashNoteCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
     private val quickMemoRecordingCapsuleState = MutableStateFlow<OcrCapsuleState?>(null)
     private var ocrAutoClearJob: Job? = null
     private var modelLoadingAutoClearJob: Job? = null
@@ -276,7 +281,14 @@ class CapsuleStateManager(
 
     fun clearImagePin() { imagePinCapsuleState.value = null }
 
-    fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long = 0L) {
+    /**
+     * 文本随口记上实况。
+     *
+     * [pinned] = true 时**常驻**（不自动清除，等用户点通知上的「移除」）——
+     * 输入栏的「实况通知」按钮走这条；false 保持原行为：到时自动收，
+     * 供浮窗保存后自动挂起的旧链路使用。
+     */
+    fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long = 0L, pinned: Boolean = false) {
         val cleanTitle = title.trim().takeIf { it.isNotEmpty() } ?: return
         val effectiveDurationMs = if (durationMs > 0L) durationMs else quickMemoCapsuleTimeoutMs()
         val now = System.currentTimeMillis()
@@ -292,11 +304,46 @@ class CapsuleStateManager(
             description = cleanTitle,
             color = android.graphics.Color.parseColor("#7C4DFF"),
             startMillis = now,
-            endMillis = now + effectiveDurationMs,
+            endMillis = if (pinned) Long.MAX_VALUE else now + effectiveDurationMs,
             display = display,
-            expiresAt = now + effectiveDurationMs
+            expiresAt = if (pinned) null else now + effectiveDurationMs
         )
-        scheduleTextQuickMemoAutoClear(effectiveDurationMs)
+        if (pinned) {
+            // 转常驻：把可能在跑的自动清除任务撤掉，否则到点会把常驻胶囊误清。
+            textQuickMemoAutoClearJob?.cancel()
+            textQuickMemoAutoClearJob = null
+        } else {
+            scheduleTextQuickMemoAutoClear(effectiveDurationMs)
+        }
+    }
+
+    /**
+     * 文本随手记上实况：由输入栏的「实况通知」按钮手动挂起，**常驻**到用户点「移除」。
+     * 与随口记各占一条状态，互不顶掉。
+     */
+    fun showTextFlashNote(noteId: Long, title: String) {
+        val cleanTitle = title.trim().takeIf { it.isNotEmpty() } ?: return
+        val now = System.currentTimeMillis()
+        val fixedTitleEnabled = settingsQueryApi.settings.value.quickMemoPinnedFixedTitleEnabled
+        val display = CapsuleMessageComposer.composeTextFlashNote(cleanTitle, noteId, fixedTitleEnabled)
+        textFlashNoteCapsuleState.value = OcrCapsuleState(
+            id = "$TEXT_FLASH_NOTE_ID_PREFIX$noteId",
+            notifId = NotificationIds.flashNoteText(noteId),
+            type = TYPE_TEXT_FLASH_NOTE,
+            eventType = EVENT_TYPE_TEXT_FLASH_NOTE,
+            title = display.primaryText,
+            content = cleanTitle,
+            description = cleanTitle,
+            color = android.graphics.Color.parseColor("#00897B"),
+            startMillis = now,
+            endMillis = Long.MAX_VALUE,
+            display = display,
+            expiresAt = null
+        )
+    }
+
+    fun clearTextFlashNote() {
+        textFlashNoteCapsuleState.value = null
     }
 
     fun clearVoiceTranscription() {
@@ -545,8 +592,13 @@ class CapsuleStateManager(
             baseTransientCombine,
             quickMemoRecordingCapsuleState,
             imagePinCapsuleState,
-        ) { transient, quickMemoRecording, imagePin ->
-            transient.copy(quickMemoRecording = quickMemoRecording, imagePin = imagePin)
+            textFlashNoteCapsuleState,
+        ) { transient, quickMemoRecording, imagePin, textFlashNote ->
+            transient.copy(
+                quickMemoRecording = quickMemoRecording,
+                imagePin = imagePin,
+                textFlashNote = textFlashNote
+            )
         }
 
         return combine(baseCombine, networkSpeedState, capsuleTransientCombine) { (events, settings), networkSpeed, transient ->
@@ -608,6 +660,15 @@ class CapsuleStateManager(
             }
         }
 
+        val activeTextFlashNoteCapsule = transient.textFlashNote?.let { state ->
+            if (state.expiresAt != null && nowMillis >= state.expiresAt) {
+                clearTextFlashNote()
+                null
+            } else {
+                state
+            }
+        }
+
         val activeQuickMemoRecordingCapsule = transient.quickMemoRecording?.let { state ->
             if (state.expiresAt != null && nowMillis >= state.expiresAt) {
                 clearQuickMemoRecording()
@@ -625,7 +686,7 @@ class CapsuleStateManager(
         }
 
         val activeImagePin = transient.imagePin?.takeIf { com.antgskds.calendarassistant.feature.imagepin.ImagePinPolicy.canPublish(settings) }
-        if ((activeImagePin != null || activeOcrCapsule != null || activeModelLoadingCapsule != null || activeWeatherCapsules.isNotEmpty() || activeVoiceTranscriptionCapsule != null || activeTextQuickMemoCapsule != null || activeQuickMemoRecordingCapsule != null) && settings.isLiveCapsuleEnabled) {
+        if ((activeImagePin != null || activeOcrCapsule != null || activeModelLoadingCapsule != null || activeWeatherCapsules.isNotEmpty() || activeVoiceTranscriptionCapsule != null || activeTextQuickMemoCapsule != null || activeTextFlashNoteCapsule != null || activeQuickMemoRecordingCapsule != null) && settings.isLiveCapsuleEnabled) {
             val transientItems = buildList {
                 activeImagePin?.let { add(createTransientCapsuleItem(it)) }
                 activeQuickMemoRecordingCapsule?.let { state ->
@@ -644,6 +705,9 @@ class CapsuleStateManager(
                     add(createTransientCapsuleItem(state))
                 }
                 activeTextQuickMemoCapsule?.let { state ->
+                    add(createTransientCapsuleItem(state))
+                }
+                activeTextFlashNoteCapsule?.let { state ->
                     add(createTransientCapsuleItem(state))
                 }
             }

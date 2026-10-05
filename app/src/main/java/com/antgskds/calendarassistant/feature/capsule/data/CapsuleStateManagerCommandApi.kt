@@ -49,12 +49,20 @@ class CapsuleStateManagerCommandApi(
         capsuleStateManager.clearVoiceTranscription()
     }
 
-    override fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long) {
-        capsuleStateManager.showTextQuickMemo(memoId, title, durationMs)
+    override fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long, pinned: Boolean) {
+        capsuleStateManager.showTextQuickMemo(memoId, title, durationMs, pinned)
     }
 
     override fun clearTextQuickMemo() {
         capsuleStateManager.clearTextQuickMemo()
+    }
+
+    override fun showTextFlashNote(noteId: Long, title: String) {
+        capsuleStateManager.showTextFlashNote(noteId, title)
+    }
+
+    override fun clearTextFlashNote() {
+        capsuleStateManager.clearTextFlashNote()
     }
 
     override fun showQuickMemoRecording(title: String, content: String) {

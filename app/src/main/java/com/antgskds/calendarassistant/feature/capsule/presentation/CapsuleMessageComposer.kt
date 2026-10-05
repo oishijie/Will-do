@@ -54,6 +54,25 @@ object CapsuleMessageComposer {
         )
     }
 
+    /**
+     * 文本随手记胶囊：由输入栏的「实况通知」按钮手动挂起，常驻到用户点「移除」。
+     * 显示样式复用随口记那套（同为一条文本），只是类型/通知 id/移除动作独立，
+     * 这样两区可以各挂一条、互不顶掉。
+     */
+    fun composeTextFlashNote(
+        title: String,
+        noteId: Long,
+        fixedTitleEnabled: Boolean = false,
+        removeAction: CapsuleActionSpec = CapsuleActionSpec(
+            label = "移除",
+            receiverAction = EventActionReceiver.ACTION_CLEAR_TEXT_FLASH_NOTE,
+            extraLongKey = EventActionReceiver.EXTRA_FLASH_NOTE_ID,
+            extraLongValue = noteId,
+        ),
+    ): CapsuleDisplayModel {
+        return SystemLiveDisplay.textQuickMemo(title, fixedTitleEnabled).copy(action = removeAction)
+    }
+
     fun composeQuickMemoRecording(title: String, content: String): CapsuleDisplayModel {
         return SystemLiveDisplay.quickMemoRecording(title, content).copy(
             action = CapsuleActionSpec(

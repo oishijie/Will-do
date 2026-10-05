@@ -107,16 +107,19 @@ class FlashNoteHandleActivity : ComponentActivity() {
                     Toast.makeText(this@FlashNoteHandleActivity, "已在闪记中", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                FlashNoteSummaryWorker.enqueue(
-                    context = this@FlashNoteHandleActivity,
-                    noteId = noteId,
-                    title = subject?.trim()?.takeIf { it.isNotBlank() }
-                        ?: text.lineSequence().first { it.isNotBlank() }.trim().take(80),
-                    content = text
-                )
+                val summaryEnabled = app.noteCenter.aiSummaryEnabled()
+                if (summaryEnabled) {
+                    FlashNoteSummaryWorker.enqueue(
+                        context = this@FlashNoteHandleActivity,
+                        noteId = noteId,
+                        title = subject?.trim()?.takeIf { it.isNotBlank() }
+                            ?: text.lineSequence().first { it.isNotBlank() }.trim().take(80),
+                        content = text
+                    )
+                }
                 Toast.makeText(
                     this@FlashNoteHandleActivity,
-                    "已收藏文字，AI 摘要生成中",
+                    if (summaryEnabled) "已收藏文字，AI 摘要生成中" else "已收藏文字",
                     Toast.LENGTH_SHORT
                 ).show()
             } catch (e: Exception) {

@@ -224,10 +224,16 @@ class QuickMemoFacade(
         attached
     }
 
-    suspend fun pinQuickMemo(id: Long): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * 把一条随口记挂到实况通知。
+     *
+     * [pinned] = true 时常驻到用户点通知上的「移除」——输入栏的「实况通知」按钮走这条；
+     * false 保持旧行为：到时自动收，供浮窗保存后自动挂起那条实验链路使用。
+     */
+    suspend fun pinQuickMemo(id: Long, pinned: Boolean = false): Boolean = withContext(Dispatchers.IO) {
         val memo = repository.getQuickMemo(id) ?: return@withContext false
         val text = memo.displayTextForCapsule().takeIf { it.isNotBlank() } ?: return@withContext false
-        capsuleCommandApi?.showTextQuickMemo(id, text)
+        capsuleCommandApi?.showTextQuickMemo(id, text, pinned = pinned)
         true
     }
 

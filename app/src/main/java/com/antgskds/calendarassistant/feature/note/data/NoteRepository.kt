@@ -103,6 +103,77 @@ class NoteRepository(
     }
 
     /**
+     * 创建语音闪记。
+     *
+     * 语音先以 FILE 段落存下音频，转写文本回填后由调用方触发摘要——
+     * 摘要链路与纯文本闪记一致，复用 [FlashNoteSummaryWorker]。
+     *
+     * @param audioRelativePath 音频在 notes 附件目录下的相对路径。
+     * @param displayName 音频文件名，用作标题占位。
+     */
+    suspend fun createVoiceFlashNote(
+        audioRelativePath: String,
+        displayName: String,
+        audioDurationMs: Long
+    ): Long? {
+        if (audioRelativePath.isBlank()) return null
+
+        val paragraphs = buildList {
+            // 语音闪记先置 PENDING：转写完成后由 updateFlashVoiceText 换成真实摘要或跳过。
+            add(NoteParagraph(text = FlashNoteSummaryState.PENDING, type = NoteParagraphType.SUMMARY))
+            add(
+                NoteParagraph(
+                    text = "",
+                    type = NoteParagraphType.FILE,
+                    attachmentPath = audioRelativePath,
+                    attachmentName = displayName,
+                    attachmentMime = "audio/*"
+                )
+            )
+        }
+        return saveNote(
+            id = null,
+            title = displayName.ifBlank { "语音闪记" }.take(MAX_TITLE_LENGTH),
+            document = NoteDocument(paragraphs = paragraphs)
+        )
+    }
+
+    /**
+     * 回填语音转写文本。
+     *
+     * 转写文本作为正文段落追加在音频之后，并把摘要标记为 [FlashNoteSummaryState.SKIPPED]
+     * ——语音摘要由调用方另行排队生成，此处不预设状态。
+     */
+    suspend fun updateFlashVoiceText(noteId: Long, text: String, summaryState: String): Boolean {
+        val entity = notesDao.getNote(noteId) ?: return false
+        val current = entity.document()
+        val normalized = text.trim()
+        val updated = current.copy(
+            paragraphs = current.paragraphs.map { paragraph ->
+                when (paragraph.type) {
+                    NoteParagraphType.SUMMARY -> paragraph.copy(text = summaryState)
+                    NoteParagraphType.FILE -> paragraph.copy(
+                        // 音频段落用text 承载已转写内容，供列表预览。
+                        text = normalized.take(MAX_TITLE_LENGTH * 10)
+                    )
+                    else -> paragraph
+                }
+            } + if (normalized.isNotEmpty() && current.paragraphs.none { it.type == NoteParagraphType.TEXT }) {
+                normalized.split('\n').map { NoteParagraph(text = it) }
+            } else {
+                emptyList()
+            }
+        )
+        saveNote(
+            id = noteId,
+            title = entity.title,
+            document = updated,
+            createdAt = entity.createdAt
+        )
+        return true
+    }
+
+    /**
      * 创建闪记条目。
      *
      * 段落顺序：摘要（占位 PENDING）→ 原文链接 → 正文（若有）。摘要置前是为了让列表

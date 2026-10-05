@@ -41,16 +41,19 @@ class FlashTextHandleActivity : ComponentActivity() {
                     Toast.makeText(this@FlashTextHandleActivity, "已在闪记中", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                // 纯文本内容已完整入库，直接排队生成摘要。
-                FlashNoteSummaryWorker.enqueue(
-                    context = this@FlashTextHandleActivity,
-                    noteId = noteId,
-                    title = selected.lineSequence().first { it.isNotBlank() }.trim().take(80),
-                    content = selected
-                )
+                // 纯文本内容已完整入库；「随手记 AI 摘要」关闭时不排队，提示也不再写「生成中」。
+                val summaryEnabled = app.noteCenter.aiSummaryEnabled()
+                if (summaryEnabled) {
+                    FlashNoteSummaryWorker.enqueue(
+                        context = this@FlashTextHandleActivity,
+                        noteId = noteId,
+                        title = selected.lineSequence().first { it.isNotBlank() }.trim().take(80),
+                        content = selected
+                    )
+                }
                 Toast.makeText(
                     this@FlashTextHandleActivity,
-                    "已收藏，AI 摘要生成中",
+                    if (summaryEnabled) "已收藏，AI 摘要生成中" else "已收藏",
                     Toast.LENGTH_SHORT
                 ).show()
             } catch (e: Exception) {

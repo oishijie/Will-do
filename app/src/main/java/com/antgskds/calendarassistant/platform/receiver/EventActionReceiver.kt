@@ -35,6 +35,7 @@ class EventActionReceiver : BroadcastReceiver() {
         const val ACTION_CHECKIN = "com.antgskds.calendarassistant.action.CHECKIN"
         const val ACTION_CREATE_QUICK_MEMO_SUGGESTION = "com.antgskds.calendarassistant.action.CREATE_QUICK_MEMO_SUGGESTION"
         const val ACTION_CLEAR_TEXT_QUICK_MEMO = "com.antgskds.calendarassistant.action.CLEAR_TEXT_QUICK_MEMO"
+        const val ACTION_CLEAR_TEXT_FLASH_NOTE = "com.antgskds.calendarassistant.action.CLEAR_TEXT_FLASH_NOTE"
         const val ACTION_CLEAR_QUICK_MEMO_REMINDER = "com.antgskds.calendarassistant.action.CLEAR_QUICK_MEMO_REMINDER"
         const val EXTRA_QUICK_MEMO_REMINDER_ID = "quick_memo_reminder_id"
         const val ACTION_STOP_QUICK_MEMO_RECORDING = "com.antgskds.calendarassistant.action.STOP_QUICK_MEMO_RECORDING"
@@ -44,6 +45,7 @@ class EventActionReceiver : BroadcastReceiver() {
         const val EXTRA_EVENT_ID = "event_id"
         const val EXTRA_SUGGESTION_ID = "suggestion_id"
         const val EXTRA_QUICK_MEMO_ID = "quick_memo_id"
+        const val EXTRA_FLASH_NOTE_ID = "flash_note_id"
         private const val RECURRING_INSTANCE_PREFIX = "rec:"
         private const val TAG = "EventActionReceiver"
     }
@@ -122,6 +124,24 @@ class EventActionReceiver : BroadcastReceiver() {
                         Log.d(TAG, "text quick memo capsule cleared memoId=$memoId")
                     } catch (t: Throwable) {
                         Log.e(TAG, "text quick memo clear failed memoId=$memoId", t)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
+            }
+            ACTION_CLEAR_TEXT_FLASH_NOTE -> {
+                val noteId = intent.getLongExtra(EXTRA_FLASH_NOTE_ID, -1L).takeIf { it > 0L }
+                    ?: run {
+                        Log.w(TAG, "ignore flash note clear action: missing note id")
+                        return
+                    }
+                val pendingResult = goAsync()
+                scope.launch {
+                    try {
+                        app.noteCenter.clearPinnedFlashNote()
+                        Log.d(TAG, "text flash note capsule cleared noteId=$noteId")
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "text flash note clear failed noteId=$noteId", t)
                     } finally {
                         pendingResult.finish()
                     }
