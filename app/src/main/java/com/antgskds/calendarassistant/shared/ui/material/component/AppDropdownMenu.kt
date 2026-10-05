@@ -40,6 +40,8 @@ data class AppMenuItem(
     val selected: Boolean = false,
     val enabled: Boolean = true,
     val destructive: Boolean = false,
+    /** 在这一项之前画一条分隔线，用来把菜单切成若干组（例如「新增」与「筛选」）。 */
+    val dividerBefore: Boolean = false,
 )
 
 /**
@@ -93,6 +95,12 @@ fun AppDropdownMenu(
             ) {
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
                     items.forEach { item ->
+                        if (item.dividerBefore) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            )
+                        }
                         val tint = if (item.destructive) MaterialTheme.colorScheme.error else contentColor
                         DropdownMenuItem(
                             text = { Text(item.text, style = MaterialTheme.typography.bodyLarge,

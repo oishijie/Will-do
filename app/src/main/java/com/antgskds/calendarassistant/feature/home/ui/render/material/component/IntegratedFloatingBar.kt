@@ -141,21 +141,10 @@ fun IntegratedFloatingBar(
     } else {
         MaterialTheme.colorScheme.onSecondaryContainer
     }
-    val fabBg = if (backgroundMode) backgroundPalette.accent else MaterialTheme.colorScheme.primary
-    val fabIcon = if (backgroundMode) backgroundPalette.accentContent else MaterialTheme.colorScheme.onPrimary
-
     val navShape = RoundedCornerShape(percent = 50)
-    val fabShape = RoundedCornerShape(24.dp)
-    val menuShape = RoundedCornerShape(26.dp)
     val tabShape = RoundedCornerShape(percent = 50)
     val navElevation = if (backgroundMode) 0.dp else 6.dp
     val navHeight = IntegratedFloatingBarHeight + IntegratedFloatingBarExtraHeight
-    val fabSize = 56.dp
-    // 横向：让 FAB 中心对齐「设置」tab 的中心线（底栏四等分后最右一格的中心）。
-    // 48dp 是按 360~412dp 屏宽算出的折中值，视觉上稳定落在设置按钮正上方。
-    val fabRowEnd = 48.dp
-    // 纵向：与底栏保持一段明显留白，FAB 呈悬浮态而非贴边。
-    val fabRowBottom = IntegratedFloatingBarShadowPadding + navHeight + 28.dp
 
     val todayIcon = painterResource(R.drawable.floatingbar_today)
     val allIcon = painterResource(R.drawable.floatingbar_all)
@@ -168,37 +157,10 @@ fun IntegratedFloatingBar(
 
     val effectiveSelectedKey = effectiveSelectedKey(selectedPageKey, normalizedNavItems)
 
-    val rotation by animateFloatAsState(
-        targetValue = if (isExpanded) 45f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "fabRotation"
-    )
-
-    // FAB 形态：圆角方形（参考稿）。收起时圆角约为边长 30%，展开时略微收方，
-    // 配合 45° 旋转换成 ✕，整体始终保持方形轮廓而非正圆。
-    val fabCorner by animateDpAsState(
-        targetValue = if (isExpanded) 12.dp else 17.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "fabCorner"
-    )
-    val fabMorphShape = RoundedCornerShape(fabCorner)
-
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // 展开时的全屏透明遮罩：点击空白处收起
-        if (isExpanded) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onExpandedChange(false) }
-            )
-        }
-
         // 主胶囊：四个「图标 + 小字」tab 均匀分布，撑满整行
         Row(
             modifier = Modifier
@@ -239,84 +201,6 @@ fun IntegratedFloatingBar(
                     }
                 }
             }
-        }
-
-        // 右下 FAB 列：纵向菜单从 FAB 上方向上弹出（设置页不显示）
-        if (effectiveSelectedKey != HomeEntryKey.SETTINGS) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = fabRowEnd)
-                .padding(bottom = fabRowBottom),
-            horizontalAlignment = Alignment.End
-        ) {
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically(
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
-                    expandFrom = Alignment.Bottom
-                ) + fadeIn(),
-                exit = shrinkVertically(
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
-                    shrinkTowards = Alignment.Bottom
-                ) + fadeOut()
-            ) {
-                AppFloatingActionSurface(
-                    shape = menuShape,
-                    containerColor = navBg,
-                    elevation = navElevation
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(196.dp)
-                            .padding(vertical = 6.dp)
-                    ) {
-                        HydrogenFabMenuItem(
-                            icon = Icons.Default.Search,
-                            label = "搜索日程",
-                            iconContainer = selectedContainer,
-                            iconTint = selectedContent,
-                            labelColor = navContent,
-                            onClick = onSearchClick
-                        )
-                        FabMenuDivider()
-                        HydrogenFabMenuItem(
-                            icon = Icons.Default.Image,
-                            label = "图片识别",
-                            iconContainer = selectedContainer,
-                            iconTint = selectedContent,
-                            labelColor = navContent,
-                            onClick = onImageClick
-                        )
-                        FabMenuDivider()
-                        HydrogenFabMenuItem(
-                            icon = Icons.Default.Edit,
-                            label = "新建日程",
-                            iconContainer = selectedContainer,
-                            iconTint = selectedContent,
-                            labelColor = navContent,
-                            onClick = onEditClick
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            HydrogenFabPlus(
-                rotation = rotation,
-                shape = fabMorphShape,
-                containerColor = fabBg,
-                iconColor = fabIcon,
-                contentDescription = if (isExpanded) "收起" else "展开操作",
-                elevation = navElevation,
-                onClick = {
-                    haptics.click()
-                    onExpandedChange(!isExpanded)
-                },
-                modifier = Modifier.size(fabSize)
-            )
-        }
         }
     }
 }
@@ -414,119 +298,6 @@ private fun TabIcon(
             contentDescription = null,
             tint = tint,
             modifier = Modifier.size(24.dp)
-        )
-    }
-}
-
-/** FAB 展开菜单条目之间的细分隔线，参考稿的分组处理。 */
-@Composable
-private fun FabMenuDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 58.dp, end = 14.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-        thickness = 1.dp,
-    )
-}
-
-/** 展开态操作胶囊内的图标按钮。 */
-@Composable
-private fun HydrogenFabAction(
-    vectorIcon: ImageVector,
-    contentDescription: String,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    val haptics = rememberAppHaptics()
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .clickable { haptics.click(); onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = vectorIcon,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(22.dp)
-        )
-    }
-}
-
-/** 独立悬浮的「＋」圆钮，展开时旋转为「✕」并渐变为圆角方块。与主胶囊同材质。 */
-@Composable
-private fun HydrogenFabPlus(
-    rotation: Float,
-    shape: Shape,
-    containerColor: Color,
-    iconColor: Color,
-    contentDescription: String,
-    elevation: Dp,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val haptics = rememberAppHaptics()
-    AppFloatingActionSurface(
-        modifier = modifier,
-        shape = shape,
-        containerColor = containerColor,
-        elevation = elevation
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable { haptics.click(); onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.Add,
-                contentDescription = contentDescription,
-                tint = iconColor,
-                modifier = Modifier
-                    .size(26.dp)
-                    .rotate(rotation)
-            )
-        }
-    }
-}
-
-/** FAB 展开菜单的纵向条目：淡色圆底图标 + 粗体标签（参考稿样式）。 */
-@Composable
-private fun HydrogenFabMenuItem(
-    icon: ImageVector,
-    label: String,
-    iconContainer: Color,
-    iconTint: Color,
-    labelColor: Color,
-    onClick: () -> Unit
-) {
-    val haptics = rememberAppHaptics()
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .clickable { haptics.click(); onClick() }
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .background(iconContainer, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = iconTint,
-                modifier = Modifier.size(21.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = label,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = labelColor
         )
     }
 }

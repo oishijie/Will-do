@@ -39,6 +39,7 @@ import com.antgskds.calendarassistant.feature.note.data.NoteRepository
 import com.antgskds.calendarassistant.feature.note.data.migration.LegacyNoteMigrator
 import com.antgskds.calendarassistant.feature.quickmemo.data.QuickMemoRepository
 import com.antgskds.calendarassistant.feature.quickmemo.data.asr.SherpaParaformerTranscriber
+import com.antgskds.calendarassistant.feature.quickmemo.domain.transcription.SpeechTranscriber
 import com.antgskds.calendarassistant.feature.quickmemo.application.audio.QuickMemoAudioPlayer
 import com.antgskds.calendarassistant.shared.query.CapsuleRoutingQueryApi
 import com.antgskds.calendarassistant.shared.query.AlarmRoutingQueryApi
@@ -140,12 +141,32 @@ class App : Application() {
         EventAttachmentManager(applicationContext)
     }
 
+    /**
+     * 全应用共享的语音转写器。
+     *
+     * 随口记语音、随手记语音、日程页「语音识别」都用同一套 ASR：模型常驻内存、
+     * 加载代价高，而 [SherpaParaformerTranscriber] 内部已缓存 recognizer 并用锁
+     * 保护并发调用，所以全应用只保留一个实例，不再各自新建一份。
+     */
+    val speechTranscriber: SpeechTranscriber by lazy {
+        SherpaParaformerTranscriber(applicationContext)
+    }
+
     private val noteRepository: NoteRepository by lazy {
         NoteRepository(com.antgskds.calendarassistant.feature.schedule.data.db.EventsDatabase.getInstance(applicationContext).notesDao())
     }
 
     val noteCenter: NoteService by lazy {
-        NoteService(noteRepository, appScope)
+        NoteService(
+            repository = noteRepository,
+            appScope = appScope,
+            // 闪记语音转写复用速记的 ASR；转写结果落 notes 表且不触发日程建议。
+            speechTranscriber = speechTranscriber,
+            // 随手记的「上实况通知」走胶囊命令口；与随口记共用同一套胶囊状态管理器。
+            capsuleCommandApi = capsuleCommandApi,
+            // 新建随手记时据此决定摘要段落落 PENDING（排队生成）还是 SKIPPED（不生成）。
+            settingsQueryApi = settingsQueryApi
+        )
     }
 
     private val quickMemoRepository: QuickMemoRepository by lazy {
@@ -158,7 +179,7 @@ class App : Application() {
         QuickMemoFacade(
             repository = quickMemoRepository,
             appScope = appScope,
-            speechTranscriber = SherpaParaformerTranscriber(applicationContext),
+            speechTranscriber = speechTranscriber,
             recognitionCenter = recognitionCenter,
             settingsQueryApi = settingsQueryApi,
             appContext = applicationContext,

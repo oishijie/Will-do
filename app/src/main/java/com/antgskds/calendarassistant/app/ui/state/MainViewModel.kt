@@ -8,6 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.antgskds.calendarassistant.feature.quickmemo.ui.connector.toFlashNoteEntry
 import com.antgskds.calendarassistant.feature.note.flash.FlashNoteNavigator
+import com.antgskds.calendarassistant.feature.note.flash.FlashNoteShareParser
+import com.antgskds.calendarassistant.feature.note.flash.FlashNoteContentExtractor
+import com.antgskds.calendarassistant.feature.note.flash.FlashNoteSummaryWorker
+import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSummaryState
 import com.antgskds.calendarassistant.feature.recognition.application.ai.AiPrompts
 import com.antgskds.calendarassistant.feature.recognition.application.ai.convertDraftToEvent
 import com.antgskds.calendarassistant.feature.recognition.application.ai.PromptCheckResult
@@ -50,6 +54,7 @@ import com.antgskds.calendarassistant.feature.backup.ui.contract.PromptCheckFeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -453,6 +458,127 @@ class MainViewModel(
         onCreated(id)
     }
 
+    /**
+     * 语音转写存入速记。
+     *
+     * 与面板里「速记区·语音转写」对应：转写文本回填进 `quick_memos`，
+     * 并由 [QuickMemoFacade] 触发日程建议识别。
+     */
+    fun createVoiceQuickMemo(
+        audioPath: String,
+        durationMs: Long,
+        onResult: (Result<Long>) -> Unit = {}
+    ) = viewModelScope.launch {
+        runCatching {
+            quickMemoCenter.createVoiceMemo(
+                audioPath = audioPath,
+                durationMs = durationMs
+            )
+        }.fold(onSuccess = { onResult(Result.success(it)) }, onFailure = { onResult(Result.failure(it)) })
+    }
+
+    /**
+     * 语音转写存入闪记。
+     *
+     * 与面板里「闪记区 · 语音转写」对应：音频与转写文本都落在 `notes`，
+     * **不触发日程建议识别**（闪记是收藏工具，不是日程输入）。
+     */
+    fun createVoiceFlashNote(
+        audioRelativePath: String,
+        displayName: String,
+        durationMs: Long,
+        onResult: (Result<Long>) -> Unit = {}
+    ) = viewModelScope.launch {
+        runCatching {
+            noteCenter.createVoiceFlashNote(
+                audioRelativePath = audioRelativePath,
+                displayName = displayName,
+                audioDurationMs = durationMs
+            ) ?: error("语音闪记创建失败")
+        }.fold(onSuccess = { onResult(Result.success(it)) }, onFailure = { onResult(Result.failure(it)) })
+    }
+
+    /** 新建纯文本闪记。 */
+    fun createTextFlashNote(text: String, onResult: (Result<Long>) -> Unit = {}) = viewModelScope.launch {
+        runCatching {
+            val noteId = noteCenter.createTextFlashNote(text = text)
+                ?: error("已在闪记中")
+            // 只有开了「随手记 AI 摘要」才排队生成；关闭时条目已落 SKIPPED，列表不会停在「生成中」。
+            if (noteCenter.aiSummaryEnabled()) {
+                FlashNoteSummaryWorker.enqueue(
+                    context = appContext,
+                    noteId = noteId,
+                    title = text.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty().take(80),
+                    content = text,
+                )
+            }
+            noteId
+        }.fold(onSuccess = { onResult(Result.success(it)) }, onFailure = { onResult(Result.failure(it)) })
+    }
+
+    /**
+     * 收藏闪记图片。
+     *
+     * 按附件相对路径去重；图片不做 OCR，摘要直接记为跳过。
+     */
+    fun createImageFlashNote(
+        attachmentPath: String,
+        attachmentName: String,
+        attachmentMime: String,
+        onResult: (Result<Long>) -> Unit = {}
+    ) = viewModelScope.launch {
+        runCatching {
+            noteCenter.createImageFlashNote(
+                attachmentPath = attachmentPath,
+                attachmentName = attachmentName,
+                attachmentMime = attachmentMime
+            ) ?: error("已在闪记中")
+        }.fold(onSuccess = { onResult(Result.success(it)) }, onFailure = { onResult(Result.failure(it)) })
+    }
+
+    /**
+     * 从剪贴板文本里取链接并收藏。
+     *
+     * 复用分享入口的解析逻辑：拿得到 URL 走网页闪记（含正文抽取与摘要），
+     * 拿不到则把整段文字当纯文本闪记收藏。
+     */
+    fun createFlashNoteFromUrl(rawText: String) = viewModelScope.launch {
+        val source = FlashNoteShareParser.parse(sharedText = rawText, sharedSubject = null)
+        if (source == null) {
+            createTextFlashNote(rawText)
+            return@launch
+        }
+        val extraction = FlashNoteContentExtractor.extractCurrentPage()
+        val noteId = noteCenter.createFlashNote(source = source, content = extraction.content)
+        if (noteId == null) {
+            return@launch
+        }
+        if (!extraction.degraded) {
+            FlashNoteSummaryWorker.enqueue(
+                context = appContext,
+                noteId = noteId,
+                title = source.articleTitle,
+                content = extraction.content
+            )
+        } else {
+            noteCenter.updateFlashSummary(noteId, FlashNoteSummaryState.FAILED)
+        }
+    }
+
+    /**
+     * 闪记语音转写。
+     *
+     * 音频已入库后跑一次 ASR 回填文本；失败只标记摘要状态，不删条目。
+     *
+     * @param audioRelativePath notes 附件目录下的相对路径。
+     */
+    fun transcribeVoiceFlashNote(noteId: Long, audioRelativePath: String) = viewModelScope.launch {
+        val absolute = withContext(Dispatchers.IO) {
+            java.io.File(appContext.filesDir, audioRelativePath).absolutePath
+        }
+        noteCenter.transcribeVoiceFlashNote(noteId = noteId, audioAbsolutePath = absolute)
+    }
+
     fun updateQuickMemoBody(memoId: Long, bodyText: String) = viewModelScope.launch {
         quickMemoCenter.updateBody(memoId, bodyText)
     }
@@ -526,11 +652,39 @@ class MainViewModel(
         quickMemoCenter.retryTranscription(memoId)
     }
 
-    fun pinQuickMemo(memoId: Long, onResult: (Result<Unit>) -> Unit = {}) = viewModelScope.launch {
+    /**
+     * 把一条随口记挂到实况通知。
+     * [pinned] = true 时常驻（输入栏的「实况通知」按钮用），false 沿用自动超时的旧行为。
+     */
+    fun pinQuickMemo(memoId: Long, pinned: Boolean = false, onResult: (Result<Unit>) -> Unit = {}) = viewModelScope.launch {
         val result = runCatching {
-            if (!quickMemoCenter.pinQuickMemo(memoId)) error("随口记不可挂起")
+            if (!quickMemoCenter.pinQuickMemo(memoId, pinned)) error("随口记不可挂起")
         }
         onResult(result)
+    }
+
+    /** 把一条随手记挂到实况通知（常驻，等用户点通知上的「移除」）。 */
+    fun pinFlashNote(noteId: Long, onResult: (Result<Unit>) -> Unit = {}) = viewModelScope.launch {
+        val result = runCatching {
+            if (!noteCenter.pinFlashNote(noteId)) error("随手记不可挂起")
+        }
+        onResult(result)
+    }
+
+    /** 取消随手记的实况挂起（同一时刻只挂一条，直接清即可）。 */
+    fun clearPinnedFlashNote(onResult: (Result<Unit>) -> Unit = {}) = viewModelScope.launch {
+        val result = runCatching { noteCenter.clearPinnedFlashNote() }.map { }
+        onResult(result)
+    }
+
+    /** 覆盖随手记正文（详情页内联编辑，防抖后调用）。 */
+    fun updateFlashNoteBody(noteId: Long, body: String) = viewModelScope.launch {
+        noteCenter.updateFlashNoteBody(noteId, body)
+    }
+
+    /** 覆盖随手记标题（详情页内联编辑，防抖后调用）。 */
+    fun updateFlashNoteTitle(noteId: Long, title: String) = viewModelScope.launch {
+        noteCenter.updateFlashNoteTitle(noteId, title)
     }
 
     fun clearPinnedQuickMemo(memoId: Long, onResult: (Result<Unit>) -> Unit = {}) = viewModelScope.launch {

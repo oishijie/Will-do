@@ -1,13 +1,23 @@
 package com.antgskds.calendarassistant.feature.home.ui.connector
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Mic
+import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
+import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.MemoInputAction
+import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.MemoInputBar
+import com.antgskds.calendarassistant.feature.home.ui.render.material.ScheduleVoiceDialog
 import com.antgskds.calendarassistant.feature.schedule.presentation.RecurringEventUtils
-import com.antgskds.calendarassistant.shared.ui.material.component.LocalDetailWorkspaceContent
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalDetailReadOnly
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalDetailDirtyChanged
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -18,7 +28,10 @@ import androidx.compose.ui.zIndex
 import com.antgskds.calendarassistant.App
 import com.antgskds.calendarassistant.feature.recognition.ingest.clipboard.ClipboardCodePrompt
 import com.antgskds.calendarassistant.feature.schedule.domain.model.RecurringMode
+import com.antgskds.calendarassistant.feature.recognition.application.ai.AnalysisResult
 import com.antgskds.calendarassistant.feature.recognition.application.ai.RecognitionFailureMessageMapper
+import com.antgskds.calendarassistant.feature.recognition.application.ai.isRecognitionConfigReady
+import com.antgskds.calendarassistant.feature.recognition.application.ai.recognitionConfigMissingMessage
 import com.antgskds.calendarassistant.feature.recognition.ui.feedback.RecognitionFeedbackSource
 import com.antgskds.calendarassistant.shared.event.DomainEventType
 import com.antgskds.calendarassistant.shared.event.events.IngestFailedEvent
@@ -55,12 +68,22 @@ import com.antgskds.calendarassistant.feature.schedule.ui.render.AddEventDialog
 import com.antgskds.calendarassistant.feature.home.ui.render.HomeScreenContent
 import com.antgskds.calendarassistant.feature.home.ui.render.HomeActionDialog
 import com.antgskds.calendarassistant.feature.home.ui.render.editionHomeEntries
+import com.antgskds.calendarassistant.shared.ui.material.component.AppModalBottomSheet
 import com.antgskds.calendarassistant.app.ui.state.MainViewModel
 import com.antgskds.calendarassistant.app.ui.state.SettingsViewModel
-import com.antgskds.calendarassistant.shared.ui.adaptive.LocalAdaptiveLayoutInfo
 import java.time.LocalDate
 import kotlin.math.roundToInt
 import com.antgskds.calendarassistant.shared.ui.interaction.LocalAppHapticsEnabled
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.ClipboardManager
+import android.content.Context
+import com.antgskds.calendarassistant.feature.note.data.attachment.NoteAttachmentStore
+import com.antgskds.calendarassistant.feature.quickmemo.data.audio.QuickMemoAudioRecorder
+import com.antgskds.calendarassistant.feature.quickmemo.domain.transcription.TranscriptionResult
+import com.antgskds.calendarassistant.shared.util.ImageImportUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private data class RecurringEditSession(
     val parentEventId: Long?,
@@ -83,6 +106,7 @@ private sealed class EditContext {
     data class RecurringOccurrence(val parentId: Long, val occurrenceTs: Long) : EditContext()
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     mainViewModel: MainViewModel,
@@ -101,8 +125,6 @@ fun HomeScreen(
     onNavigateToSettings: (SettingsDestination) -> Unit
 ) {
     val app = LocalContext.current.applicationContext as App
-    val adaptiveLayoutInfo = LocalAdaptiveLayoutInfo.current
-    val useNavigationRail = adaptiveLayoutInfo.useNavigationRail
     // 从 settings 读取主题状态
     val settings by settingsViewModel.settings.collectAsState()
     val uiState by mainViewModel.uiState.collectAsState()
@@ -198,7 +220,6 @@ fun HomeScreen(
 
     // 弹窗状态管理
     var detailDirty by remember { mutableStateOf(false) }
-    var openedQuickMemoId by remember { mutableStateOf<Long?>(null) }
     var showAddEventDialog by remember { mutableStateOf(false) }
     var editDraft by remember { mutableStateOf<com.antgskds.calendarassistant.feature.schedule.application.model.EditDraft?>(null) }
     var editContext by remember { mutableStateOf<EditContext?>(null) }
@@ -209,6 +230,267 @@ fun HomeScreen(
     var scheduleItemToDelete by remember { mutableStateOf<ScheduleDisplayItem?>(null) }
     var selectedQuickMemoAction by remember { mutableStateOf<QuickMemoEntity?>(null) }
     var selectedFlashNoteKey by remember { mutableStateOf<String?>(null) }
+    // ===== 键盘上方的记事输入栏 =====
+    // 目标区：null = 收起。点「添加随口记」→ QUICK_MEMO，点「添加随手记」→ FLASH_NOTE。
+    var memoInputTarget by remember { mutableStateOf<MemoStreamSegment?>(null) }
+    var memoInputText by remember { mutableStateOf("") }
+    // 随口记那支录音器：是否在录、是否在转写。
+    var isMemoRecording by remember { mutableStateOf(false) }
+    var isMemoVoiceTranscribing by remember { mutableStateOf(false) }
+    // 日程页「语音识别」：录音弹窗开关 + 是否正在转写落库。
+    var isScheduleVoiceDialogOpen by remember { mutableStateOf(false) }
+    var isScheduleVoiceSaving by remember { mutableStateOf(false) }
+    var memoSegment by rememberSaveable { mutableStateOf(MemoStreamSegment.ALL) }
+    val memoRecorder = remember(app) { QuickMemoAudioRecorder(app) }
+
+    // ===== 输入栏的语音：录音 → 本地转写 → 文字填进输入框 =====
+    // 不直接入库：转写结果先落进输入框，用户可以改，改完再按发送。
+
+    fun startMemoVoice() {
+        if (isMemoRecording || isMemoVoiceTranscribing) return
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { memoRecorder.start() } }
+                .onSuccess {
+                    isMemoRecording = true
+                    showToast("正在录音，再点一次结束", ToastType.INFO)
+                }
+                .onFailure { showToast(it.message ?: "录音失败", ToastType.ERROR) }
+        }
+    }
+
+    fun stopMemoVoiceToText() {
+        if (!isMemoRecording || isMemoVoiceTranscribing) return
+        scope.launch {
+            isMemoVoiceTranscribing = true
+            val recorded = runCatching { withContext(Dispatchers.IO) { memoRecorder.stop() } }.getOrNull()
+            isMemoRecording = false
+            if (recorded == null || recorded.durationMs < QuickMemoAudioRecorder.MIN_RECORDING_MS) {
+                recorded?.path?.let { path -> runCatching { java.io.File(path).delete() } }
+                isMemoVoiceTranscribing = false
+                showToast("录音太短", ToastType.ERROR)
+                return@launch
+            }
+            try {
+                when (val result = app.speechTranscriber.transcribe(recorded.path)) {
+                    is TranscriptionResult.Success -> {
+                        val text = result.text.trim()
+                        if (text.isNotEmpty()) {
+                            memoInputText = if (memoInputText.isBlank()) text
+                            else memoInputText.trimEnd() + " " + text
+                        }
+                    }
+
+                    is TranscriptionResult.Failure ->
+                        showToast(result.message.ifBlank { "语音识别失败" }, ToastType.ERROR)
+                }
+            } catch (e: Exception) {
+                showToast(e.message ?: "语音识别失败", ToastType.ERROR)
+            } finally {
+                runCatching { java.io.File(recorded.path).delete() }
+                isMemoVoiceTranscribing = false
+            }
+        }
+    }
+
+    /** 收起输入栏。正在录就直接丢弃（用户主动关 = 取消），避免录音器悬空。 */
+    fun closeMemoInput() {
+        if (isMemoRecording) {
+            scope.launch {
+                runCatching { withContext(Dispatchers.IO) { memoRecorder.stop() } }
+                    .getOrNull()?.path?.let { path -> runCatching { java.io.File(path).delete() } }
+                isMemoRecording = false
+            }
+        }
+        memoInputTarget = null
+        memoInputText = ""
+    }
+
+    /** 发送输入框里的文字，存进当前目标区。 */
+    fun submitMemoInput() {
+        val target = memoInputTarget ?: return
+        val text = memoInputText.trim()
+        if (text.isEmpty()) return
+        if (target == MemoStreamSegment.FLASH_NOTE) {
+            mainViewModel.createTextFlashNote(text) { outcome ->
+                outcome
+                    .onSuccess { showToast("已保存随手记", ToastType.SUCCESS) }
+                    .onFailure { showToast(it.message ?: "保存失败", ToastType.ERROR) }
+            }
+        } else {
+            mainViewModel.createTextQuickMemo(text)
+            showToast("已保存随口记", ToastType.SUCCESS)
+        }
+        closeMemoInput()
+    }
+
+    // ===== 日程页「语音识别」：录音 → 本地转写 → 交给识别链路建日程 =====
+    // 复用随口记那支录音器（同一时刻只会有一处录音）；转写走 App 里共享的 ASR 实例，
+    // 不再为这条链路单独加载一份模型。
+    fun stopScheduleVoice() {
+        if (isScheduleVoiceSaving) return
+        scope.launch {
+            isScheduleVoiceSaving = true
+            val recorded = runCatching { withContext(Dispatchers.IO) { memoRecorder.stop() } }.getOrNull()
+            if (recorded == null || recorded.durationMs < QuickMemoAudioRecorder.MIN_RECORDING_MS) {
+                recorded?.path?.let { path -> runCatching { java.io.File(path).delete() } }
+                isScheduleVoiceSaving = false
+                isScheduleVoiceDialogOpen = false
+                showToast("录音太短", ToastType.ERROR)
+                return@launch
+            }
+            try {
+                when (val transcribed = app.speechTranscriber.transcribe(recorded.path)) {
+                    is TranscriptionResult.Failure ->
+                        showToast(transcribed.message, ToastType.ERROR)
+
+                    is TranscriptionResult.Success -> {
+                        if (!settings.isRecognitionConfigReady()) {
+                            showToast(settings.recognitionConfigMissingMessage(), ToastType.ERROR)
+                        } else {
+                            when (
+                                val analysis = app.recognitionCenter.parseUserText(
+                                    text = transcribed.text,
+                                    settings = settings,
+                                    context = app,
+                                    sourceType = "voice",
+                                    sourceId = "home_schedule_voice",
+                                    ingestRequested = true
+                                )
+                            ) {
+                                is AnalysisResult.Success ->
+                                    showToast(analysis.feedback(), ToastType.SUCCESS)
+
+                                is AnalysisResult.Empty ->
+                                    showToast(analysis.message, ToastType.INFO)
+
+                                is AnalysisResult.Failure ->
+                                    showToast(analysis.failure.fullMessage(), ToastType.ERROR)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                showToast(e.message ?: "语音识别失败", ToastType.ERROR)
+            } finally {
+                runCatching { java.io.File(recorded.path).delete() }
+                isScheduleVoiceSaving = false
+                isScheduleVoiceDialogOpen = false
+            }
+        }
+    }
+
+    /** 速记选图：复制进 quick_memos/images 后直接存成图片速记。 */
+    val memoImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        ImageImportUtils.createQuickMemoImageFile(app).also { file ->
+                            check(ImageImportUtils.copyUriToFile(app, uri, file)) { "图片读取失败" }
+                        }
+                    }
+                }
+                    .onSuccess { file ->
+                        mainViewModel.createImageQuickMemo(file.absolutePath) {
+                            showToast("已保存速记", ToastType.SUCCESS)
+                        }
+                    }
+                    .onFailure { showToast(it.message ?: "保存图片失败", ToastType.ERROR) }
+            }
+        }
+    }
+
+    /** 闪记选图：落进 notes 附件目录。 */
+    val noteImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching { withContext(Dispatchers.IO) { NoteAttachmentStore.copyFromUri(app, uri) } }
+                    .onSuccess { stored ->
+                        mainViewModel.createImageFlashNote(
+                            attachmentPath = stored.relativePath,
+                            attachmentName = stored.displayName,
+                            attachmentMime = stored.mimeType
+                        )
+                        showToast("已收藏图片", ToastType.SUCCESS)
+                    }
+                    .onFailure { showToast(it.message ?: "保存图片失败", ToastType.ERROR) }
+            }
+        }
+    }
+
+    /** 打开输入栏：目标区决定这条内容存进随口记还是随手记。 */
+    fun openMemoInput(target: MemoStreamSegment) {
+        memoInputText = ""
+        memoInputTarget = target
+    }
+
+    /**
+     * 「实况通知」：把输入框这条存进目标区，同时挂到状态栏**常驻**
+     * （不自动消失，用户点通知上的「移除」才收）。两区都走这条，只是落库位置不同。
+     *
+     * 注意：局部函数必须先定义后使用，不要再挪到 [handleMemoInputAction] 之后。
+     */
+    fun saveAndPinCapsule(target: MemoStreamSegment) {
+        val text = memoInputText.trim()
+        if (text.isEmpty()) {
+            showToast("先写点什么再上实况通知", ToastType.INFO)
+            return
+        }
+        if (target == MemoStreamSegment.FLASH_NOTE) {
+            mainViewModel.createTextFlashNote(text) { created ->
+                created
+                    .onSuccess { noteId ->
+                        mainViewModel.pinFlashNote(noteId) { pinned ->
+                            pinned
+                                .onSuccess { showToast("已保存随手记并挂上实况通知", ToastType.SUCCESS) }
+                                .onFailure { showToast(it.message ?: "挂实况通知失败", ToastType.ERROR) }
+                        }
+                    }
+                    .onFailure { showToast(it.message ?: "保存失败", ToastType.ERROR) }
+            }
+        } else {
+            mainViewModel.createTextQuickMemo(text) { memoId ->
+                mainViewModel.pinQuickMemo(memoId, pinned = true) { pinned ->
+                    pinned
+                        .onSuccess { showToast("已保存随口记并挂上实况通知", ToastType.SUCCESS) }
+                        .onFailure { showToast(it.message ?: "挂实况通知失败", ToastType.ERROR) }
+                }
+            }
+        }
+        closeMemoInput()
+    }
+
+    /**
+     * 输入栏底部那排按钮：图片 / 链接 / 实况通知 / 语音。
+     * 两区按钮完全一致（原先随口记缺的「链接」已统一补齐）。
+     */
+    fun handleMemoInputAction(id: String) {
+        val target = memoInputTarget ?: return
+        when (id) {
+            "image" -> if (target == MemoStreamSegment.FLASH_NOTE) {
+                noteImagePicker.launch("image/*")
+            } else {
+                memoImagePicker.launch("image/*")
+            }
+
+            "link" -> {
+                val clip = readClipboardText(app)
+                if (clip.isNullOrBlank()) {
+                    // 部分系统限制读剪贴板，不要卡住用户——输入框就在上面，让他直接粘。
+                    showToast("读不到剪贴板内容，直接粘进输入框吧", ToastType.INFO)
+                } else {
+                    mainViewModel.createFlashNoteFromUrl(clip)
+                    showToast("已保存链接", ToastType.SUCCESS)
+                    closeMemoInput()
+                }
+            }
+
+            "capsule" -> saveAndPinCapsule(target)
+
+            "voice" -> if (isMemoRecording) stopMemoVoiceToText() else startMemoVoice()
+        }
+    }
+
     var showClearQuickMemosConfirm by remember { mutableStateOf(false) }
     var dialogAttachments by remember { mutableStateOf<List<EventAttachment>>(emptyList()) }
     var currentDialogSessionId by remember { mutableStateOf(0L) }
@@ -392,32 +674,23 @@ fun HomeScreen(
         if (detailDirty) { showToast("请先保存或返回，处理当前未保存的内容"); return }
         isActionExpanded = false
         if (effectiveSelectedPageKey == HomeEntryKey.NOTE) {
-            mainViewModel.createTextQuickMemo("") { id ->
-                if (adaptiveLayoutInfo.useTwoPaneContent) openedQuickMemoId = id else onOpenQuickMemoDetail(id)
-            }
+            mainViewModel.createTextQuickMemo("") { id -> onOpenQuickMemoDetail(id) }
         } else {
             openAddEventDialog()
         }
     }
 
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // 底栏常驻（一级导航栏已移除），悬浮卡片与 Toast 始终让开底栏高度。
     val cardFloatingBarOffset =
-        if (useNavigationRail) {
+        IntegratedFloatingBarHeight +
+            IntegratedFloatingBarBottomSpacing +
             bottomInset
-        } else {
-            IntegratedFloatingBarHeight +
-                IntegratedFloatingBarBottomSpacing +
-                bottomInset
-        }
     val toastFloatingBarOffset =
-        if (useNavigationRail) {
-            bottomInset + 16.dp
-        } else {
-            IntegratedFloatingBarVisualHeight +
-                IntegratedFloatingBarToastGap +
-                IntegratedFloatingBarBottomSpacing +
-                bottomInset
-        }
+        IntegratedFloatingBarVisualHeight +
+            IntegratedFloatingBarToastGap +
+            IntegratedFloatingBarBottomSpacing +
+            bottomInset
     val hasAppBackground = settings.appBackgroundImagePath.isNotBlank()
 
     val editorContent: @Composable () -> Unit = {
@@ -427,7 +700,7 @@ fun HomeScreen(
     key(dialogKey) {
         AddEventDialog(
             visible = isDialogVisible,
-            initialDate = uiState.selectedDate.takeIf { adaptiveLayoutInfo.useTwoPaneContent },
+            initialDate = null,
             editDraft = editDraft,
             currentEventsCount = uiState.rawEventCount,
             settings = settings,
@@ -521,21 +794,19 @@ fun HomeScreen(
     CompositionLocalProvider(
         LocalDetailReadOnly provides demoModeEnabled,
         LocalDetailDirtyChanged provides { detailDirty = it },
-        LocalDetailWorkspaceContent provides
-        if (adaptiveLayoutInfo.useTwoPaneContent && (showAddEventDialog || editDraft != null)) editorContent else null) {
+    ) {
     HomeScreenContent(
         state = HomeShellUiState(
             backgroundEnabled = hasAppBackground,
             backgroundMiuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled,
             backgroundCardAlphaPercent = settings.appBackgroundCardAlphaPercent,
-            useNavigationRail = useNavigationRail,
         ),
         content = {
             // 设置页 = 原侧边栏内容，作为常驻底栏的固定入口原地切换
-            BackHandler(enabled = effectiveSelectedPageKey == HomeEntryKey.SETTINGS && !useNavigationRail) {
+            BackHandler(enabled = effectiveSelectedPageKey == HomeEntryKey.SETTINGS) {
                 onSelectedPageKeyChange(HomeEntryKey.TODAY)
             }
-            if (effectiveSelectedPageKey == HomeEntryKey.SETTINGS && !useNavigationRail) {
+            if (effectiveSelectedPageKey == HomeEntryKey.SETTINGS) {
                 SettingsTabPage(
                     glassMode = hasAppBackground,
                     onNavigate = { destination ->
@@ -555,8 +826,6 @@ fun HomeScreen(
                 imageRequestId = imageRequestId,
                 onRequestsHandled = { searchRequestId = 0; imageRequestId = 0 },
                 isSidebarOpen = false,
-                isWideNavigation = useNavigationRail,
-                isTwoPane = adaptiveLayoutInfo.useTwoPaneContent,
                 onPageChange = { page ->
                     if (detailDirty) showToast("请先保存或返回，处理当前未保存的内容")
                     else {
@@ -569,8 +838,6 @@ fun HomeScreen(
                     }
                 },
                 onAddEventClick = { openPrimaryCreateDialog() },
-                openQuickMemoId = openedQuickMemoId,
-                onQuickMemoOpened = { openedQuickMemoId = null },
                 onEditItem = { item -> beginEditItem(item) },
                 onRequestDeleteItem = { item -> requestDeleteItem(item) },
                 onRequestDeleteQuickMemo = { memo -> selectedQuickMemoAction = memo },
@@ -579,6 +846,23 @@ fun HomeScreen(
                 quickMemoCount = quickMemoCount,
                 onOpenQuickMemoDetail = onOpenQuickMemoDetail,
                 onOpenFlashNoteDetail = onOpenFlashNoteDetail,
+                memoSegment = memoSegment,
+                onMemoSegmentChange = { memoSegment = it },
+                onAddQuickMemo = { openMemoInput(MemoStreamSegment.QUICK_MEMO) },
+                onAddFlashNote = { openMemoInput(MemoStreamSegment.FLASH_NOTE) },
+                onVoiceSchedule = {
+                    when {
+                        // 随口记那支录音器正在用：不抢麦，提示一下就走。
+                        isMemoRecording || isScheduleVoiceSaving ->
+                            showToast("请先结束当前录音", ToastType.INFO)
+
+                        else -> scope.launch {
+                            runCatching { withContext(Dispatchers.IO) { memoRecorder.start() } }
+                                .onSuccess { isScheduleVoiceDialogOpen = true }
+                                .onFailure { showToast(it.message ?: "录音失败", ToastType.ERROR) }
+                        }
+                    }
+                },
                 onScheduleExpandedChange = { isScheduleExpanded = it },
                 onScheduleProgressChange = { scheduleProgress = it },
                 onScheduleOffsetChange = { scheduleOffsetPx = it.coerceAtLeast(0f) },
@@ -593,8 +877,7 @@ fun HomeScreen(
         androidx.compose.runtime.CompositionLocalProvider(
             LocalAppHapticsEnabled provides settings.hapticFeedbackEnabled
         ) {
-        if (!useNavigationRail) {
-            IntegratedFloatingBar(
+        IntegratedFloatingBar(
             isExpanded = isActionExpanded,
             onExpandedChange = { isActionExpanded = it },
             navItems = homeBottomItems,
@@ -625,8 +908,7 @@ fun HomeScreen(
                 .navigationBarsPadding()
                 .padding(bottom = IntegratedFloatingBarBottomSpacing)
                 .zIndex(3f)
-            )
-        }
+        )
         }
         },
         overlay = {
@@ -681,6 +963,57 @@ fun HomeScreen(
             modifier = Modifier
                 .padding(bottom = cardFloatingBarOffset + 16.dp)
         )
+
+        // 键盘上方的输入栏：从顶栏 ⋮ 的「添加随口记 / 添加随手记」进来。
+        // 挂在这一层而不是菜单里——菜单一点就关，挂里面会被一起卸载。
+        val inputTarget = memoInputTarget
+        if (inputTarget != null) {
+            MemoInputBar(
+                text = memoInputText,
+                onTextChange = { memoInputText = it },
+                onSend = { submitMemoInput() },
+                actions = listOf(
+                    MemoInputAction("image", Icons.Outlined.Image, "图片") {
+                        handleMemoInputAction("image")
+                    },
+                    MemoInputAction("link", Icons.Outlined.Link, "链接") {
+                        handleMemoInputAction("link")
+                    },
+                    MemoInputAction("capsule", Icons.Outlined.ArrowUpward, "上实况通知") {
+                        handleMemoInputAction("capsule")
+                    },
+                    MemoInputAction(
+                        id = "voice",
+                        icon = Icons.Outlined.Mic,
+                        label = if (isMemoRecording) "结束录音" else "语音转文字",
+                        active = isMemoRecording
+                    ) { handleMemoInputAction("voice") }
+                ),
+                hapticEnabled = settings.hapticFeedbackEnabled,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .imePadding()
+                    .zIndex(6f)
+            )
+        }
+
+        // 输入栏开着时，返回键先收输入栏，不退页面。
+        BackHandler(enabled = memoInputTarget != null) { closeMemoInput() }
+
+        // 日程页「语音识别」的录音弹窗。同样挂在 HomeScreen 层：
+        // 顶栏那个下拉菜单一点就关，弹窗要是挂在菜单里会跟着被卸载。
+        if (isScheduleVoiceDialogOpen) {
+            ScheduleVoiceDialog(
+                isSaving = isScheduleVoiceSaving,
+                onStop = { stopScheduleVoice() },
+                onDismiss = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { memoRecorder.stopAndDiscard() }
+                        isScheduleVoiceDialogOpen = false
+                    }
+                }
+            )
+        }
 
         HomeActionDialog(
             visible = selectedFlashNoteKey != null,
@@ -792,7 +1125,7 @@ fun HomeScreen(
 
     // --- 全局弹窗处理 (仅保留日常操作) ---
 
-    if (!adaptiveLayoutInfo.useTwoPaneContent) editorContent()
+    editorContent()
 
 }
 
@@ -839,4 +1172,16 @@ private fun PredictiveRecurringEditActionCard(
         onDismiss = onEditThis,
         modifier = modifier
     )
+}
+
+/**
+ * 从剪贴板取纯文本，供「闪记 · 链接」入口使用。
+ *
+ * 只取第一项；部分系统限制后台读剪贴板时会返回空，
+ * 调用方需要走退化路径（转成手动输入），不要直接把用户卡住。
+ */
+private fun readClipboardText(context: Context): String? {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        ?: return null
+    return clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
 }
