@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.antgskds.calendarassistant.feature.note.data.attachment.NoteAttachmentStore
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.FlashNoteListEntry
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
@@ -52,60 +54,73 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 速记 / 闪记分段选择器。
+ * 类型筛选：全部 / 随口记 / 随手记。
  *
- * 两个 Tab 内容差异大（速记有提醒与语音，闪记是AI 摘要），所以用分段切换而不是
- * 强行合成同一个列表项——共用页面框架，各自用各自合适的卡片。
+ * 做成小胶囊而不是撑满整行的分段控件——面板里一行就能放下，不占垂直空间；
+ * 选中项用主题色实底，点选立即生效，并带条目数避免切过去才发现是空的。
  */
 @Composable
-internal fun MemoStreamSegmentBar(
+internal fun MemoStreamFilterBar(
     current: MemoStreamSegment,
+    memoCount: Int,
     flashCount: Int,
     onSelect: (MemoStreamSegment) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptics = rememberAppHaptics()
+    val options = listOf(
+        Triple(MemoStreamSegment.ALL, "全部", memoCount + flashCount),
+        Triple(MemoStreamSegment.QUICK_MEMO, "随口记", memoCount),
+        Triple(MemoStreamSegment.FLASH_NOTE, "随手记", flashCount)
+    )
+
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        MemoStreamSegment.entries.forEach { segment ->
+        options.forEach { (segment, label, count) ->
             val selected = segment == current
-            Box(
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(percent = 50))
                     .background(
-                        if (selected) MaterialTheme.colorScheme.surface
-                        else androidx.compose.ui.graphics.Color.Transparent
+                        if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        }
                     )
-                    .combinedClickable(
-                        onClick = { onSelect(segment) },
-                        onLongClick = null
-                    )
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center
+                    .clickable {
+                        haptics.selection()
+                        onSelect(segment)
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (segment == MemoStreamSegment.FLASH_NOTE && flashCount > 0) {
-                        "闪记 $flashCount"
-                    } else {
-                        when (segment) {
-                            MemoStreamSegment.QUICK_MEMO -> "随口记"
-                            MemoStreamSegment.FLASH_NOTE -> "闪记"
-                        }
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                     color = if (selected) {
-                        MaterialTheme.colorScheme.primary
+                        MaterialTheme.colorScheme.onPrimary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
+                if (count > 0) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = count.toString(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        }
+                    )
+                }
             }
         }
     }

@@ -47,7 +47,13 @@ fun FlashNoteDetailRoute(
         hapticEnabled = hapticEnabled,
         backgroundMode = backgroundMode,
         miuiBlurEnabled = miuiBlurEnabled,
-        onOpenSource = { viewModel.openFlashNoteSource(noteId) }
+        onOpenSource = { viewModel.openFlashNoteSource(noteId) },
+        onSaveTitle = { title -> viewModel.updateFlashNoteTitle(noteId, title) },
+        onSaveBody = { body -> viewModel.updateFlashNoteBody(noteId, body) },
+        onDelete = { viewModel.deleteNote(noteId) { onBack() } },
+        onTogglePin = { pinned ->
+            if (pinned) viewModel.pinFlashNote(noteId) else viewModel.clearPinnedFlashNote()
+        }
     )
 }
 

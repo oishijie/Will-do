@@ -129,6 +129,7 @@ import com.antgskds.calendarassistant.feature.home.ui.render.material.component.
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarShadowPadding
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
+import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.FlashNoteListEntry
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoDetailUiState
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoListUiState
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoUiAction
@@ -156,6 +157,18 @@ import kotlinx.coroutines.withContext
 private val quickMemoTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val quickMemoDateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 HH:mm")
 private val quickMemoDateGroupFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINESE)
+/**
+ * 聚合列表里的一项：速记与闪记二选一。
+ *
+ * 两者数据模型差异大（速记是扁平整记录、闪记是展示模型），
+ * 故用可空字段区分而不是强行合成一个实体。
+ */
+private data class MergedItem(
+    val timestamp: Long,
+    val memo: QuickMemoEntity?,
+    val flashNote: FlashNoteListEntry?
+)
+
 @Composable
 fun MaterialQuickMemoScreen(
     state: QuickMemoListUiState,
@@ -186,13 +199,34 @@ fun MaterialQuickMemoScreen(
             )
     }
     val topMemoKey = filteredMemos.firstOrNull()?.let { it.id ?: it.hashCode().toLong() }
-    val groupedMemos = remember(filteredMemos) {
-        filteredMemos
-            .groupBy { memo ->
-                LocalDateTime.ofInstant(Instant.ofEpochMilli(memo.createdAt), ZoneId.systemDefault()).toLocalDate()
+
+    // 聚合列表：速记与闪记按时间倒序混排，同一日期的条目归到同一组。
+    // 按类型筛选后混排；速记用 sortRank/更新时间，闪记用更新时间。
+    val mergedItems = remember(filteredMemos, state.flashNotes, state.segment) {
+        val memos = if (MemoStreamSegment.matches(state.segment, isFlash = false)) {
+            filteredMemos.map { MergedItem(timestamp = it.createdAt, memo = it, flashNote = null) }
+        } else {
+            emptyList()
+        }
+        val flash = if (MemoStreamSegment.matches(state.segment, isFlash = true)) {
+            state.flashNotes.map { MergedItem(timestamp = it.updatedAt, memo = null, flashNote = it) }
+        } else {
+            emptyList()
+        }
+        (memos + flash).sortedByDescending { it.timestamp }
+    }
+
+    val groupedItems = remember(mergedItems) {
+        mergedItems
+            .groupBy { item ->
+                LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(item.timestamp),
+                    ZoneId.systemDefault()
+                ).toLocalDate()
             }
             .toSortedMap(compareByDescending { it })
     }
+
     val suggestionsByMemo = remember(suggestions) {
         suggestions
             .filter { it.status == QuickMemoSuggestionStatus.PENDING || it.status == QuickMemoSuggestionStatus.CREATED }
@@ -205,61 +239,17 @@ fun MaterialQuickMemoScreen(
         }
     }
 
-    // 速记与闪记共用这个 Tab，顶部给一个分段选择器；闪记没有双栏详情，切到该段时不占secondary。
-    val segmentHeader: @Composable () -> Unit = {
-        MemoStreamSegmentBar(
-            current = state.segment,
-            flashCount = state.flashNotes.size,
-            onSelect = { onAction(QuickMemoUiAction.SelectSegment(it)) },
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-        )
-    }
+    // 筛选条已移入右上角操作面板，列表本身只承载条目。
 
-    if (state.segment == MemoStreamSegment.FLASH_NOTE) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 0.dp, bottom = bottomSafePadding + 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item(key = "segment") { segmentHeader() }
-                if (state.flashNotes.isEmpty()) {
-                    item(key = "flash_empty") {
-                        FlashNoteEmptyState(
-                            searching = searchQuery.isNotBlank(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 28.dp, vertical = 72.dp)
-                        )
-                    }
-                } else {
-                    items(state.flashNotes, key = { it.key }) { entry ->
-                        FlashNoteListRow(
-                            entry = entry,
-                            hapticEnabled = hapticEnabled,
-                            onClick = { onAction(QuickMemoUiAction.OpenFlashNote(entry.key)) },
-                            onLongPress = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
-                            onDeleteRequest = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
-                            uiSize = uiSize,
-                            modifier = Modifier.padding(horizontal = 20.dp)
-                        )
-                    }
-                }
-            }
-        }
-        return
-    }
 
-    // 空态也走 LazyColumn，否则分段选择器会被空态分支吞掉，
-    // 导致「速记为空时无法切到闪记段」。
+    // 空态也走 LazyColumn，否则筛选条会被空态分支吞掉，
+    // 导致「两类都为空时无法切换筛选」。
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 0.dp, bottom = bottomSafePadding + 24.dp)
     ) {
-        item(key = "segment") { segmentHeader() }
-        if (filteredMemos.isEmpty()) {
+        if (mergedItems.isEmpty()) {
             item(key = "empty") {
                 Column(
                     modifier = Modifier
@@ -269,14 +259,14 @@ fun MaterialQuickMemoScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = if (searchQuery.isBlank()) "还没有随口记" else "未找到相关随口记",
+                        text = if (searchQuery.isBlank()) "还没有记事" else "未找到相关记录",
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = if (searchQuery.isBlank()) {
-                            "从悬浮窗快速记下一句话，之后可以继续整理。"
+                            "点右上角「⋮」里的「添加随口记 / 添加随手记」记一条，或从浏览器分享内容过来。"
                         } else {
-                            "换个关键词试试，搜索会匹配随口记正文。"
+                            "换个关键词试试，搜索会匹配随口记与随手记内容。"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
@@ -284,7 +274,7 @@ fun MaterialQuickMemoScreen(
                 }
             }
         } else {
-            groupedMemos.forEach { (date, memos) ->
+            groupedItems.forEach { (date, dayItems) ->
             item(key = "header_$date") {
                 Text(
                     text = "—— ${formatDateGroup(date)}",
@@ -294,8 +284,13 @@ fun MaterialQuickMemoScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            items(memos, key = { it.id ?: it.hashCode().toLong() }) { memo ->
-                QuickMemoListItem(
+            items(dayItems, key = { item ->
+                val memoId = item.memo?.id
+                if (memoId != null) "memo:$memoId" else "flash:${item.flashNote?.key.orEmpty()}"
+            }) { item ->
+                val memo = item.memo
+                if (memo != null) {
+                    QuickMemoListItem(
                     memo = memo,
                     suggestions = memo.id?.let { suggestionsByMemo[it] }.orEmpty(),
                     playbackState = playbackState,
@@ -328,6 +323,22 @@ fun MaterialQuickMemoScreen(
                         vertical = metrics.listVerticalPadding
                     )
                 )
+                } else {
+                    item.flashNote?.let { entry ->
+                        FlashNoteListRow(
+                            entry = entry,
+                            hapticEnabled = hapticEnabled,
+                            onClick = { onAction(QuickMemoUiAction.OpenFlashNote(entry.key)) },
+                            onLongPress = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
+                            onDeleteRequest = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
+                            uiSize = uiSize,
+                            modifier = Modifier.padding(
+                                horizontal = metrics.listHorizontalPadding,
+                                vertical = metrics.listVerticalPadding
+                            )
+                        )
+                    }
+                }
             }
             }
         }
@@ -1467,7 +1478,7 @@ internal fun MaterialQuickMemoDetailBottomBar(
 }
 
 @Composable
-private fun QuickMemoActionButton(
+internal fun QuickMemoActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     isActive: Boolean,
