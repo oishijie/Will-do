@@ -68,6 +68,12 @@ fun FeatureHubSettingsPage(
                     onClick = { haptics.click(); onNavigate(SettingsDestination.QuickMemo) }
                 )
                 SettingsEntryItem(
+                    title = "随手记",
+                    subtitle = "AI 摘要等条目行为",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.FlashNote) }
+                )
+                SettingsEntryItem(
                     title = "悬浮与侧边栏",
                     subtitle = "悬浮窗、侧边栏与悬浮球",
                     chevronTint = chevronTint,

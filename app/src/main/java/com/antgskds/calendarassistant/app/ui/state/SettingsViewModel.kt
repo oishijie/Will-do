@@ -373,6 +373,15 @@ class SettingsViewModel(
         onUpdated()
     }
 
+    /**
+     * 随手记 AI 摘要开关。
+     *
+     * 关闭后新保存的随手记直接落 SKIPPED、不排队调模型；已经生成过摘要的旧条目不受影响。
+     */
+    fun setFlashNoteAiSummaryEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsOperationApi.updateSettings(settings.value.copy(flashNoteAiSummaryEnabled = enabled))
+    }
+
     fun setAutoRecordLogs(enabled: Boolean) = viewModelScope.launch {
         settingsOperationApi.updateSettings(settings.value.copy(autoRecordLogs = enabled))
     }

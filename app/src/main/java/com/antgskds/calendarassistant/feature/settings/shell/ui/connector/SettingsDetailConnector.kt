@@ -12,6 +12,8 @@ import com.antgskds.calendarassistant.feature.recognition.ui.connector.AiSetting
 import com.antgskds.calendarassistant.feature.recognition.ui.connector.RegexRuleEditorPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ArchivesPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ScheduleColorSettingsPage
+import com.antgskds.calendarassistant.feature.settings.externalcall.ui.render.material.ExternalCallSettingsPage
+import com.antgskds.calendarassistant.feature.settings.flashnote.ui.FlashNoteSettingsPage
 import com.antgskds.calendarassistant.feature.settings.quickmemo.ui.QuickMemoSettingsPage
 import com.antgskds.calendarassistant.feature.settings.floating.ui.FloatingEntrySettingsPage
 import com.antgskds.calendarassistant.feature.settings.schedule.ui.ScheduleNotificationSettingsPage
@@ -145,6 +147,11 @@ private fun SettingsPageRouteContent(
             uiSize = uiSize,
         )
 
+        SettingsDestination.FlashNote -> FlashNoteSettingsPage(
+            viewModel = settingsViewModel,
+            uiSize = uiSize,
+        )
+
         SettingsDestination.FloatingEntry -> FloatingEntrySettingsPage(
             viewModel = settingsViewModel,
             uiSize = uiSize,
@@ -172,6 +179,11 @@ private fun SettingsPageRouteContent(
             settingsViewModel = settingsViewModel,
             mainViewModel = mainViewModel,
             onNavigateToDeveloper = { onNavigateTo(SettingsDestination.Developer) },
+            onNavigateToExternalCall = { onNavigateTo(SettingsDestination.ExternalCall) },
+        )
+
+        SettingsDestination.ExternalCall -> ExternalCallSettingsPage(
+            hapticEnabled = settingsViewModel.settings.value.hapticFeedbackEnabled,
         )
 
         SettingsDestination.Developer -> DeveloperPage(

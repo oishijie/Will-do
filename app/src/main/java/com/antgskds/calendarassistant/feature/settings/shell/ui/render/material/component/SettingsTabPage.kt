@@ -95,7 +95,7 @@ fun SettingsTabPage(
             SettingsSectionCard(cardColor = cardColor, cardShape = cardShape) {
                 SettingsEntryItem(
                     title = "功能设置",
-                    subtitle = "模型、天气、随口记、悬浮与日程",
+                    subtitle = "模型、天气、随口记、随手记、悬浮与日程",
                     chevronTint = chevronTint,
                     onClick = { haptics.click(); onNavigate(SettingsDestination.FeatureHub) }
                 )

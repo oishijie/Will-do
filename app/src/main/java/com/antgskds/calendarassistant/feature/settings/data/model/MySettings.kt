@@ -168,6 +168,11 @@ data class MySettings(
     val quickMemoAutoStopEnabled: Boolean = false,
     val quickMemoAutoStopSeconds: Int = QUICK_MEMO_AUTO_STOP_DEFAULT_SECONDS,
 
+    // 随手记：保存时是否调用模型生成 AI 摘要。
+    // 默认关闭——随手记多为随手记下的一两句话，自动摘要既消耗额度又没什么价值；
+    // 关闭后条目直接落 SKIPPED 状态，列表不会一直停在「摘要生成中」。
+    val flashNoteAiSummaryEnabled: Boolean = false,
+
     // 【新增】归档配置
     val autoArchiveEnabled: Boolean = false, // 自动归档总开关
     val archiveDaysThreshold: Int = 0, // 归档阈值天数（过期多少天后归档，0=立即归档）

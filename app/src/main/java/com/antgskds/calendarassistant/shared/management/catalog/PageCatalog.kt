@@ -59,8 +59,9 @@ object PageCatalog {
         PageEntry(SettingsDestination.AI, "settings_ai", "模型与连接", PageVisibility.USER, "配置 AI 识别模型、识别与推理策略及 Agent 访问"),
         PageEntry(SettingsDestination.Weather, "settings_weather", "天气", PageVisibility.USER, "天气位置与预警设置"),
         PageEntry(SettingsDestination.Preference, "settings_preference", "通用偏好", PageVisibility.USER, "通用偏好：显示、操作与截图等应用级开关"),
-        PageEntry(SettingsDestination.FeatureHub, "settings_feature_hub", "功能设置", PageVisibility.USER, "聚合入口：模型与连接、天气、随口记、悬浮与侧边栏、日程与通知"),
+        PageEntry(SettingsDestination.FeatureHub, "settings_feature_hub", "功能设置", PageVisibility.USER, "聚合入口：模型与连接、天气、随口记、随手记、悬浮与侧边栏、日程与通知"),
         PageEntry(SettingsDestination.QuickMemo, "settings_quick_memo", "随口记", PageVisibility.USER, "随口记总开关、录音展示、自动结束与语音转写模型"),
+        PageEntry(SettingsDestination.FlashNote, "settings_flash_note", "随手记", PageVisibility.USER, "随手记的 AI 摘要等条目行为设置"),
         PageEntry(SettingsDestination.FloatingEntry, "settings_floating_entry", "悬浮与侧边栏", PageVisibility.USER, "悬浮日程、侧边栏与悬浮球入口及其手势动作"),
         PageEntry(SettingsDestination.ScheduleNotification, "settings_schedule_notification", "日程与通知", PageVisibility.USER, "日历同步、默认时长、提前提醒与各类通知开关"),
         PageEntry(SettingsDestination.ScheduleColors, "settings_schedule_colors", "日程颜色", PageVisibility.USER, "自定义新建和识别日程使用的颜色色盘（从通用偏好进入）"),
@@ -77,6 +78,7 @@ object PageCatalog {
 
         // —— 实验室 / 开发者 ——
         PageEntry(SettingsDestination.Laboratory, "settings_laboratory", "实验室", PageVisibility.USER, "实验性功能开关与开发者选项入口"),
+        PageEntry(SettingsDestination.ExternalCall, "settings_external_call", "外部调用", PageVisibility.USER, "对外暴露的快捷指令、快捷活动与外部数据接口，可一键复制（从实验室进入）"),
         PageEntry(SettingsDestination.Developer, "settings_developer", "开发者", PageVisibility.DEVELOPER, "测试中心：列表排序开关 + DebugActionRegistry 调试动作（从实验室进入）"),
         PageEntry(SettingsDestination.ConfigEditor, "settings_config_editor", "配置编辑", PageVisibility.DEVELOPER, "由 ConfigCatalog 驱动的底层配置编辑（从开发者页进入）"),
         PageEntry(SettingsDestination.OnboardingGuide, "settings_onboarding_guide", "初始化引导", PageVisibility.DEVELOPER, "首次启动引导页调试入口：权限与一级功能开关体检"),

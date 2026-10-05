@@ -11,4 +11,5 @@ sealed interface LaboratoryUiAction {
     data class SetClipboardRecognition(val enabled: Boolean) : LaboratoryUiAction
     data class SetPredictiveBack(val enabled: Boolean) : LaboratoryUiAction
     data object OpenDeveloper : LaboratoryUiAction
+    data object OpenExternalCall : LaboratoryUiAction
 }

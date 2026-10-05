@@ -397,6 +397,7 @@ fun OnboardingGuidePage(
                 }
             }
             LaboratoryUiAction.OpenDeveloper -> Unit
+            LaboratoryUiAction.OpenExternalCall -> Unit
         }
     }
 

@@ -59,7 +59,8 @@ fun LaboratoryPage(
     uiSize: Int = 2,
     settingsViewModel: SettingsViewModel? = null,
     mainViewModel: MainViewModel? = null,
-    onNavigateToDeveloper: () -> Unit = {}
+    onNavigateToDeveloper: () -> Unit = {},
+    onNavigateToExternalCall: () -> Unit = {}
 ) {
     val settings by settingsViewModel?.settings?.collectAsState() ?: remember { mutableStateOf(null) }
 
@@ -99,6 +100,7 @@ fun LaboratoryPage(
                     settingsViewModel?.updatePreference(clipboardCodeRecognitionEnabled = action.enabled)
                 }
                 LaboratoryUiAction.OpenDeveloper -> onNavigateToDeveloper()
+                LaboratoryUiAction.OpenExternalCall -> onNavigateToExternalCall()
             }
         }
     )
@@ -251,6 +253,32 @@ fun LaboratorySettingsContent(
                         ?: onAction(LaboratoryUiAction.SetBraceletMode(enabled))
                 }
             )
+
+            Text(
+                text = "集成",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            AppCard(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    ActionSettingItem(
+                        title = "外部调用",
+                        subtitle = "对外暴露的快捷指令、快捷活动与外部数据接口，可一键复制",
+                        value = "",
+                        icon = Icons.Default.ChevronRight,
+                        enabled = true,
+                        onClick = { onAction(LaboratoryUiAction.OpenExternalCall) },
+                        cardTitleStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        cardSubtitleStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        cardValueStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                }
+            }
 
             if (showDeveloperEntry && settings.developerOptionsUnlocked) {
                 Text(
