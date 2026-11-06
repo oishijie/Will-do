@@ -44,10 +44,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.content.ContextCompat
 import com.antgskds.calendarassistant.App
-import com.antgskds.calendarassistant.platform.floating.EdgeBarService
-import com.antgskds.calendarassistant.platform.floating.FloatingBallService
+import com.antgskds.calendarassistant.feature.settings.data.model.FloatingBallGestureAction
 import com.antgskds.calendarassistant.platform.receiver.SmsNotificationListenerService
-import com.antgskds.calendarassistant.platform.accessibility.TextAccessibilityService
 import com.antgskds.calendarassistant.shared.ui.material.component.AppSheetAction
 import com.antgskds.calendarassistant.shared.ui.material.component.AppModalBottomSheet
 import com.antgskds.calendarassistant.shared.ui.material.component.AppSettingsCard
@@ -56,7 +54,6 @@ import com.antgskds.calendarassistant.shared.ui.material.component.CenteredDialo
 import com.antgskds.calendarassistant.shared.ui.material.component.ToastType
 import com.antgskds.calendarassistant.shared.ui.material.component.UniversalSnackbar
 import com.antgskds.calendarassistant.shared.ui.material.component.WheelPicker
-import com.antgskds.calendarassistant.feature.settings.data.model.FloatingBallGestureAction
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.shared.ui.interaction.HapticValueChangeEffect
 import com.antgskds.calendarassistant.shared.ui.interaction.LocalAppHapticsEnabled
@@ -188,26 +185,6 @@ fun MaterialPreferenceSettingsScreen(
         context.startActivity(intent)
     }
 
-    fun startEdgeBarService() {
-        app?.floatingCenter?.startEdgeBarServiceIfPermitted()
-            ?: context.startService(Intent(context, EdgeBarService::class.java))
-    }
-
-    fun stopEdgeBarService() {
-        app?.floatingCenter?.stopEdgeBarService()
-            ?: context.stopService(Intent(context, EdgeBarService::class.java))
-    }
-
-    fun startFloatingBallService() {
-        app?.floatingCenter?.startFloatingBallServiceIfPermitted()
-            ?: context.startService(Intent(context, FloatingBallService::class.java))
-    }
-
-    fun stopFloatingBallService() {
-        app?.floatingCenter?.stopFloatingBallService()
-            ?: context.stopService(Intent(context, FloatingBallService::class.java))
-    }
-
     // --- 字体样式优化 ---
     val sectionTitleStyle = MaterialTheme.typography.titleMedium.copy(
         fontWeight = FontWeight.ExtraBold,
@@ -278,10 +255,6 @@ fun MaterialPreferenceSettingsScreen(
 
     fun hasRecordAudioPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
-    fun requestAccessibilityPermission() {
-        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    }
 
     fun requestSmsPermission() {
         smsPermissionLauncher.launch(
@@ -421,35 +394,6 @@ fun MaterialPreferenceSettingsScreen(
                     )
                     AppSettingsDivider()
                 }
-                    VolumeLongPressSettingItem(
-                        title = "长按音量+",
-                        subtitle = "自定义长按音量+动作",
-                        checked = settings.volumeUpLongPressEnabled,
-                        action = settings.volumeUpLongPressAction,
-                        onCheckedChange = { isChecked ->
-                            val updateVolumeShortcut = {
-                                controller.updatePreference(
-                                    volumeUpLongPressEnabled = isChecked,
-                                    volumeUpLongPressAction = if (isChecked) settings.volumeUpLongPressAction.coerceIn(1, 3) else settings.volumeUpLongPressAction
-                                )
-                            }
-                            if (isChecked) {
-                                permissionGate.require(
-                                    permissionName = "无障碍权限",
-                                    isGranted = { TextAccessibilityService.isConnected() },
-                                    requestPermission = ::requestAccessibilityPermission,
-                                    onGranted = updateVolumeShortcut,
-                                )
-                            } else {
-                                updateVolumeShortcut()
-                            }
-                        },
-                        onActionChange = { action ->
-                            controller.updatePreference(volumeUpLongPressAction = action)
-                        },
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle
-                    )
                     SwitchSettingItem(
                         title = "短信自动解析取件码",
                         subtitle = "监听短信自动识别快递取件码并入库",

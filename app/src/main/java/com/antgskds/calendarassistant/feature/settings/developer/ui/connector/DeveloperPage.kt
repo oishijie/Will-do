@@ -120,16 +120,8 @@ fun DeveloperPage(
                 DeveloperListKind.HOME_AGENDA -> settingsViewModel.updateListSortOrder(homeAgendaReverseOrder = action.enabled)
                 DeveloperListKind.HOME -> settingsViewModel.updateListSortOrder(homeListReverseOrder = action.enabled)
                 DeveloperListKind.ALL_EVENTS -> settingsViewModel.updateListSortOrder(allEventsListReverseOrder = action.enabled)
-                DeveloperListKind.FLOATING -> settingsViewModel.updateListSortOrder(floatingListReverseOrder = action.enabled)
                 DeveloperListKind.ARCHIVES -> settingsViewModel.updateListSortOrder(archivesListReverseOrder = action.enabled)
             }
-            is DeveloperUiAction.SetDragField -> when (action.field) {
-                DeveloperDragField.TITLE -> settingsViewModel.updateFloatingDragTextOptions(includeTitle = action.enabled)
-                DeveloperDragField.TIME -> settingsViewModel.updateFloatingDragTextOptions(includeTime = action.enabled)
-                DeveloperDragField.LOCATION -> settingsViewModel.updateFloatingDragTextOptions(includeLocation = action.enabled)
-                DeveloperDragField.DESCRIPTION -> settingsViewModel.updateFloatingDragTextOptions(includeDescription = action.enabled)
-            }
-            is DeveloperUiAction.SetDragHotZone -> settingsViewModel.updateFloatingDragHotZonePercent(action.percent)
             is DeveloperUiAction.ApplyUiScale -> settingsViewModel.updateUiScaleFactors(
                 small = action.small,
                 medium = action.medium,
@@ -443,7 +435,7 @@ fun MaterialDeveloperScreen(
             SettingsCard {
                 SwitchSettingItem(
                     title = "演示模式",
-                    subtitle = "使用本地只读示例数据展示日程、随口记和天气；不写入数据库，不同步，也不发送通知",
+                    subtitle = "使用本地只读示例数据展示日程、闪记和天气；不写入数据库，不同步，也不发送通知",
                     checked = settings.developerDemoModeEnabled,
                     onCheckedChange = { onAction(DeveloperUiAction.SetDemoMode(it)) },
                     cardTitleStyle = cardTitleStyle,
@@ -603,7 +595,7 @@ fun MaterialDeveloperScreen(
                 onOpenLogExportSheet = { showLogExportSheet = true },
                 onQuickMemoPinnedFixedTitleChange = { enabled ->
                     onAction(DeveloperUiAction.SetQuickMemoPinnedFixedTitle(enabled))
-                    Toast.makeText(context, if (enabled) "随口记挂起标题已固定" else "随口记挂起标题已恢复", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (enabled) "闪记挂起标题已固定" else "闪记挂起标题已恢复", Toast.LENGTH_SHORT).show()
                 },
                 onLiveNotificationTemplateModeChange = { mode ->
                     onAction(DeveloperUiAction.SetLiveTemplateMode(mode))
@@ -723,15 +715,6 @@ fun MaterialDeveloperScreen(
                 )
                 RowDivider()
                 SwitchSettingItem(
-                    title = "悬浮窗倒序",
-                    subtitle = "关闭后悬浮窗按时间从早到晚，打开自动定位到当前",
-                    checked = settings.floatingListReverseOrder,
-                    onCheckedChange = { onAction(DeveloperUiAction.SetListReverse(DeveloperListKind.FLOATING, it)) },
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-                RowDivider()
-                SwitchSettingItem(
                     title = "归档列表倒序",
                     subtitle = "开启后归档页按结束日期从晚到早",
                     checked = settings.archivesListReverseOrder,
@@ -742,68 +725,13 @@ fun MaterialDeveloperScreen(
                 RowDivider()
                 ActionSettingItem(
                     title = "恢复列表排序默认",
-                    subtitle = "首页/全部=正序，日程视图=向下，悬浮窗/归档=倒序",
+                    subtitle = "首页/全部=正序，日程视图=向下，归档=倒序",
                     value = "",
                     enabled = true,
                     onClick = { showResetConfirm = true },
                     cardTitleStyle = cardTitleStyle,
                     cardSubtitleStyle = cardSubtitleStyle,
                     cardValueStyle = cardSubtitleStyle
-                )
-            }
-
-            Text(text = "悬浮拖拽", style = sectionTitleStyle)
-            SettingsCard {
-                SwitchSettingItem(
-                    title = "拖拽文本包含标题",
-                    subtitle = "日程拖到输入框时输出标题行",
-                    checked = settings.floatingDragTextIncludeTitle,
-                    onCheckedChange = { onAction(DeveloperUiAction.SetDragField(DeveloperDragField.TITLE, it)) },
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-                RowDivider()
-                SwitchSettingItem(
-                    title = "拖拽文本包含时间",
-                    subtitle = "附加开始和结束时间",
-                    checked = settings.floatingDragTextIncludeTime,
-                    onCheckedChange = { onAction(DeveloperUiAction.SetDragField(DeveloperDragField.TIME, it)) },
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-                RowDivider()
-                SwitchSettingItem(
-                    title = "拖拽文本包含地点",
-                    subtitle = "附加地点信息",
-                    checked = settings.floatingDragTextIncludeLocation,
-                    onCheckedChange = { onAction(DeveloperUiAction.SetDragField(DeveloperDragField.LOCATION, it)) },
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-                RowDivider()
-                SwitchSettingItem(
-                    title = "拖拽文本包含详情",
-                    subtitle = "附加备注或结构化详情",
-                    checked = settings.floatingDragTextIncludeDescription,
-                    onCheckedChange = { onAction(DeveloperUiAction.SetDragField(DeveloperDragField.DESCRIPTION, it)) },
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle
-                )
-                RowDivider()
-                SliderSettingItem(
-                    title = "拖拽热区范围",
-                    subtitle = "呼出侧热区越大，越容易拖回取消；也越晚进入外部投放",
-                    value = settings.floatingDragHotZonePercent.toFloat(),
-                    onValueChange = { value ->
-                        onAction(DeveloperUiAction.SetDragHotZone(value.roundToInt()))
-                    },
-                    valueRange = MySettings.FLOATING_DRAG_HOT_ZONE_MIN_PERCENT.toFloat()..MySettings.FLOATING_DRAG_HOT_ZONE_MAX_PERCENT.toFloat(),
-                    steps = 0,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle,
-                    cardValueStyle = cardSubtitleStyle,
-                    showValueAsNumber = true,
-                    valueUnit = "%"
                 )
             }
 
@@ -1035,8 +963,8 @@ private fun DeveloperOptionsCard(
         }
         RowDivider()
         SwitchSettingItem(
-            title = "随口记挂起固定标题",
-            subtitle = "开启后真实挂起胶囊标题显示“随口记”，正文挪到内容；关闭后标题和内容都按当前正文显示。",
+            title = "闪记挂起固定标题",
+            subtitle = "开启后真实挂起胶囊标题显示“闪记”，正文挪到内容；关闭后标题和内容都按当前正文显示。",
             checked = quickMemoPinnedFixedTitleEnabled,
             onCheckedChange = { checked ->
                 haptics.selection()

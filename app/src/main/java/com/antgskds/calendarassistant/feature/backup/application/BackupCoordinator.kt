@@ -62,7 +62,7 @@ class BackupCoordinator(
     suspend fun exportBackupData(options: AppBackupOptions): String {
         val normalized = normalizeBackupOptions(options)
         if (normalized.includeAttachments) error("附件备份需要导出为 ZIP")
-        if (normalized.includeQuickMemos) error("随口记备份需要导出为 ZIP")
+        if (normalized.includeQuickMemos) error("闪记备份需要导出为 ZIP")
         return json.encodeToString(buildBackupData(normalized))
     }
 

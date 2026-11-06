@@ -45,7 +45,7 @@ object RecognitionNormalDisplay {
     fun quickMemoSuggestionsSummary(): NormalNotificationContent {
         return NormalNotificationContent(
             title = "识别到日程",
-            contentText = "随口记中发现可创建的日程"
+            contentText = "闪记中发现可创建的日程"
         )
     }
 

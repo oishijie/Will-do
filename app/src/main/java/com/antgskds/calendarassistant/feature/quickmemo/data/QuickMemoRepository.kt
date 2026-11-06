@@ -21,6 +21,59 @@ class QuickMemoRepository(
     }
 
     val quickMemos: Flow<List<QuickMemoEntity>> = quickMemoDao.observeQuickMemos()
+    val folders: Flow<List<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity>> =
+        quickMemoDao.observeFolders()
+
+    suspend fun findLink(key: String): QuickMemoEntity? = quickMemoDao.findLink(key)
+
+    suspend fun updateTitle(id: Long, title: String) =
+        quickMemoDao.updateTitle(id, title.trim(), System.currentTimeMillis())
+
+    suspend fun createLinkMemo(link: com.antgskds.calendarassistant.feature.quickmemo.domain.QuickMemoLink): Long {
+        val now = System.currentTimeMillis()
+        return quickMemoDao.insertLinkIfAbsent(
+            QuickMemoEntity(
+                type = QuickMemoType.LINK,
+                bodyText = link.body,
+                title = link.title,
+                sourceUrl = link.url,
+                linkKey = link.dedupKey,
+                createdAt = now,
+                updatedAt = now,
+                sortRank = nextTopSortRank(),
+            )
+        )
+    }
+
+    suspend fun updateContent(id: Long, title: String, bodyText: String) {
+        check(
+            quickMemoDao.updateContent(id, title.trim(), normalizeBody(bodyText), System.currentTimeMillis()) == 1
+        ) { "闪记不存在" }
+    }
+
+    suspend fun createFolder(name: String): String {
+        val clean = name.trim()
+        require(clean.isNotBlank()) { "请输入文件夹名称" }
+        quickMemoDao.getAllFolders().firstOrNull { it.name.equals(clean, true) }?.let { return it.id }
+        val id = java.util.UUID.randomUUID().toString()
+        quickMemoDao.insertFolder(
+            com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity(id, clean)
+        )
+        return id
+    }
+
+    suspend fun renameFolder(id: String, name: String) {
+        val clean = name.trim()
+        require(clean.isNotBlank()) { "请输入文件夹名称" }
+        require(quickMemoDao.getAllFolders().none { it.id != id && it.name.equals(clean, true) }) { "已有同名文件夹" }
+        check(quickMemoDao.renameFolder(id, clean, System.currentTimeMillis()) == 1) { "文件夹不存在" }
+    }
+
+    suspend fun deleteFolder(id: String) = quickMemoDao.deleteFolder(id, System.currentTimeMillis())
+
+    suspend fun moveToFolder(ids: List<Long>, folderId: String?) =
+        quickMemoDao.moveToFolder(ids, folderId, System.currentTimeMillis())
+
     val reminders: Flow<List<QuickMemoReminderEntity>> = quickMemoDao.observeReminders()
     val suggestions: Flow<List<QuickMemoSuggestionEntity>> = quickMemoDao.observeSuggestions()
 
@@ -47,12 +100,17 @@ class QuickMemoRepository(
         return quickMemoDao.markProcessingVoiceMemosFailed(System.currentTimeMillis())
     }
 
-    suspend fun createTextMemo(bodyText: String, asTodo: Boolean = false): Long {
+    suspend fun createTextMemo(
+        bodyText: String,
+        asTodo: Boolean = false,
+        folderId: String? = null
+    ): Long {
         val now = System.currentTimeMillis()
         return quickMemoDao.insertQuickMemo(
             QuickMemoEntity(
                 type = QuickMemoType.TEXT,
                 bodyText = normalizeBody(bodyText),
+                folderId = folderId,
                 transcriptionStatus = QuickMemoTranscriptionStatus.NONE,
                 analysisStatus = QuickMemoAnalysisStatus.NONE,
                 createdAt = now,
@@ -67,7 +125,8 @@ class QuickMemoRepository(
         audioPath: String,
         durationMs: Long,
         bodyText: String = "",
-        asTodo: Boolean = false
+        asTodo: Boolean = false,
+        folderId: String? = null
     ): Long {
         val now = System.currentTimeMillis()
         return quickMemoDao.insertQuickMemo(
@@ -76,6 +135,7 @@ class QuickMemoRepository(
                 bodyText = normalizeBody(bodyText),
                 audioPath = audioPath,
                 audioDurationMs = durationMs.coerceAtLeast(0L),
+                folderId = folderId,
                 transcriptionStatus = QuickMemoTranscriptionStatus.PENDING,
                 analysisStatus = QuickMemoAnalysisStatus.NONE,
                 createdAt = now,
@@ -89,7 +149,8 @@ class QuickMemoRepository(
     suspend fun createImageMemo(
         imagePath: String,
         bodyText: String = "",
-        asTodo: Boolean = false
+        asTodo: Boolean = false,
+        folderId: String? = null
     ): Long {
         val now = System.currentTimeMillis()
         return quickMemoDao.insertQuickMemo(
@@ -97,6 +158,7 @@ class QuickMemoRepository(
                 type = QuickMemoType.IMAGE,
                 bodyText = normalizeBody(bodyText),
                 imagePath = imagePath,
+                folderId = folderId,
                 transcriptionStatus = QuickMemoTranscriptionStatus.NONE,
                 analysisStatus = QuickMemoAnalysisStatus.NONE,
                 createdAt = now,
@@ -223,11 +285,57 @@ class QuickMemoRepository(
         )
     }
 
+    /** 归档（可恢复）：保留内容，不出现在主列表。 */
+    suspend fun archiveQuickMemo(id: Long) {
+        quickMemoDao.markQuickMemoArchived(id, System.currentTimeMillis())
+    }
+
+    /** 从归档恢复到主列表。 */
+    suspend fun restoreQuickMemoArchived(id: Long) {
+        quickMemoDao.restoreQuickMemoArchived(id, System.currentTimeMillis())
+    }
+
+    /** 软删除：只打 deleted_at 标记，文件与录音保留，供回收站恢复。 */
     suspend fun deleteQuickMemo(id: Long) {
+        quickMemoDao.markQuickMemoDeleted(id, System.currentTimeMillis())
+    }
+
+    /** 从回收站恢复。 */
+    suspend fun restoreQuickMemo(id: Long) {
+        quickMemoDao.restoreQuickMemo(id, System.currentTimeMillis())
+    }
+
+    /** 彻底删除：清数据库行 + 删除音频/图片等文件。 */
+    suspend fun purgeQuickMemo(id: Long) {
         val memo = quickMemoDao.getQuickMemo(id)
-        quickMemoDao.deleteQuickMemoById(id)
+        quickMemoDao.purgeQuickMemo(id)
         memo?.let { deleteMemoFiles(listOf(it)) }
     }
+
+    /** 清空回收站：先收集待删文件，再清表。 */
+    suspend fun purgeAllDeletedQuickMemos(): Int {
+        val deleted = quickMemoDao.getDeletedQuickMemos()
+        quickMemoDao.purgeAllDeletedQuickMemos()
+        if (deleted.isNotEmpty()) deleteMemoFiles(deleted)
+        return deleted.size
+    }
+
+    suspend fun getArchivedQuickMemos(): List<QuickMemoEntity> = quickMemoDao.getArchivedQuickMemos()
+
+    /** 已归档条目上的提醒（清空归档时用于取消闹钟调度）。 */
+    suspend fun getArchivedQuickMemoReminders(): List<QuickMemoReminderEntity> =
+        quickMemoDao.getArchivedQuickMemoReminders()
+
+    /** 清空已归档：删行 + 清音频/图片文件，返回清掉的数量。 */
+    suspend fun purgeAllArchivedQuickMemos(): Int {
+        val archived = quickMemoDao.getArchivedQuickMemos()
+        if (archived.isEmpty()) return 0
+        quickMemoDao.purgeAllArchivedQuickMemos()
+        deleteMemoFiles(archived)
+        return archived.size
+    }
+
+    suspend fun getDeletedQuickMemos(): List<QuickMemoEntity> = quickMemoDao.getDeletedQuickMemos()
 
     suspend fun clearAllQuickMemos(): Int {
         val memos = quickMemoDao.getAllQuickMemos()

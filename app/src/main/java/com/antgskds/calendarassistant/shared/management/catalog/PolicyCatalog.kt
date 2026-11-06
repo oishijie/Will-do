@@ -53,8 +53,8 @@ object PolicyCatalog {
     val policies: List<PolicyEntry> = listOf(
         PolicyEntry("图片挂起开关", Chain.NOTIFICATION, "feature/imagepin/ImagePinPolicy", Maturity.ACTIVE, "实验室开关控制入口和生命周期；发布还需要实况通知开启，截图磁贴在采集前后核实通知、渠道和悬浮窗权限"),
 
-        PolicyEntry("随口记胶囊持续时间", Chain.NOTIFICATION, "feature/capsule/domain/QuickMemoCapsuleDurationPolicy", Maturity.ACTIVE, "手动挂起和到期提醒共用默认日程时长；当天结束模式统一到本地 23:59"),
-        PolicyEntry("随口记提醒投递策略", Chain.NOTIFICATION, "feature/notification/policy/QuickMemoReminderDeliveryPolicy", Maturity.ACTIVE, "根据胶囊开关选择发布路由，只把 POSTED 视为本次提醒完成，READY 和失败保留重试"),
+        PolicyEntry("闪记胶囊持续时间", Chain.NOTIFICATION, "feature/capsule/domain/QuickMemoCapsuleDurationPolicy", Maturity.ACTIVE, "手动挂起和到期提醒共用默认日程时长；当天结束模式统一到本地 23:59"),
+        PolicyEntry("闪记提醒投递策略", Chain.NOTIFICATION, "feature/notification/policy/QuickMemoReminderDeliveryPolicy", Maturity.ACTIVE, "根据胶囊开关选择发布路由，只把 POSTED 视为本次提醒完成，READY 和失败保留重试"),
         PolicyEntry(
             "WebDAV 版本合并策略", Chain.SYNC, "feature/cloudsync/domain/SyncV2VersionPolicy",
             Maturity.ACTIVE,

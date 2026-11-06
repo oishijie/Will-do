@@ -23,7 +23,6 @@ import com.antgskds.calendarassistant.shared.ui.edition.EditionSideChoiceSetting
 import com.antgskds.calendarassistant.shared.ui.edition.EditionSliderSettingItem
 import com.antgskds.calendarassistant.shared.ui.edition.EditionSwitchSettingItem
 import com.antgskds.calendarassistant.shared.ui.edition.EditionAdvanceReminderSettingItem
-import com.antgskds.calendarassistant.shared.ui.edition.EditionVolumeLongPressSettingItem
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -328,95 +327,6 @@ fun MaterialSliderSettingItem(
             steps = steps,
             enabled = enabled,
         )
-    }
-}
-
-/** 标题 + 说明 + 开关 + 展开三档滑杆（长按音量动作：识屏/悬浮窗/随口记）行。 */
-@Composable
-fun VolumeLongPressSettingItem(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    action: Int,
-    onCheckedChange: (Boolean) -> Unit,
-    onActionChange: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle
-) {
-    EditionVolumeLongPressSettingItem(
-        title = title,
-        subtitle = subtitle,
-        checked = checked,
-        action = action,
-        onCheckedChange = onCheckedChange,
-        onActionChange = onActionChange,
-        cardTitleStyle = cardTitleStyle,
-        cardSubtitleStyle = cardSubtitleStyle,
-    )
-}
-
-@Composable
-fun MaterialVolumeLongPressSettingItem(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    action: Int,
-    onCheckedChange: (Boolean) -> Unit,
-    onActionChange: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-) {
-    val normalizedAction = action.coerceIn(1, 3)
-    val sliderLabelStyle = settingsSliderLabelTextStyle()
-    HapticValueChangeEffect(valueKey = normalizedAction)
-    val haptics = rememberAppHaptics()
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = cardTitleStyle)
-                Text(subtitle, style = cardSubtitleStyle)
-            }
-            Switch(
-                checked = checked,
-                onCheckedChange = {
-                    haptics.selection()
-                    onCheckedChange(it)
-                }
-            )
-        }
-
-        AnimatedVisibility(
-            visible = checked,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "识屏", style = sliderLabelStyle)
-                    Text(text = "悬浮窗", style = sliderLabelStyle)
-                    Text(text = "随口记", style = sliderLabelStyle)
-                }
-                Slider(
-                    value = normalizedAction.toFloat(),
-                    onValueChange = { onActionChange(it.roundToInt().coerceIn(1, 3)) },
-                    valueRange = 1f..3f,
-                    steps = 1
-                )
-            }
-        }
     }
 }
 

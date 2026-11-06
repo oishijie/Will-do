@@ -6,7 +6,6 @@ import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Mic
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
 import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.MemoInputAction
 import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.MemoInputBar
 import com.antgskds.calendarassistant.feature.home.ui.render.material.ScheduleVoiceDialog
@@ -78,7 +77,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.ClipboardManager
 import android.content.Context
-import com.antgskds.calendarassistant.feature.note.data.attachment.NoteAttachmentStore
 import com.antgskds.calendarassistant.feature.quickmemo.data.audio.QuickMemoAudioRecorder
 import com.antgskds.calendarassistant.feature.quickmemo.domain.transcription.TranscriptionResult
 import com.antgskds.calendarassistant.shared.util.ImageImportUtils
@@ -121,7 +119,6 @@ fun HomeScreen(
     onSelectedPageKeyChange: (String) -> Unit = {},
     onOpenWeatherDetail: () -> Unit = {},
     onOpenQuickMemoDetail: (Long) -> Unit = {},
-    onOpenFlashNoteDetail: (Long) -> Unit = {},
     onNavigateToSettings: (SettingsDestination) -> Unit
 ) {
     val app = LocalContext.current.applicationContext as App
@@ -130,6 +127,8 @@ fun HomeScreen(
     val uiState by mainViewModel.uiState.collectAsState()
     val appUpdateUiState by mainViewModel.appUpdateUiState.collectAsState()
     val quickMemos by mainViewModel.quickMemos.collectAsState()
+    val quickMemoFolders by mainViewModel.quickMemoFolders.collectAsState()
+    val quickMemoBrowser by mainViewModel.quickMemoBrowser.collectAsState()
     val demoModeEnabled = uiState.settings.developerOptionsEnabled &&
         uiState.settings.developerDemoModeEnabled
     val quickMemoCount = if (demoModeEnabled) {
@@ -207,7 +206,7 @@ fun HomeScreen(
     var searchRequestId by remember { mutableIntStateOf(0) }
     var imageRequestId by remember { mutableIntStateOf(0) }
 
-    // 常驻底栏固定入口：今日日程 / 全部日程 / 随口记 / 设置
+    // 常驻底栏固定入口：今日日程 / 全部日程 / 闪记 / 设置
     val homeBottomItems = remember { editionHomeEntries(fixedHomeBottomItems) }
     val pagerPageOrder = remember { editionHomeEntries(swipeableHomeItems) }
     val effectiveSelectedPageKey = if (selectedPageKey in homeBottomItems) selectedPageKey else HomeEntryKey.TODAY
@@ -229,18 +228,16 @@ fun HomeScreen(
     var recurringEditCommitSession by remember { mutableStateOf<RecurringEditCommitSession?>(null) }
     var scheduleItemToDelete by remember { mutableStateOf<ScheduleDisplayItem?>(null) }
     var selectedQuickMemoAction by remember { mutableStateOf<QuickMemoEntity?>(null) }
-    var selectedFlashNoteKey by remember { mutableStateOf<String?>(null) }
     // ===== 键盘上方的记事输入栏 =====
-    // 目标区：null = 收起。点「添加随口记」→ QUICK_MEMO，点「添加随手记」→ FLASH_NOTE。
-    var memoInputTarget by remember { mutableStateOf<MemoStreamSegment?>(null) }
+    // 目标区：null = 收起；非 null 时弹出输入栏，内容存进闪记。
+    var memoInputOpen by remember { mutableStateOf(false) }
     var memoInputText by remember { mutableStateOf("") }
-    // 随口记那支录音器：是否在录、是否在转写。
+    // 闪记那支录音器：是否在录、是否在转写。
     var isMemoRecording by remember { mutableStateOf(false) }
     var isMemoVoiceTranscribing by remember { mutableStateOf(false) }
     // 日程页「语音识别」：录音弹窗开关 + 是否正在转写落库。
     var isScheduleVoiceDialogOpen by remember { mutableStateOf(false) }
     var isScheduleVoiceSaving by remember { mutableStateOf(false) }
-    var memoSegment by rememberSaveable { mutableStateOf(MemoStreamSegment.ALL) }
     val memoRecorder = remember(app) { QuickMemoAudioRecorder(app) }
 
     // ===== 输入栏的语音：录音 → 本地转写 → 文字填进输入框 =====
@@ -301,30 +298,22 @@ fun HomeScreen(
                 isMemoRecording = false
             }
         }
-        memoInputTarget = null
+        memoInputOpen = false
+        memoInputText = ""
         memoInputText = ""
     }
 
-    /** 发送输入框里的文字，存进当前目标区。 */
+    /** 发送输入框里的文字，存进闪记。 */
     fun submitMemoInput() {
-        val target = memoInputTarget ?: return
         val text = memoInputText.trim()
         if (text.isEmpty()) return
-        if (target == MemoStreamSegment.FLASH_NOTE) {
-            mainViewModel.createTextFlashNote(text) { outcome ->
-                outcome
-                    .onSuccess { showToast("已保存随手记", ToastType.SUCCESS) }
-                    .onFailure { showToast(it.message ?: "保存失败", ToastType.ERROR) }
-            }
-        } else {
-            mainViewModel.createTextQuickMemo(text)
-            showToast("已保存随口记", ToastType.SUCCESS)
-        }
+        mainViewModel.createTextQuickMemo(text)
+        showToast("已保存闪记", ToastType.SUCCESS)
         closeMemoInput()
     }
 
     // ===== 日程页「语音识别」：录音 → 本地转写 → 交给识别链路建日程 =====
-    // 复用随口记那支录音器（同一时刻只会有一处录音）；转写走 App 里共享的 ASR 实例，
+    // 复用闪记那支录音器（同一时刻只会有一处录音）；转写走 App 里共享的 ASR 实例，
     // 不再为这条链路单独加载一份模型。
     fun stopScheduleVoice() {
         if (isScheduleVoiceSaving) return
@@ -400,61 +389,27 @@ fun HomeScreen(
         }
     }
 
-    /** 闪记选图：落进 notes 附件目录。 */
-    val noteImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            scope.launch {
-                runCatching { withContext(Dispatchers.IO) { NoteAttachmentStore.copyFromUri(app, uri) } }
-                    .onSuccess { stored ->
-                        mainViewModel.createImageFlashNote(
-                            attachmentPath = stored.relativePath,
-                            attachmentName = stored.displayName,
-                            attachmentMime = stored.mimeType
-                        )
-                        showToast("已收藏图片", ToastType.SUCCESS)
-                    }
-                    .onFailure { showToast(it.message ?: "保存图片失败", ToastType.ERROR) }
-            }
-        }
-    }
-
-    /** 打开输入栏：目标区决定这条内容存进随口记还是随手记。 */
-    fun openMemoInput(target: MemoStreamSegment) {
+    /** 打开输入栏。 */
+    fun openMemoInput() {
         memoInputText = ""
-        memoInputTarget = target
+        memoInputOpen = true
     }
 
     /**
-     * 「实况通知」：把输入框这条存进目标区，同时挂到状态栏**常驻**
-     * （不自动消失，用户点通知上的「移除」才收）。两区都走这条，只是落库位置不同。
-     *
-     * 注意：局部函数必须先定义后使用，不要再挪到 [handleMemoInputAction] 之后。
+     * 「实况通知」：把输入框这条存进闪记，同时挂到状态栏**常驻**
+     * （不自动消失，用户点通知上的「移除」才收）。
      */
-    fun saveAndPinCapsule(target: MemoStreamSegment) {
+    fun saveAndPinCapsule() {
         val text = memoInputText.trim()
         if (text.isEmpty()) {
             showToast("先写点什么再上实况通知", ToastType.INFO)
             return
         }
-        if (target == MemoStreamSegment.FLASH_NOTE) {
-            mainViewModel.createTextFlashNote(text) { created ->
-                created
-                    .onSuccess { noteId ->
-                        mainViewModel.pinFlashNote(noteId) { pinned ->
-                            pinned
-                                .onSuccess { showToast("已保存随手记并挂上实况通知", ToastType.SUCCESS) }
-                                .onFailure { showToast(it.message ?: "挂实况通知失败", ToastType.ERROR) }
-                        }
-                    }
-                    .onFailure { showToast(it.message ?: "保存失败", ToastType.ERROR) }
-            }
-        } else {
-            mainViewModel.createTextQuickMemo(text) { memoId ->
-                mainViewModel.pinQuickMemo(memoId, pinned = true) { pinned ->
-                    pinned
-                        .onSuccess { showToast("已保存随口记并挂上实况通知", ToastType.SUCCESS) }
-                        .onFailure { showToast(it.message ?: "挂实况通知失败", ToastType.ERROR) }
-                }
+        mainViewModel.createTextQuickMemo(text) { memoId ->
+            mainViewModel.pinQuickMemo(memoId, pinned = true) { pinned ->
+                pinned
+                    .onSuccess { showToast("已保存闪记并挂上实况通知", ToastType.SUCCESS) }
+                    .onFailure { showToast(it.message ?: "挂实况通知失败", ToastType.ERROR) }
             }
         }
         closeMemoInput()
@@ -462,16 +417,10 @@ fun HomeScreen(
 
     /**
      * 输入栏底部那排按钮：图片 / 链接 / 实况通知 / 语音。
-     * 两区按钮完全一致（原先随口记缺的「链接」已统一补齐）。
      */
     fun handleMemoInputAction(id: String) {
-        val target = memoInputTarget ?: return
         when (id) {
-            "image" -> if (target == MemoStreamSegment.FLASH_NOTE) {
-                noteImagePicker.launch("image/*")
-            } else {
-                memoImagePicker.launch("image/*")
-            }
+            "image" -> memoImagePicker.launch("image/*")
 
             "link" -> {
                 val clip = readClipboardText(app)
@@ -479,19 +428,34 @@ fun HomeScreen(
                     // 部分系统限制读剪贴板，不要卡住用户——输入框就在上面，让他直接粘。
                     showToast("读不到剪贴板内容，直接粘进输入框吧", ToastType.INFO)
                 } else {
-                    mainViewModel.createFlashNoteFromUrl(clip)
-                    showToast("已保存链接", ToastType.SUCCESS)
-                    closeMemoInput()
+                    memoInputText = clip
+                    showToast("已读取剪贴板，确认后发送", ToastType.INFO)
                 }
             }
 
-            "capsule" -> saveAndPinCapsule(target)
+            "capsule" -> saveAndPinCapsule()
 
             "voice" -> if (isMemoRecording) stopMemoVoiceToText() else startMemoVoice()
         }
     }
 
     var showClearQuickMemosConfirm by remember { mutableStateOf(false) }
+    // 闪记归档区：在闪记页内切换，不新开路由（替代原回收站）。
+    var showQuickMemoArchived by remember { mutableStateOf(false) }
+    var quickMemoArchivedMemos by remember { mutableStateOf<List<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoEntity>>(emptyList()) }
+    androidx.compose.runtime.LaunchedEffect(showQuickMemoArchived) {
+        if (showQuickMemoArchived) {
+            quickMemoArchivedMemos = runCatching {
+                mainViewModel.getArchivedQuickMemos()
+            }.getOrDefault(emptyList())
+        }
+    }
+    // 离开闪记页时自动退出归档区，避免带着这个状态回来还停在归档区
+    androidx.compose.runtime.LaunchedEffect(effectiveSelectedPageKey) {
+        if (effectiveSelectedPageKey != HomeEntryKey.NOTE) {
+            showQuickMemoArchived = false
+        }
+    }
     var dialogAttachments by remember { mutableStateOf<List<EventAttachment>>(emptyList()) }
     var currentDialogSessionId by remember { mutableStateOf(0L) }
     var pendingAddDialog by remember { mutableStateOf(false) }
@@ -841,18 +805,47 @@ fun HomeScreen(
                 onEditItem = { item -> beginEditItem(item) },
                 onRequestDeleteItem = { item -> requestDeleteItem(item) },
                 onRequestDeleteQuickMemo = { memo -> selectedQuickMemoAction = memo },
-                onRequestDeleteFlashNote = { key -> selectedFlashNoteKey = key },
                 onRequestClearQuickMemos = { showClearQuickMemosConfirm = true },
                 quickMemoCount = quickMemoCount,
                 onOpenQuickMemoDetail = onOpenQuickMemoDetail,
-                onOpenFlashNoteDetail = onOpenFlashNoteDetail,
-                memoSegment = memoSegment,
-                onMemoSegmentChange = { memoSegment = it },
-                onAddQuickMemo = { openMemoInput(MemoStreamSegment.QUICK_MEMO) },
-                onAddFlashNote = { openMemoInput(MemoStreamSegment.FLASH_NOTE) },
+                onAddQuickMemo = { openMemoInput() },
+                onOpenQuickMemoArchived = { showQuickMemoArchived = true },
+                showQuickMemoArchived = showQuickMemoArchived,
+                quickMemoArchivedMemos = quickMemoArchivedMemos,
+                onExitArchived = { showQuickMemoArchived = false },
+                onRestoreQuickMemoArchived = { id ->
+                    mainViewModel.restoreQuickMemoArchived(id)
+                    showQuickMemoArchived = false
+                },
+                onPurgeQuickMemoArchived = {
+                    mainViewModel.purgeAllArchivedQuickMemos {
+                        quickMemoArchivedMemos = emptyList()
+                    }
+                },
+                quickMemoFolders = quickMemoFolders,
+                selectedQuickMemoFolderId = quickMemoBrowser.folderId,
+                onSelectQuickMemoFolder = { folderId ->
+                    mainViewModel.updateQuickMemoBrowser(
+                        quickMemoBrowser.copy(
+                            folderId = folderId,
+                            selectionMode = false,
+                            selectedIds = emptySet()
+                        )
+                    )
+                },
+                onCreateQuickMemoFolder = { name -> mainViewModel.createQuickMemoFolder(name) },
+                onRenameQuickMemoFolder = { id, name ->
+                    mainViewModel.renameQuickMemoFolder(id, name)
+                },
+                onDeleteQuickMemoFolder = { id -> mainViewModel.deleteQuickMemoFolder(id) },
+                onStartQuickMemoSelection = {
+                    mainViewModel.updateQuickMemoBrowser(
+                        quickMemoBrowser.copy(selectionMode = true, selectedIds = emptySet())
+                    )
+                },
                 onVoiceSchedule = {
                     when {
-                        // 随口记那支录音器正在用：不抢麦，提示一下就走。
+                        // 闪记那支录音器正在用：不抢麦，提示一下就走。
                         isMemoRecording || isScheduleVoiceSaving ->
                             showToast("请先结束当前录音", ToastType.INFO)
 
@@ -933,7 +926,7 @@ fun HomeScreen(
         HomeActionDialog(
             visible = showClearQuickMemosConfirm && quickMemoCount > 0,
             title = "确认清空",
-            content = "此操作将永久删除 $quickMemoCount 条随口记。\n删除后将无法恢复。",
+            content = "此操作将永久删除 $quickMemoCount 条闪记。\n删除后将无法恢复。",
             confirmText = "删除",
             dismissText = "取消",
             isDestructive = true,
@@ -950,14 +943,14 @@ fun HomeScreen(
 
         HomeActionDialog(
             visible = selectedQuickMemoAction != null,
-            title = "删除随口记",
-            content = "删除后无法恢复，确认删除这条随口记吗？",
-            confirmText = "删除",
+            title = "归档闪记",
+            content = "归档后这条闪记不再显示在列表中，可在「已归档」里恢复。",
+            confirmText = "归档",
             dismissText = "取消",
-            isDestructive = true,
+            isDestructive = false,
             predictiveBackEnabled = settings.predictiveBackEnabled,
             onConfirm = {
-                selectedQuickMemoAction?.id?.let { mainViewModel.deleteQuickMemo(it) }
+                selectedQuickMemoAction?.id?.let { mainViewModel.archiveQuickMemo(it) }
                 selectedQuickMemoAction = null
             },
             onDismiss = { selectedQuickMemoAction = null },
@@ -965,10 +958,9 @@ fun HomeScreen(
                 .padding(bottom = cardFloatingBarOffset + 16.dp)
         )
 
-        // 键盘上方的输入栏：从顶栏 ⋮ 的「添加随口记 / 添加随手记」进来。
+        // 键盘上方的输入栏：从顶栏 ⋮ 的「添加闪记」进来。
         // 挂在这一层而不是菜单里——菜单一点就关，挂里面会被一起卸载。
-        val inputTarget = memoInputTarget
-        if (inputTarget != null) {
+        if (memoInputOpen) {
             MemoInputBar(
                 text = memoInputText,
                 onTextChange = { memoInputText = it },
@@ -999,7 +991,12 @@ fun HomeScreen(
         }
 
         // 输入栏开着时，返回键先收输入栏，不退页面。
-        BackHandler(enabled = memoInputTarget != null) { closeMemoInput() }
+        BackHandler(enabled = memoInputOpen) { closeMemoInput() }
+
+        // 归档区是闪记页内的一层视图，返回键应退回闪记列表而不是退出 App。
+        BackHandler(enabled = showQuickMemoArchived) {
+            showQuickMemoArchived = false
+        }
 
         // 日程页「语音识别」的录音弹窗。同样挂在 HomeScreen 层：
         // 顶栏那个下拉菜单一点就关，弹窗要是挂在菜单里会跟着被卸载。
@@ -1017,18 +1014,21 @@ fun HomeScreen(
         }
 
         HomeActionDialog(
-            visible = selectedFlashNoteKey != null,
-            title = "删除闪记",
-            content = "删除后无法恢复，确认删除这条闪记吗？",
-            confirmText = "删除",
+            visible = selectedQuickMemoAction != null,
+            title = "归档闪记",
+            content = "归档后这条闪记不再显示在列表中，可在「已归档」里恢复。",
+            confirmText = "归档",
             dismissText = "取消",
-            isDestructive = true,
+            isDestructive = false,
             predictiveBackEnabled = settings.predictiveBackEnabled,
             onConfirm = {
-                selectedFlashNoteKey?.let { mainViewModel.deleteFlashNote(it) }
-                selectedFlashNoteKey = null
+                val target = selectedQuickMemoAction
+                if (target != null) {
+                    target.id?.let { mainViewModel.archiveQuickMemo(it) }
+                }
+                selectedQuickMemoAction = null
             },
-            onDismiss = { selectedFlashNoteKey = null },
+            onDismiss = { selectedQuickMemoAction = null },
             modifier = Modifier
                 .padding(bottom = cardFloatingBarOffset + 16.dp)
         )

@@ -17,7 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.InputStream
 
-/** 图片独立于日程/随口记存储；整批复制并验证成功后追加，失败不影响原图。 */
+/** 图片独立于日程/闪记存储；整批复制并验证成功后追加，失败不影响原图。 */
 class ImagePinController(private val context: Context, private val settings: SettingsQueryApi,
     private val capsules: CapsuleCommandApi, private val scope: CoroutineScope) {
     private val mutex = Mutex()

@@ -2,6 +2,7 @@ package com.antgskds.calendarassistant.feature.quickmemo.ui.contract
 
 import com.antgskds.calendarassistant.feature.quickmemo.application.audio.AudioPlaybackState
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoEntity
+import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoReminderEntity
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoSuggestionEntity
 
@@ -10,36 +11,28 @@ data class QuickMemoListUiState(
     val suggestions: List<QuickMemoSuggestionEntity>,
     val playbackState: AudioPlaybackState,
     val pinnedMemoId: Long?,
-    /** 当前展示的分段：速记或闪记。默认速记，保持既有行为不变。 */
-    val segment: MemoStreamSegment = MemoStreamSegment.QUICK_MEMO,
-    /** 闪记条目（notes 表）。仅在闪记分段使用。 */
-    val flashNotes: List<FlashNoteListEntry> = emptyList(),
-    /** 闪记条目 id → notes 表主键，用于跳转与删除。 */
-    val flashNoteIds: Map<String, Long> = emptyMap()
+    /** 文件夹列表，按创建时间升序。 */
+    val folders: List<QuickMemoFolderEntity> = emptyList(),
+    /** 当前文件夹筛选：null = 全部，空串 = 未分组，其余为文件夹 id。 */
+    val selectedFolderId: String? = null,
+    /** 是否处于多选模式。 */
+    val selectionMode: Boolean = false,
+    /** 多选模式下已选中的速记 id。 */
+    val selectedMemoIds: Set<Long> = emptySet()
 )
 
 /**
- * 闪记在速记页的列表条目。
+ * 速记列表的浏览状态。
  *
- * 速记与闪记底层模型不同（`QuickMemoEntity` 是扁平记录，`NoteDocument` 是段落流），
- * 强行合成同一个实体只会让两边都变复杂，因此这里只抽出「列表展示所需的最小信息」。
+ * 放在 ViewModel 而不是 Composable 里，是为了让「从详情页返回列表」时
+ * 文件夹筛选与多选状态不重置——返回不该让用户重新找一遍位置。
  */
-data class FlashNoteListEntry(
-    val key: String,
-    val title: String,
-    val previewText: String?,
-    val summaryText: String?,
-    val summaryPending: Boolean,
-    val summaryFailed: Boolean,
-    val siteName: String?,
-    val url: String,
-    val requiresClipboard: Boolean,
-    val pinned: Boolean,
-    val updatedAt: Long,
-    /** 图片闪记的原图相对路径（`filesDir` 下）；非图片闪记为空串。 */
-    val imageRelativePath: String = "",
-    /** 图片闪记的展示名，用作标题。 */
-    val imageDisplayName: String = ""
+data class QuickMemoBrowserState(
+    /** null = 全部；空串 = 未分组；其余为文件夹 id。 */
+    val folderId: String? = null,
+    val selectionMode: Boolean = false,
+    val selectedIds: Set<Long> = emptySet(),
+    val foldersVisible: Boolean = false
 )
 
 data class QuickMemoDetailUiState(
@@ -51,16 +44,6 @@ data class QuickMemoDetailUiState(
 )
 
 sealed interface QuickMemoUiAction {
-    /** 切换速记 / 闪记分段。 */
-    data class SelectSegment(val segment: MemoStreamSegment) : QuickMemoUiAction
-    /** 点击闪记条目：打开详情页（正文、摘要、图片都在里面）。 */
-    data class OpenFlashNote(val key: String) : QuickMemoUiAction
-    /** 在详情页里点「打开原文」/「复制链接」。 */
-    data class OpenFlashNoteSource(val key: String) : QuickMemoUiAction
-    /** 请求删除闪记条目；由上层弹确认框后回[ConfirmDeleteFlashNote]。 */
-    data class RequestDeleteFlashNote(val key: String) : QuickMemoUiAction
-    /** 用户已在确认框点「删除」，真正落库删除。 */
-    data class ConfirmDeleteFlashNote(val key: String) : QuickMemoUiAction
     data class OpenDetail(val memoId: Long) : QuickMemoUiAction
     data class RequestDelete(val memo: QuickMemoEntity) : QuickMemoUiAction
     data class Delete(val memoId: Long) : QuickMemoUiAction
@@ -70,6 +53,23 @@ sealed interface QuickMemoUiAction {
     data class TogglePinned(val memoId: Long, val isPinned: Boolean) : QuickMemoUiAction
     data class ToggleAudio(val audioPath: String?) : QuickMemoUiAction
     data class UpdateBody(val memoId: Long, val body: String) : QuickMemoUiAction
+    data class UpdateTitle(val memoId: Long, val title: String) : QuickMemoUiAction
+    /** 切换文件夹筛选；[folderId] 语义同 [QuickMemoBrowserState.folderId]。 */
+    data class SelectFolder(val folderId: String?) : QuickMemoUiAction
+    /** 长按速记进入多选模式，并把该条计入已选。 */
+    data class EnterSelectionMode(val memoId: Long) : QuickMemoUiAction
+    data class ToggleMemoSelection(val memoId: Long) : QuickMemoUiAction
+    data class SelectAllMemos(val memoIds: List<Long>) : QuickMemoUiAction
+    data class MoveSelectedMemos(val folderId: String?) : QuickMemoUiAction
+    /** 单条闪记移动到指定文件夹（null = 移出分组）。 */
+    data class MoveMemo(val memoId: Long, val folderId: String?) : QuickMemoUiAction
+    /** 删除多选模式下已选中的速记。 */
+    data object DeleteSelectedMemos : QuickMemoUiAction
+    /** 退出多选模式并清空已选。 */
+    data object ExitSelection : QuickMemoUiAction
+    data class CreateFolder(val name: String) : QuickMemoUiAction
+    data class RenameFolder(val folderId: String, val name: String) : QuickMemoUiAction
+    data class DeleteFolder(val folderId: String) : QuickMemoUiAction
     data class SaveReminder(
         val memoId: Long,
         val reminderId: Long?,

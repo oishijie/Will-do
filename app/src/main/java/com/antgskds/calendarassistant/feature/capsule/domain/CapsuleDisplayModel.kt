@@ -18,7 +18,6 @@ data class CapsuleDisplayModel(
     val tapOpensPickupList: Boolean = false,
     val tapEventId: String? = null,
     val tapQuickMemoId: String? = null,
-    val tapFlashNoteId: String? = null,
     val action: CapsuleActionSpec? = null,
     val actions: List<CapsuleActionSpec> = emptyList(),
     val tapImagePinId: Long? = null,

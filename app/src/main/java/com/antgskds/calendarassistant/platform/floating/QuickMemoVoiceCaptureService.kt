@@ -39,6 +39,9 @@ class QuickMemoVoiceCaptureService : Service() {
             private set
     }
 
+    /** 录音已开始或正在启动；音量键开关制动作据此判断该开录还是停录。 */
+    fun isCapturingNow(): Boolean = recording || starting
+
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val app by lazy { applicationContext as App }
     private val recorder by lazy { QuickMemoAudioRecorder(applicationContext) }
@@ -87,7 +90,7 @@ class QuickMemoVoiceCaptureService : Service() {
         starting = true
         stopRequested = false
         startedAt = System.currentTimeMillis()
-        updateRecordingNotification("随口记录音", "正在录音，可点击结束")
+        updateRecordingNotification("闪记录音", "正在录音，可点击结束")
         updateCapsuleStatus(0L)
         serviceScope.launch {
             try {
@@ -122,8 +125,8 @@ class QuickMemoVoiceCaptureService : Service() {
         autoStopJob?.cancel()
         autoStopJob = null
         serviceScope.launch {
-            updateRecordingNotification("正在保存...", "随口记录音")
-            app.capsuleCommandApi.showQuickMemoRecording("正在保存...", "随口记录音")
+            updateRecordingNotification("正在保存...", "闪记录音")
+            app.capsuleCommandApi.showQuickMemoRecording("正在保存...", "闪记录音")
             try {
                 val result = withContext(Dispatchers.IO) { recorder.stop() }
                 if (result == null || result.durationMs < QuickMemoAudioRecorder.MIN_RECORDING_MS) {
@@ -140,7 +143,7 @@ class QuickMemoVoiceCaptureService : Service() {
                         autoPinOnTranscriptionSuccess = settings.voiceQuickMemoAutoPinEnabled
                     )
                 }
-                clearRecordingStatus("已保存随口记")
+                clearRecordingStatus("已保存闪记")
             } catch (e: Exception) {
                 Log.e(TAG, "stop failed", e)
                 withContext(Dispatchers.IO) { recorder.stopAndDiscard() }

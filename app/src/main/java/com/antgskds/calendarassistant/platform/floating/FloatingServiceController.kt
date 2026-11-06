@@ -21,21 +21,35 @@ class FloatingServiceController(
         return permissionCenter.canDrawOverlays(context)
     }
 
-    fun startFloatingService(initialInputMode: String? = null): Boolean {
+    fun startFloatingService(): Boolean {
         if (!canDrawOverlays()) return false
         val settings = settingsQueryApi.settings.value
-        val resolvedInputMode = resolveInitialInputMode(
-            requested = initialInputMode,
-            scheduleEnabled = settings.isFloatingWindowEnabled,
-            quickMemoEnabled = settings.voiceInputEnabled
-        ) ?: return false
+        if (!settings.isFloatingWindowEnabled && !settings.voiceInputEnabled) return false
         return try {
-            appContext.startService(Intent(appContext, FloatingScheduleService::class.java).apply {
-                putExtra(FloatingScheduleService.EXTRA_INITIAL_INPUT_MODE, resolvedInputMode)
-            })
+            appContext.startService(Intent(appContext, FloatingScheduleService::class.java))
             true
         } catch (e: Exception) {
             Log.e(TAG, "Start floating service failed", e)
+            false
+        }
+    }
+
+    /**
+     * 彻底隐藏悬浮窗（toggle 用）。
+     *
+     * 对齐声物记 showOverlay 的 toggle 语义：已显示时再触发立即收起。
+     * 用 ACTION_CLOSE 让服务自己走 requestClose，而不是从外部 stopService，
+     * 否则语音录音等未收尾的资源会漏掉清理。
+     */
+    fun hideFloatingService(): Boolean {
+        if (!FloatingScheduleService.isShowing) return false
+        return try {
+            appContext.startService(Intent(appContext, FloatingScheduleService::class.java).apply {
+                action = FloatingScheduleService.ACTION_REQUEST_CLOSE
+            })
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Hide floating service failed", e)
             false
         }
     }
@@ -62,7 +76,21 @@ class FloatingServiceController(
 
     fun stopVoiceCaptureService(): Boolean {
         return try {
-            appContext.startService(voiceCaptureServiceIntent(FloatingScheduleService.ACTION_STOP_VOICE_CAPTURE, QuickMemoVoiceCaptureService.ACTION_STOP))
+            val target = when {
+                FloatingScheduleService.instance?.isCapturingNow() == true ->
+                    Intent(appContext, FloatingScheduleService::class.java).apply {
+                        action = FloatingScheduleService.ACTION_STOP_VOICE_CAPTURE
+                    }
+                QuickMemoVoiceCaptureService.instance?.isCapturingNow() == true ->
+                    Intent(appContext, QuickMemoVoiceCaptureService::class.java).apply {
+                        action = QuickMemoVoiceCaptureService.ACTION_STOP
+                    }
+                else -> voiceCaptureServiceIntent(
+                    FloatingScheduleService.ACTION_STOP_VOICE_CAPTURE,
+                    QuickMemoVoiceCaptureService.ACTION_STOP
+                )
+            }
+            appContext.startService(target)
             true
         } catch (e: Exception) {
             Log.e(TAG, "Stop voice capture service failed", e)
@@ -117,78 +145,15 @@ class FloatingServiceController(
         }
     }
 
-    fun startEdgeBarServiceIfPermitted(): Boolean {
-        if (!canDrawOverlays()) return false
-        return try {
-            appContext.startService(Intent(appContext, EdgeBarService::class.java))
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Start edge bar service failed", e)
-            false
-        }
-    }
-
-    fun stopEdgeBarService() {
-        try {
-            appContext.stopService(Intent(appContext, EdgeBarService::class.java))
-        } catch (e: Exception) {
-            Log.w(TAG, "Stop edge bar service failed", e)
-        }
-    }
-
-    fun startFloatingBallServiceIfPermitted(): Boolean {
-        if (!canDrawOverlays()) return false
-        return try {
-            appContext.startService(Intent(appContext, FloatingBallService::class.java))
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Start floating ball service failed", e)
-            false
-        }
-    }
-
-    fun stopFloatingBallService() {
-        try {
-            appContext.stopService(Intent(appContext, FloatingBallService::class.java))
-        } catch (e: Exception) {
-            Log.w(TAG, "Stop floating ball service failed", e)
-        }
-    }
-
     private fun voiceCaptureServiceIntent(floatingAction: String, liveAction: String): Intent {
         val settings = settingsQueryApi.settings.value
         return if (QuickMemoRecordingDisplayMode.normalize(settings.quickMemoRecordingDisplayMode) == QuickMemoRecordingDisplayMode.FLOATING_WINDOW) {
             Intent(appContext, FloatingScheduleService::class.java).apply {
                 action = floatingAction
-                putExtra(FloatingScheduleService.EXTRA_INITIAL_INPUT_MODE, FloatingScheduleService.INPUT_MODE_NOTE)
             }
         } else {
             Intent(appContext, QuickMemoVoiceCaptureService::class.java).apply {
                 action = liveAction
-            }
-        }
-    }
-
-    private fun resolveInitialInputMode(
-        requested: String?,
-        scheduleEnabled: Boolean,
-        quickMemoEnabled: Boolean
-    ): String? {
-        return when (requested) {
-            FloatingScheduleService.INPUT_MODE_SCHEDULE -> when {
-                scheduleEnabled -> FloatingScheduleService.INPUT_MODE_SCHEDULE
-                quickMemoEnabled -> FloatingScheduleService.INPUT_MODE_NOTE
-                else -> null
-            }
-            FloatingScheduleService.INPUT_MODE_NOTE -> when {
-                quickMemoEnabled -> FloatingScheduleService.INPUT_MODE_NOTE
-                scheduleEnabled -> FloatingScheduleService.INPUT_MODE_SCHEDULE
-                else -> null
-            }
-            else -> when {
-                scheduleEnabled -> FloatingScheduleService.INPUT_MODE_SCHEDULE
-                quickMemoEnabled -> FloatingScheduleService.INPUT_MODE_NOTE
-                else -> null
             }
         }
     }

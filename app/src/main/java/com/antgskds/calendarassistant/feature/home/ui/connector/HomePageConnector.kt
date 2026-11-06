@@ -14,7 +14,6 @@ import com.antgskds.calendarassistant.feature.home.ui.render.HomePageScreen
 import com.antgskds.calendarassistant.app.ui.state.MainViewModel
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.app.ui.navigation.SettingsDestination
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
 
 @Composable
 fun HomePageRoute(
@@ -34,16 +33,28 @@ fun HomePageRoute(
     onEditItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestDeleteQuickMemo: (QuickMemoEntity) -> Unit = {},
-    onRequestDeleteFlashNote: (String) -> Unit = {},
     onRequestClearQuickMemos: () -> Unit = {},
     quickMemoCount: Int = 0,
     onOpenQuickMemoDetail: (Long) -> Unit = {},
-    onOpenFlashNoteDetail: (Long) -> Unit = {},
     onAddQuickMemo: () -> Unit = {},
-    onAddFlashNote: () -> Unit = {},
+    onOpenQuickMemoArchived: () -> Unit = {},
+    /** 归档区是否正在显示（替代原回收站）。 */
+    showQuickMemoArchived: Boolean = false,
+    quickMemoArchivedMemos: List<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoEntity> = emptyList(),
+    onExitArchived: () -> Unit = {},
+    onRestoreQuickMemoArchived: (Long) -> Unit = {},
+    /** 归档页「清空」：彻底删除所有已归档条目。 */
+    onPurgeQuickMemoArchived: () -> Unit = {},
     onVoiceSchedule: () -> Unit = {},
-    memoSegment: MemoStreamSegment = MemoStreamSegment.ALL,
-    onMemoSegmentChange: (MemoStreamSegment) -> Unit = {},
+    /** 闪记文件夹筛选：null = 全部，空串 = 未分组，其余为文件夹 id。 */
+    quickMemoFolders: List<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity> = emptyList(),
+    selectedQuickMemoFolderId: String? = null,
+    onSelectQuickMemoFolder: (String?) -> Unit = {},
+    onCreateQuickMemoFolder: (String) -> Unit = {},
+    onRenameQuickMemoFolder: (String, String) -> Unit = { _, _ -> },
+    onDeleteQuickMemoFolder: (String) -> Unit = {},
+    /** 顶栏「⋮ → 多选管理」：进入闪记多选模式。 */
+    onStartQuickMemoSelection: () -> Unit = {},
     onScheduleExpandedChange: (Boolean) -> Unit = {},
     onScheduleProgressChange: (Float) -> Unit = {},
     onScheduleOffsetChange: (Float) -> Unit = {},
@@ -100,19 +111,27 @@ fun HomePageRoute(
             )
         },
         quickMemoContent = { searchQuery, extraBottomPadding ->
-            QuickMemoPage(
-                viewModel = viewModel,
-                searchQuery = searchQuery,
-                uiSize = uiSize,
-                extraBottomPadding = extraBottomPadding,
-                onOpenDetail = onOpenQuickMemoDetail,
-                onOpenFlashNoteDetail = onOpenFlashNoteDetail,
-                segment = memoSegment,
-                onSegmentChange = onMemoSegmentChange,
-                onPendingDeleteChange = { memo -> memo?.let(onRequestDeleteQuickMemo) },
-                onRequestDeleteFlashNote = onRequestDeleteFlashNote,
-                hapticEnabled = state.settings.hapticFeedbackEnabled,
-            )
+            if (showQuickMemoArchived) {
+                com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.QuickMemoArchivedPage(
+                    memos = quickMemoArchivedMemos,
+                    onRestore = { memo ->
+                        memo.id?.let(onRestoreQuickMemoArchived)
+                        onExitArchived()
+                    },
+                    onBack = { onExitArchived() },
+                    onPurgeAll = onPurgeQuickMemoArchived,
+                )
+            } else {
+                QuickMemoPage(
+                    viewModel = viewModel,
+                    searchQuery = searchQuery,
+                    uiSize = uiSize,
+                    extraBottomPadding = extraBottomPadding,
+                    onOpenDetail = onOpenQuickMemoDetail,
+                    onPendingDeleteChange = { memo -> memo?.let(onRequestDeleteQuickMemo) },
+                    hapticEnabled = state.settings.hapticFeedbackEnabled,
+                )
+            }
         },
         currentPageKey = currentPageKey,
         pageOrder = pageOrder,
@@ -130,10 +149,17 @@ fun HomePageRoute(
         onRequestDeleteItem = { item -> if (!demoModeEnabled) onRequestDeleteItem(item) },
         onRequestClearQuickMemos = { if (!demoModeEnabled) onRequestClearQuickMemos() },
         quickMemoCount = quickMemoCount,
-        memoSegment = memoSegment,
-        onMemoSegmentChange = onMemoSegmentChange,
         onAddQuickMemo = { if (!demoModeEnabled) onAddQuickMemo() },
-        onAddFlashNote = { if (!demoModeEnabled) onAddFlashNote() },
+        onOpenQuickMemoArchived = { if (!demoModeEnabled) onOpenQuickMemoArchived() },
+        quickMemoFolders = quickMemoFolders,
+        selectedQuickMemoFolderId = selectedQuickMemoFolderId,
+        onSelectQuickMemoFolder = { if (!demoModeEnabled) onSelectQuickMemoFolder(it) },
+        onCreateQuickMemoFolder = { if (!demoModeEnabled) onCreateQuickMemoFolder(it) },
+        onRenameQuickMemoFolder = { id, name ->
+            if (!demoModeEnabled) onRenameQuickMemoFolder(id, name)
+        },
+        onDeleteQuickMemoFolder = { if (!demoModeEnabled) onDeleteQuickMemoFolder(it) },
+        onStartQuickMemoSelection = { if (!demoModeEnabled) onStartQuickMemoSelection() },
         onVoiceSchedule = { if (!demoModeEnabled) onVoiceSchedule() },
         onScheduleExpandedChange = onScheduleExpandedChange,
         onScheduleProgressChange = onScheduleProgressChange,

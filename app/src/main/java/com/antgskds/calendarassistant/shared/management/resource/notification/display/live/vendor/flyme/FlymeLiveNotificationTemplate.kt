@@ -99,7 +99,6 @@ object FlymeLiveNotificationTemplate {
             CapsuleType.VOICE_TRANSCRIPTION -> R.drawable.ic_stat_quickmemo
             CapsuleType.IMAGE_PIN -> R.drawable.ic_stat_image_pin
             CapsuleType.TEXT_QUICK_MEMO -> R.drawable.ic_stat_quickmemo
-            CapsuleType.TEXT_FLASH_NOTE -> R.drawable.ic_stat_quickmemo
             CapsuleType.QUICK_MEMO_REMINDER -> R.drawable.ic_stat_quickmemo
             CapsuleType.QUICK_MEMO_RECORDING -> R.drawable.ic_stat_recording
             CapsuleType.WEATHER_ALERT -> WeatherAlertIconMapper.iconRes(eventType)

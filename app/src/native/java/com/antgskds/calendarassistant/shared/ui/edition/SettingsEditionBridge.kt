@@ -23,7 +23,6 @@ import com.antgskds.calendarassistant.shared.ui.material.settings.MaterialAdvanc
 import com.antgskds.calendarassistant.shared.ui.material.settings.MaterialSideChoiceSettingItem
 import com.antgskds.calendarassistant.shared.ui.material.settings.MaterialSliderSettingItem
 import com.antgskds.calendarassistant.shared.ui.material.settings.MaterialSwitchSettingItem
-import com.antgskds.calendarassistant.shared.ui.material.settings.MaterialVolumeLongPressSettingItem
 import com.antgskds.calendarassistant.shared.ui.material.settings.settingsSliderLabelTextStyle
 
 @Composable
@@ -46,49 +45,6 @@ fun EditionSwitchSettingItem(
     enabled,
     onDisabledClick,
 )
-
-@Composable
-fun EditionOptionalCategoricalSettingItem(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    optionTitle: String,
-    optionSummary: String,
-    options: List<String>,
-    selectedIndex: Int,
-    onSelectedIndexChange: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-    cardValueStyle: TextStyle? = null,
-) {
-    Column {
-        MaterialSwitchSettingItem(
-            title = title,
-            subtitle = subtitle,
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            cardTitleStyle = cardTitleStyle,
-            cardSubtitleStyle = cardSubtitleStyle,
-        )
-        AnimatedVisibility(
-            visible = checked,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
-        ) {
-            EditionCategoricalPreference(
-                title = optionTitle,
-                summary = optionSummary,
-                options = options,
-                selectedIndex = selectedIndex,
-                onSelectedIndexChange = onSelectedIndexChange,
-                titleTextStyle = cardTitleStyle,
-                summaryTextStyle = cardSubtitleStyle,
-                valueTextStyle = cardValueStyle,
-            )
-        }
-    }
-}
 
 @Composable
 fun EditionSwitchSliderSettingItem(
@@ -244,27 +200,6 @@ fun EditionSliderSettingItem(
     valueUnit,
     categoricalLabels,
     enabled,
-)
-
-@Composable
-fun EditionVolumeLongPressSettingItem(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    action: Int,
-    onCheckedChange: (Boolean) -> Unit,
-    onActionChange: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-) = MaterialVolumeLongPressSettingItem(
-    title,
-    subtitle,
-    checked,
-    action,
-    onCheckedChange,
-    onActionChange,
-    cardTitleStyle,
-    cardSubtitleStyle,
 )
 
 @Composable

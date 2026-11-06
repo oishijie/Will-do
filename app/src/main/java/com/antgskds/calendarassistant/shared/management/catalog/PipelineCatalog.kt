@@ -57,9 +57,9 @@ object PipelineCatalog {
     val pipelines: List<PipelineEntry> = listOf(
         PipelineEntry("截图挂起", Chain.NOTIFICATION, "platform/accessibility/TextAccessibilityService.startImagePinCapture", Maturity.PIPELINE, "磁贴主动触发，检查权限和截图占用、复用截图延迟后采集，PNG 临时文件经 ImagePinController 统一追加并清理；失败保留已有图片"),
         PipelineEntry("图片挂起", Chain.NOTIFICATION, "feature/imagepin/ImagePinController", Maturity.PIPELINE, "受控多图分享/选图、整批校验后追加本地副本、共用胶囊和翻页弹窗；兼容旧单图，失败保留原图，关闭或结束清理全部副本"),
-        PipelineEntry("随口记提醒生命周期", Chain.NOTIFICATION, "feature/quickmemo/application/QuickMemoFacade", Maturity.PIPELINE, "维护多个提醒的保存、删除、重排、触发及重复推进；发布经 NotificationApi"),
-        PipelineEntry("随口记提醒通知桥接", Chain.NOTIFICATION, "feature/quickmemo/application/QuickMemoReminderNotificationBridge", Maturity.PIPELINE, "到期随口记经 NotificationApi 按胶囊开关分流，只有 POSTED 才完成本次提醒"),
-        PipelineEntry("随口记提醒闹钟调度", Chain.NOTIFICATION, "platform/notification/alarm/QuickMemoReminderScheduler", Maturity.PIPELINE, "统一安装及取消随口记闹钟，精确权限不可用时回退非精确调度"),
+        PipelineEntry("闪记提醒生命周期", Chain.NOTIFICATION, "feature/quickmemo/application/QuickMemoFacade", Maturity.PIPELINE, "维护多个提醒的保存、删除、重排、触发及重复推进；发布经 NotificationApi"),
+        PipelineEntry("闪记提醒通知桥接", Chain.NOTIFICATION, "feature/quickmemo/application/QuickMemoReminderNotificationBridge", Maturity.PIPELINE, "到期闪记经 NotificationApi 按胶囊开关分流，只有 POSTED 才完成本次提醒"),
+        PipelineEntry("闪记提醒闹钟调度", Chain.NOTIFICATION, "platform/notification/alarm/QuickMemoReminderScheduler", Maturity.PIPELINE, "统一安装及取消闪记闹钟，精确权限不可用时回退非精确调度"),
         // —— 识别 ——
         PipelineEntry(
             "识别主流程", Chain.RECOGNITION, "feature/recognition/application/RecognitionOrchestrator",

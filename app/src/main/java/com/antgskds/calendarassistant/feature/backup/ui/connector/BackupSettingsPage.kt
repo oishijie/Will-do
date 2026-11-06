@@ -263,7 +263,7 @@ fun MaterialBackupSettingsScreen(controller: BackupUiController, uiSize: Int = 2
 
             BackupCard(
                 title = "数据备份",
-                desc = "备份/恢复日程、随口记、设置和提示词",
+                desc = "备份/恢复日程、闪记、设置和提示词",
                 onExport = {
                     haptics.click()
                     exportOptions = AppBackupOptions(includeEvents = true)
@@ -463,8 +463,8 @@ private fun BackupOptionsSheet(
                 onCheckedChange = { onOptionsChange(normalizedOptions.copy(includeSettings = it)) }
             )
             BackupOptionRow(
-                title = "随口记",
-                subtitle = "包含随口记文本、状态、录音和图片",
+                title = "闪记",
+                subtitle = "包含闪记文本、状态、录音和图片",
                 checked = normalizedOptions.includeQuickMemos,
                 onCheckedChange = { onOptionsChange(normalizedOptions.copy(includeQuickMemos = it)) }
             )
@@ -518,7 +518,7 @@ private fun formatBackupImportResult(result: AppBackupImportResult): String {
     if (result.settingsImported) parts += "设置"
     if (result.promptsImported) parts += "提示词"
     if (result.attachmentsImported > 0) parts += "附件 ${result.attachmentsImported} 个"
-    if (result.quickMemosImported > 0) parts += "随口记 ${result.quickMemosImported} 条"
+    if (result.quickMemosImported > 0) parts += "闪记 ${result.quickMemosImported} 条"
     return if (parts.isEmpty()) "导入完成" else "导入成功：${parts.joinToString("，")}"
 }
 

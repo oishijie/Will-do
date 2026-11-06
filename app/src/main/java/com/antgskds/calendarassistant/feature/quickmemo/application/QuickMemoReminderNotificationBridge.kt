@@ -24,9 +24,9 @@ class QuickMemoReminderNotificationBridge(private val notificationApi: Notificat
         val key = NotificationKey.quickMemoReminder(reminderId)
         val body = memo.bodyText.trim().ifBlank {
             when {
-                !memo.imagePath.isNullOrBlank() -> "图片随口记"
-                !memo.audioPath.isNullOrBlank() -> "语音随口记"
-                else -> "点击查看随口记"
+                !memo.imagePath.isNullOrBlank() -> "图片闪记"
+                !memo.audioPath.isNullOrBlank() -> "语音闪记"
+                else -> "点击查看闪记"
             }
         }
         val created = notificationApi.create(
@@ -39,8 +39,8 @@ class QuickMemoReminderNotificationBridge(private val notificationApi: Notificat
                 channelKey = App.CHANNEL_ID_POPUP,
                 category = "reminder",
                 display = NotificationDisplaySnapshot(
-                    shortText = "随口记提醒",
-                    primaryText = "随口记提醒",
+                    shortText = "闪记提醒",
+                    primaryText = "闪记提醒",
                     secondaryText = body,
                     expandedText = body,
                 ),

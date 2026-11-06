@@ -89,17 +89,7 @@ class FloatingTileService : TileService() {
     }
 
     private fun startFloatingWindow() {
-        val app = applicationContext as? App
-        if (app?.floatingCenter?.startFloatingService() == true) return
-
-        val settings = app?.settingsQueryApi?.settings?.value ?: return
-        val fallbackMode = when {
-            settings.isFloatingWindowEnabled -> FloatingScheduleService.INPUT_MODE_SCHEDULE
-            settings.voiceInputEnabled -> FloatingScheduleService.INPUT_MODE_NOTE
-            else -> return
-        }
-        startService(Intent(this, FloatingScheduleService::class.java).apply {
-            putExtra(FloatingScheduleService.EXTRA_INITIAL_INPUT_MODE, fallbackMode)
-        })
+        val app = applicationContext as? App ?: return
+        app.floatingCenter?.startFloatingService()
     }
 }

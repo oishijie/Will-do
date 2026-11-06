@@ -27,12 +27,8 @@ class ShortcutHandleActivity : AppCompatActivity() {
         overridePendingTransition(0, 0)
 
         when (intent?.action) {
-            ACTION_OPEN_FLOATING -> {
-                openFloatingWindow(FloatingScheduleService.INPUT_MODE_SCHEDULE)
-                finishWithoutAnimation()
-            }
-            ACTION_OPEN_FLOATING_NOTE -> {
-                openFloatingWindow(FloatingScheduleService.INPUT_MODE_NOTE)
+            ACTION_OPEN_FLOATING, ACTION_OPEN_FLOATING_NOTE -> {
+                openFloatingWindow()
                 finishWithoutAnimation()
             }
             ACTION_START_QUICK_MEMO_VOICE -> {
@@ -68,7 +64,7 @@ class ShortcutHandleActivity : AppCompatActivity() {
         finishWithoutAnimation()
     }
 
-    private fun openFloatingWindow(initialInputMode: String) {
+    private fun openFloatingWindow() {
         val app = applicationContext as App
         if (!app.permissionCenter.canDrawOverlays(this)) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")).apply {
@@ -77,7 +73,7 @@ class ShortcutHandleActivity : AppCompatActivity() {
             return
         }
 
-        app.floatingCenter.startFloatingService(initialInputMode)
+        app.floatingCenter.startFloatingService()
     }
 
     private fun startQuickMemoVoiceCapture() {

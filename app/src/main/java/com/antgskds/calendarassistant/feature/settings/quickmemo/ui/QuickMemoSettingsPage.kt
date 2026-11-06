@@ -3,7 +3,6 @@ package com.antgskds.calendarassistant.feature.settings.quickmemo.ui
 import android.Manifest
 import android.app.NotificationManager
 import android.content.Context
-import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,18 +41,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private fun hasRecordAudioPermission(context: Context): Boolean =
-    context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
 private fun hasNotificationPermission(context: Context): Boolean {
     val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
     return manager?.areNotificationsEnabled() == true
 }
 
 /**
- * 随口记二级设置页。
+ * 闪记二级设置页。
  *
- * 承载原「通用偏好」里的整块随口记设置；权限申请与副作用（启停悬浮入口）
+ * 承载原「通用偏好」里的整块闪记设置；权限申请与副作用（启停悬浮入口）
  * 从通用偏好原样迁入，行为不变。
  */
 @Composable
@@ -74,19 +70,10 @@ fun QuickMemoSettingsPage(viewModel: SettingsViewModel, uiSize: Int = 2) {
         scope.launch { snackbarHostState.showSnackbar(message) }
     }
 
-    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) {
-        permissionGate.resumePending()
-    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) {
         permissionGate.resumePending()
-    }
-
-    fun requestRecordAudioPermission() {
-        recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     fun requestNotificationPermission() {
@@ -130,11 +117,11 @@ fun QuickMemoSettingsPage(viewModel: SettingsViewModel, uiSize: Int = 2) {
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
+                    .padding(horizontal = 18.dp, vertical = 8.dp)
                     .padding(bottom = 32.dp + bottomInset),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text("随口记", style = sectionTitleStyle)
+                Text("闪记", style = sectionTitleStyle)
 
                 QuickMemoPreferenceCard(
                     settings = settings,
@@ -143,28 +130,6 @@ fun QuickMemoSettingsPage(viewModel: SettingsViewModel, uiSize: Int = 2) {
                     cardSubtitleStyle = cardSubtitleStyle,
                     onVoiceInputEnabledChange = { enabled ->
                         viewModel.updatePreference(voiceInputEnabled = enabled)
-                        if (enabled) {
-                            // 随口记依赖侧边栏/悬浮窗承载入口，启用时确保入口已就位。
-                            app?.floatingCenter?.startEdgeBarServiceIfPermitted()
-                        } else if (!settings.isFloatingWindowEnabled) {
-                            app?.floatingCenter?.stopEdgeBarService()
-                            app?.floatingCenter?.stopFloatingBallService()
-                        }
-                    },
-                    onFloatingLongPressChange = { enabled ->
-                        if (enabled) {
-                            permissionGate.require(
-                                permissionName = "麦克风权限",
-                                isGranted = { hasRecordAudioPermission(context) },
-                                requestPermission = ::requestRecordAudioPermission,
-                                onGranted = { viewModel.updatePreference(floatingVoiceLongPressEnabled = true) },
-                            )
-                        } else {
-                            viewModel.updatePreference(floatingVoiceLongPressEnabled = false)
-                        }
-                    },
-                    onRecordingDisplayModeChange = { mode ->
-                        viewModel.updatePreference(quickMemoRecordingDisplayMode = mode)
                     },
                     onAutoStopEnabledChange = { enabled ->
                         viewModel.updateQuickMemoAutoStop(enabled = enabled)

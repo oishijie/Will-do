@@ -7,17 +7,14 @@ import android.app.Service
 import com.antgskds.calendarassistant.shared.query.ScheduleQueryApi
 import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.PixelFormat
-import android.graphics.Point
-import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -26,7 +23,6 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.content.pm.ServiceInfo
 import com.antgskds.calendarassistant.shared.util.AppLogger as Log
-import android.view.DragEvent
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -34,7 +30,24 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.antgskds.calendarassistant.platform.floating.capsule.HandleTheme
+import com.antgskds.calendarassistant.platform.floating.capsule.OverlayConstants
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.LocalContext
@@ -81,13 +94,11 @@ import com.antgskds.calendarassistant.feature.schedule.application.model.EventPa
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem
 import com.antgskds.calendarassistant.platform.accessibility.TextAccessibilityService
-import com.antgskds.calendarassistant.platform.floating.ui.contract.FloatingInputMode
-import com.antgskds.calendarassistant.platform.floating.ui.contract.FloatingDragTextOptions
 import com.antgskds.calendarassistant.platform.floating.ui.connector.EventMediaFloatingCardRoute
+import com.antgskds.calendarassistant.platform.floating.ui.connector.ImagePinMediaFloatingCardRoute
 import com.antgskds.calendarassistant.platform.floating.ui.connector.QuickMemoMediaFloatingCardRoute
 import com.antgskds.calendarassistant.platform.notification.alarmlegacy.NotificationIds
 import com.antgskds.calendarassistant.shared.management.resource.notification.display.normal.SystemNormalDisplay
-import com.antgskds.calendarassistant.platform.floating.ui.connector.FloatingScheduleRoute
 import com.antgskds.calendarassistant.app.ui.theme.CalendarAssistantStyleTheme
 import com.antgskds.calendarassistant.app.ui.theme.ThemeColorScheme
 import kotlinx.coroutines.CoroutineScope
@@ -112,6 +123,9 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         private const val RECOGNITION_SOURCE_ID = "floating.manual_input"
         private const val RECENT_VOICE_MEMO_HOLD_MS = 5_000L
         private const val TEXT_DRAG_WINDOW_ANIMATION_MS = 180L
+        /** 把手纵向偏移的持久化：存 dp，相对垂直居中的偏移（向下为正），左右停靠共用。 */
+        private const val PREFS_NAME = "floating_overlay_prefs"
+        private const val HANDLE_Y_OFFSET_KEY = "overlay_handle_y_offset_dp"
 
         const val ACTION_IMAGE_PICKED = "com.antgskds.calendarassistant.floating.action.IMAGE_PICKED"
         const val ACTION_IMAGE_PICK_CANCELLED = "com.antgskds.calendarassistant.floating.action.IMAGE_PICK_CANCELLED"
@@ -120,6 +134,9 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         const val ACTION_STOP_VOICE_CAPTURE = "com.antgskds.calendarassistant.floating.action.STOP_VOICE_CAPTURE"
         const val ACTION_SHOW_PICKUP_QR_CARD = "com.antgskds.calendarassistant.floating.action.SHOW_PICKUP_QR_CARD"
         const val ACTION_SHOW_IMAGE_PIN = "com.antgskds.calendarassistant.SHOW_IMAGE_PIN"
+
+        /** 外部请求关闭悬浮窗（音量键 toggle 的“再按一次收起”）。 */
+        const val ACTION_REQUEST_CLOSE = "com.antgskds.calendarassistant.floating.action.REQUEST_CLOSE"
         const val ACTION_SHOW_QUICK_MEMO_MEDIA_CARD = "com.antgskds.calendarassistant.floating.action.SHOW_QUICK_MEMO_MEDIA_CARD"
         const val ACTION_VOICE_CAPTURE_RECORDING = "com.antgskds.calendarassistant.floating.action.VOICE_CAPTURE_RECORDING"
         const val ACTION_VOICE_CAPTURE_COMPLETED = "com.antgskds.calendarassistant.floating.action.VOICE_CAPTURE_COMPLETED"
@@ -128,9 +145,6 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         const val ACTION_FLOATING_SHOWN = "com.antgskds.calendarassistant.floating.action.SHOWN"
         const val ACTION_FLOATING_HIDDEN = "com.antgskds.calendarassistant.floating.action.HIDDEN"
         const val EXTRA_IMAGE_URI = "extra_image_uri"
-        const val EXTRA_INITIAL_INPUT_MODE = "extra_initial_input_mode"
-        const val INPUT_MODE_SCHEDULE = "schedule"
-        const val INPUT_MODE_NOTE = "note"
         const val EXTRA_VOICE_AUDIO_PATH = "extra_voice_audio_path"
         const val EXTRA_VOICE_DURATION_MS = "extra_voice_duration_ms"
         const val EXTRA_VOICE_ERROR_MESSAGE = "extra_voice_error_message"
@@ -142,7 +156,12 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
 
         @Volatile var isShowing: Boolean = false
             private set
+        @Volatile var instance: FloatingScheduleService? = null
+            private set
     }
+
+    fun isCapturingNow(): Boolean =
+        voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.RECORDING
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
@@ -162,20 +181,25 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val voiceCaptureState = MutableStateFlow(QuickMemoVoiceCaptureState())
     private val recentVoiceMemoId = MutableStateFlow<Long?>(null)
-    private val requestedInputMode = MutableStateFlow(FloatingInputMode.SCHEDULE to 0L)
     private val mediaRequest = MutableStateFlow<FloatingMediaRequest?>(null)
+    private val capsuleExpandRequest = MutableStateFlow(0L)
+    private val screenOffRequest = MutableStateFlow(0L)
+    private val screenOnRequest = MutableStateFlow(0L)
+    private var screenOn = true
+    private var awaitingScreenRestore = false
+    private var closingOnScreenOff = false
+    // 本次启动是否为用户主动唤起（音量键/磁贴/快捷方式），决定首次渲染是否直接展开面板
+    private var expandOnLaunch = false
+    // 本次启动是否由媒体卡片或录音拉起（这两类有自己的视图，不应展开面板）
+    private var initialHasMediaOrVoice = false
     private val audioRecorder by lazy { QuickMemoAudioRecorder(applicationContext) }
     private var voiceConfirmJob: Job? = null
     private var recentVoiceMemoJob: Job? = null
     private var voiceStartJob: Job? = null
     private var voiceAutoStopJob: Job? = null
-    private var plainTextDragRestoreJob: Job? = null
-    private var plainTextDragCancelHotZoneActive: Boolean = false
-    private var plainTextDragDropHandled: Boolean = false
-    private var textDragHotZoneView: View? = null
-    private var textDragHotZoneParams: WindowManager.LayoutParams? = null
-    private var plainTextDragRestoreSourceAction: (() -> Unit)? = null
     private var voiceStopRequested: Boolean = false
+    /** 录音中收到关窗请求：停录并落库，保存完成后再关窗（不丢录音）。 */
+    private var closeAfterVoiceSave: Boolean = false
     private var voiceForegroundActive: Boolean = false
     private var mediaFallbackInProgress: Boolean = false
 
@@ -203,6 +227,31 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
     private val closeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenOn = false
+                    composeView?.visibility = View.GONE
+                    if (voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.IDLE && mediaRequest.value == null) {
+                        awaitingScreenRestore = true
+                        val current = settingsQueryApi.settings.value
+                        val closeOnScreenOff = current.floatingHandleAutoHideSeconds !=
+                            OverlayConstants.HANDLE_AUTO_HIDE_NEVER_SECONDS && !current.floatingEdgeLineEnabled
+                        if (closeOnScreenOff) {
+                            closingOnScreenOff = true
+                            requestClose()
+                        } else {
+                            screenOffRequest.value++
+                        }
+                    }
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    screenOn = true
+                    if (closingOnScreenOff) return
+                    if (awaitingScreenRestore) {
+                        screenOnRequest.value++
+                    } else if (isViewAttached) {
+                        composeView?.visibility = View.VISIBLE
+                    }
+                }
                 TextAccessibilityService.ACTION_CLOSE_FLOATING -> {
                     requestClose()
                 }
@@ -219,6 +268,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         isShowing = true
         sendBroadcast(Intent(ACTION_FLOATING_SHOWN))
         savedStateRegistryController.performRestore(null)
@@ -229,6 +279,8 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         // 注册广播 (兼容 Android 12+)
         val filter = IntentFilter().apply {
             addAction(TextAccessibilityService.ACTION_CLOSE_FLOATING)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                 // Android 12+ 限制了系统广播的接收，通常不需要手动监听 Home 键，系统会处理层级
                 addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
@@ -309,33 +361,30 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
 
     private fun initUI() {
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+            (OverlayConstants.HANDLE_WIDTH_DP * resources.displayMetrics.density).toInt(),
+            (OverlayConstants.HANDLE_HEIGHT_DP * resources.displayMetrics.density).toInt(),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            // Flags 组合修正：
-            // 1. FLAG_LAYOUT_NO_LIMITS: 允许突破屏幕边界
-            // 2. FLAG_LAYOUT_IN_SCREEN: 确保窗口坐标系使用整个屏幕（包含状态栏）
-            // 3. 移除 FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS (关键！防止系统绘制额外背景)
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 允许事件穿透到后面，但我们是全屏的，这个其实主要防止焦点独占
+            // 小窗口与闪念胶囊一致：窗口边界即胶囊边界，透明区域不拦截触摸。
+            // 不能用 FLAG_LAYOUT_NO_LIMITS：它允许窗口超出屏幕边界，配合 Gravity.END
+            // 时右边缘会算到屏幕外，右侧展开的内容被推出可视区。
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
-            // 软键盘模式
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-
-            // 显式设置对齐方式，防止部分设备默认居中导致偏移
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            // 横向贴停靠侧靠 gravity；纵向位置由持久化偏移决定（垂直居中 + 偏移），
+            // 拖动松手落盘，重启/切侧不丢位置。
+            val dockLeft = settingsQueryApi.settings.value.floatingExpandSide == "LEFT"
+            gravity = (if (dockLeft) android.view.Gravity.START else android.view.Gravity.END) or
+                android.view.Gravity.CENTER_VERTICAL
             x = 0
-            y = 0
-
-            // 【核心修复】适配刘海屏/挖孔屏
-            // SHORT_EDGES 表示：无论横竖屏，都允许内容延伸到刘海/摄像头区域
+            y = handleYOffsetPxClamped(
+                (OverlayConstants.HANDLE_HEIGHT_DP * resources.displayMetrics.density).toInt()
+            )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -373,6 +422,179 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
             setContent {
                 val events by scheduleQueryApi.events.collectAsState()
                 val settings by settingsQueryApi.settings.collectAsState()
+                val mediaRequestState by mediaRequest.collectAsState()
+                // 闪念胶囊收起/展开态：收起时窗口 28×88 只显示把手，展开时 resize 到面板尺寸。
+                // 展开态不能靠 rememberSaveable 持久：窗口重建时若残留 true，
+                // 28×88 窗口里渲染整块面板会布局异常导致悬浮窗不可见。
+                // 用户主动唤起（音量键/磁贴/快捷方式）直接展开面板，省一次点击；
+                // 媒体卡片/录音拉起时不展开，它们有自己的视图。
+                var capsuleExpanded by remember {
+                    mutableStateOf(expandOnLaunch && !initialHasMediaOrVoice)
+                }
+                val expandRequest by capsuleExpandRequest.collectAsState()
+                // 展开的卡片集合提到这一层：原生窗口宽度要跟着「有卡展开」变化
+                // （无展开 0.72 屏宽 → 有展开 0.92 屏宽，对齐参考实现）
+                var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+                var panelMaxCards by remember { mutableStateOf(settings.floatingPanelMaxCards) }
+                var fontSizeStep by remember { mutableStateOf(settings.floatingFontSizeStep.coerceIn(-2, 2)) }
+                LaunchedEffect(capsuleExpanded) {
+                    if (capsuleExpanded) {
+                        val current = settingsQueryApi.settings.value
+                        panelMaxCards = current.floatingPanelMaxCards
+                        fontSizeStep = current.floatingFontSizeStep.coerceIn(-2, 2)
+                    }
+                }
+                // 自动隐藏后的竖线态（把手瘦身版）
+                var edgeLineVisible by remember { mutableStateOf(false) }
+                var edgeLineMarginDp by remember { mutableStateOf(settings.floatingEdgeLineMarginDp) }
+                LaunchedEffect(edgeLineVisible) {
+                    if (edgeLineVisible) edgeLineMarginDp = settingsQueryApi.settings.value.floatingEdgeLineMarginDp
+                }
+                LaunchedEffect(expandRequest) {
+                    if (expandRequest > 0L) {
+                        edgeLineVisible = false
+                        capsuleExpanded = true
+                    }
+                }
+                val screenOffGeneration by screenOffRequest.collectAsState()
+                val screenOnGeneration by screenOnRequest.collectAsState()
+                var handledScreenOffGeneration by remember { mutableStateOf(0L) }
+                LaunchedEffect(screenOffGeneration) {
+                    if (screenOffGeneration == 0L) return@LaunchedEffect
+                    if (voiceCaptureState.value.status != QuickMemoVoiceCaptureStatus.IDLE) {
+                        handledScreenOffGeneration = screenOffGeneration
+                        return@LaunchedEffect
+                    }
+                    audioPlaybackCenter.stop()
+                    capsuleExpanded = false
+                    expandedIds = emptySet()
+                    val current = settingsQueryApi.settings.value
+                    edgeLineVisible = current.floatingHandleAutoHideSeconds !=
+                        OverlayConstants.HANDLE_AUTO_HIDE_NEVER_SECONDS
+                    handledScreenOffGeneration = screenOffGeneration
+                }
+                // 划走删除的撤销状态：待撤销的闪记 id 与气泡文案
+                var pendingSwipeDeleteMemoId by remember { mutableStateOf<Long?>(null) }
+                var swipeDeleteGeneration by remember { mutableStateOf(0L) }
+                var undoMessage by remember { mutableStateOf<String?>(null) }
+                val handleSizePercent = settings.floatingHandleSizePercent
+                val handleTheme = remember(settings.floatingHandleTheme) {
+                    runCatching { HandleTheme.valueOf(settings.floatingHandleTheme) }
+                        .getOrDefault(HandleTheme.DUO)
+                }
+                // 录音态：浮窗改成录音胶囊（计时 + 实时电平波形 + 停止钮）
+                val voiceState by voiceCaptureState.collectAsState()
+                val isRecordingNow = voiceState.status == QuickMemoVoiceCaptureStatus.RECORDING ||
+                    voiceState.status == QuickMemoVoiceCaptureStatus.SAVING ||
+                    voiceState.status == QuickMemoVoiceCaptureStatus.TRANSCRIBING ||
+                    voiceState.status == QuickMemoVoiceCaptureStatus.CONFIRMING
+                // 录音计时：voiceState.durationMs 只在保存时赋值，录音过程中恒 0，
+                // 所以界面上自己跑一个秒级 ticker，不动 service 状态机。
+                var recordElapsedMs by remember { mutableStateOf(0L) }
+                LaunchedEffect(voiceState.status) {
+                    if (voiceState.status != QuickMemoVoiceCaptureStatus.RECORDING) {
+                        if (!isRecordingNow) recordElapsedMs = 0L
+                        return@LaunchedEffect
+                    }
+                    val startedAt = System.currentTimeMillis()
+                    while (true) {
+                        recordElapsedMs = System.currentTimeMillis() - startedAt
+                        kotlinx.coroutines.delay(200)
+                    }
+                }
+                LaunchedEffect(
+                    capsuleExpanded, mediaRequestState, handleSizePercent, isRecordingNow,
+                    edgeLineVisible, handledScreenOffGeneration, screenOffGeneration, screenOnGeneration,
+                ) {
+                    if (handledScreenOffGeneration != screenOffGeneration) return@LaunchedEffect
+                    val density = resources.displayMetrics.density
+                    val handleHeightPx = (OverlayConstants.HANDLE_HEIGHT_DP * density).toInt()
+                    if (mediaRequestState != null) {
+                        // 媒体卡片（图片挂起 / 取件码 / 闪记图片）是全屏居中大卡，
+                        // 必须撑满窗口；沿用把手窗口尺寸会渲染不出卡片。
+                        resizeWindow(
+                            resources.displayMetrics.widthPixels,
+                            resources.displayMetrics.heightPixels,
+                            focusable = true
+                        )
+                    } else if (isRecordingNow) {
+                        // 录音胶囊：宽度够放波形，高度只占一条，仍贴停靠侧垂直居中。
+                        resizeWindow(
+                            ((OverlayConstants.RECORD_BAR_MAX_WIDTH + OverlayConstants.RECORD_BAR_EDGE_MARGIN).value * density).toInt(),
+                            (OverlayConstants.RECORD_BAR_HEIGHT.value * density).toInt() + (12 * density).toInt(),
+                            focusable = false,
+                            yOffsetPx = 0
+                        )
+                    } else if (capsuleExpanded) {
+                        val screenWidthPx = resources.displayMetrics.widthPixels
+                        // 窗口宽度恒定用最宽的展开比例（0.92），不跟随「是否有卡展开」跳变：
+                        // 之前把 expandedIds.isNotEmpty() 放进 key，展开一张卡就瞬时重调
+                        // 窗口尺寸，整块面板一下子变宽——这是「展开时界面跳一下」的一半原因。
+                        // 面板自身的 0.72→0.92 宽度补间放在 CapsulePanel 内部用动画做
+                        //（对齐参考实现 AnimatedContainer 补间面板宽度）。
+                        val panelWidthPx = (screenWidthPx * OverlayConstants.EXPANDED_PANEL_WIDTH_RATIO).toInt()
+                        val screenHeightPx = resources.displayMetrics.heightPixels
+                        resizeWindow(panelWidthPx, screenHeightPx, focusable = true)
+                    } else if (edgeLineVisible) {
+                        // 竖线窗口：20×64 透明触摸缓冲，视觉线 4dp 贴缘
+                        resizeWindow(
+                            (OverlayConstants.EDGE_LINE_WINDOW_WIDTH_DP.value * density).toInt(),
+                            (OverlayConstants.EDGE_LINE_HEIGHT_DP.value * density).toInt(),
+                            focusable = false,
+                            yOffsetPx = handleYOffsetPxClamped(
+                                (OverlayConstants.EDGE_LINE_HEIGHT_DP.value * density).toInt()
+                            )
+                        )
+                    } else {
+                        resizeWindow(
+                            (OverlayConstants.HANDLE_WIDTH_DP * density).toInt(),
+                            handleHeightPx,
+                            focusable = false,
+                            yOffsetPx = handleYOffsetPxClamped(handleHeightPx)
+                        )
+                    }
+                    if (screenOn && !closingOnScreenOff && handledScreenOffGeneration == screenOffRequest.value) {
+                        awaitingScreenRestore = false
+                        if (isViewAttached) composeView?.visibility = View.VISIBLE
+                    }
+                }
+                // 只在媒体卡片真正退出时收起；首次主动唤起时初始 null 不应覆盖展开态。
+                var hadMediaRequest by remember { mutableStateOf(mediaRequestState != null) }
+                LaunchedEffect(mediaRequestState) {
+                    if (hadMediaRequest && mediaRequestState == null) capsuleExpanded = false
+                    hadMediaRequest = mediaRequestState != null
+                }
+                // 收起态自动隐藏（对齐声物记 _scheduleAutoHide）：
+                // 只在收起态计时；录音/转写中直接跳过；「永久」档（-1）不起计时。
+                // 到期后默认缩成贴边竖线（edgeLineEnabled 默认 true），
+                // 只有关掉竖线开关时才彻底隐藏悬浮窗。
+                val autoHideSeconds = settings.floatingHandleAutoHideSeconds
+                val edgeLineEnabled = settings.floatingEdgeLineEnabled
+                LaunchedEffect(
+                    capsuleExpanded,
+                    isRecordingNow,
+                    mediaRequestState,
+                    autoHideSeconds,
+                    edgeLineEnabled,
+                    edgeLineVisible,
+                ) {
+                    if (edgeLineVisible) return@LaunchedEffect
+                    // 非收起态不计时（双保险：isCollapsed 判定）
+                    if (capsuleExpanded) return@LaunchedEffect
+                    // 录音/转写期间不自动隐藏，中途消失会丢 UI 反馈
+                    if (voiceState.status != QuickMemoVoiceCaptureStatus.IDLE) return@LaunchedEffect
+                    if (mediaRequestState != null) return@LaunchedEffect
+                    // 「永久」档：把手常驻，不起计时
+                    if (autoHideSeconds == OverlayConstants.HANDLE_AUTO_HIDE_NEVER_SECONDS) {
+                        return@LaunchedEffect
+                    }
+                    kotlinx.coroutines.delay(autoHideSeconds * 1000L)
+                    if (edgeLineEnabled) {
+                        edgeLineVisible = true
+                    } else {
+                        requestClose()
+                    }
+                }
                 // 悬浮窗是独立 Window，不在 MainActivity 的 Compose 树内，需单独注入触感开关。
                 // 否则 LocalAppHapticsEnabled 取默认值 true，用户关闭也无法生效。
                 androidx.compose.runtime.CompositionLocalProvider(
@@ -380,26 +602,30 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                         provides settings.hapticFeedbackEnabled
                 ) {
                 val context = LocalContext.current
-                val weatherData by weatherQueryApi.weatherData.collectAsState()
                 val quickMemos by quickMemoCenter.quickMemos.collectAsState()
-                val currentVoiceCaptureState by voiceCaptureState.collectAsState()
-                val currentRecentVoiceMemoId by recentVoiceMemoId.collectAsState()
-                val currentRequestedInputMode by requestedInputMode.collectAsState()
+                // 转写反馈：等本次语音闪记的真实转写终态（SUCCESS/FAILED）才结束，
+                // 不以“已入库”代替“已转写”（对齐声物记 recording→transcribing→idle）。
+                LaunchedEffect(voiceState.status, voiceState.memoId, quickMemos) {
+                    if (voiceState.status != QuickMemoVoiceCaptureStatus.TRANSCRIBING) return@LaunchedEffect
+                    val trackedId = voiceState.memoId ?: return@LaunchedEffect
+                    val memo = quickMemos.firstOrNull { it.id == trackedId } ?: return@LaunchedEffect
+                    if (memo.transcriptionStatus == QuickMemoTranscriptionStatus.SUCCESS ||
+                        memo.transcriptionStatus == QuickMemoTranscriptionStatus.FAILED
+                    ) {
+                        voiceCaptureState.value = QuickMemoVoiceCaptureState()
+                    }
+                }
                 val currentMediaRequest by mediaRequest.collectAsState()
-                val audioPlaybackState by audioPlaybackCenter.playbackState.collectAsState()
-                val undoPending by scheduleCenter.undoManager.currentPending.collectAsState()
-                val pendingItemStates by scheduleCenter.pendingItemStates.collectAsState()
                 val mediaEvent = currentMediaRequest?.eventId?.let { eventId ->
                     events.firstOrNull { it.id == eventId }
                 }
 
                 // 根据悬浮窗日程范围设置过滤事件
                 val today = LocalDate.now()
-                val tomorrow = today.plusDays(1)
                 val scheduleEvents = events.filter { it.archivedAt == null }
                 val (displayFrom, displayTo) = when (settings.floatingEventRange) {
                     1 -> today to today
-                    2 -> today to tomorrow
+                    2 -> today to today.plusDays(1)
                     else -> (scheduleEvents.minOfOrNull { it.startDate } ?: today) to today.plusDays(7) // 0 = 过去全部到未来7天
                 }
                 val scheduleItems = scheduleCenter.applyPendingStateOverrides(
@@ -420,168 +646,203 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                     themeColorScheme = themeColorSchemeEnum,
                     customThemeColorHex = settings.customThemeColorHex
                 ) {
+                    // 委托属性的 smart cast 受限，取一份局部值供渲染分支与回调共用
                     val activeMediaRequest = currentMediaRequest
-                    val activeQuickMemoId = activeMediaRequest?.quickMemoId
-                    val floatingContent: @androidx.compose.runtime.Composable () -> Unit = {
-                        if (activeMediaRequest?.imagePinId != null) {
+                    if (isRecordingNow) {
+                        // 录音态优先：此时窗口已 resize 成录音胶囊尺寸，
+                        // 面板/把手都不该渲染。
+                        androidx.compose.foundation.layout.Box(
+                            modifier = androidx.compose.ui.Modifier
+                                .fillMaxSize()
+                                .padding(
+                                    start = if (settings.floatingExpandSide == "LEFT") OverlayConstants.RECORD_BAR_EDGE_MARGIN else 0.dp,
+                                    end = if (settings.floatingExpandSide == "LEFT") 0.dp else OverlayConstants.RECORD_BAR_EDGE_MARGIN,
+                                ),
+                            contentAlignment = if (settings.floatingExpandSide == "LEFT")
+                                androidx.compose.ui.Alignment.CenterStart else androidx.compose.ui.Alignment.CenterEnd,
+                        ) {
+                            com.antgskds.calendarassistant.platform.floating.capsule.CapsuleRecordingBar(
+                                elapsedMs = recordElapsedMs,
+                                onStop = { stopVoiceCapture() },
+                                dockLeft = settings.floatingExpandSide == "LEFT",
+                                saving = voiceState.status != QuickMemoVoiceCaptureStatus.RECORDING,
+                                transcribing = voiceState.status == QuickMemoVoiceCaptureStatus.TRANSCRIBING,
+                            )
+                        }
+                    } else if (activeMediaRequest != null) {
+                        if (activeMediaRequest.imagePinId != null) {
                             androidx.compose.runtime.LaunchedEffect(settings.imagePinEnabled) {
                                 if (!settings.imagePinEnabled) requestClose()
                             }
-                            com.antgskds.calendarassistant.platform.floating.ui.connector.ImagePinMediaFloatingCardRoute(
+                            ImagePinMediaFloatingCardRoute(
                                 imagePaths = activeMediaRequest.imagePaths,
-                                onClose = { requestClose() }
+                                onClose = { dismissMediaCard() }
                             )
-                        } else if (mediaEvent != null && activeMediaRequest != null) {
+                        } else if (mediaEvent != null) {
                             EventMediaFloatingCardRoute(
                                 event = mediaEvent,
                                 imagePaths = activeMediaRequest.imagePaths,
-                                onClose = { requestClose() },
+                                onClose = { dismissMediaCard() },
                                 onComplete = {
                                     val eventId = mediaEvent.id
                                     if (eventId != null) {
                                         scheduleCenter.completeItem(ScheduleDisplayItem.ActionTarget.Single(eventId))
                                     }
-                                    requestClose()
+                                    dismissMediaCard()
                                 },
                                 onMediaUnavailable = { openMediaSourceInApp(activeMediaRequest) }
                             )
-                        } else if (activeMediaRequest != null && activeQuickMemoId != null) {
+                        } else if (activeMediaRequest.quickMemoId != null) {
                             QuickMemoMediaFloatingCardRoute(
-                                memoId = activeQuickMemoId,
+                                memoId = activeMediaRequest.quickMemoId,
                                 bodyText = activeMediaRequest.title,
                                 imagePath = activeMediaRequest.imagePaths.firstOrNull().orEmpty(),
-                                onClose = { requestClose() },
+                                onClose = { dismissMediaCard() },
                                 onMediaUnavailable = { openMediaSourceInApp(activeMediaRequest) }
                             )
-                        } else FloatingScheduleRoute(
-                        scheduleItems = scheduleItems,
-                        quickMemos = quickMemos,
-                        voiceCaptureState = currentVoiceCaptureState,
-                        recentVoiceMemoId = currentRecentVoiceMemoId,
-                        reverseScheduleOrder = settings.floatingListReverseOrder,
-                        floatingScheduleOrderKeys = settings.floatingScheduleOrderKeys,
-                        dragHotZonePercent = settings.floatingDragHotZonePercent,
-                        dragTextOptions = FloatingDragTextOptions(
-                            includeTitle = settings.floatingDragTextIncludeTitle,
-                            includeTime = settings.floatingDragTextIncludeTime,
-                            includeLocation = settings.floatingDragTextIncludeLocation,
-                            includeDescription = settings.floatingDragTextIncludeDescription
-                        ),
-                        audioPlaybackState = audioPlaybackState,
-                        weatherData = if (settings.hasWeatherConfig() && settings.showWeatherInFloating) weatherData else null,
-                        weatherForecastRange = settings.floatingWeatherForecastRange,
-                        expandSide = settings.floatingExpandSide,
-                        initialMode = currentRequestedInputMode.first,
-                        initialModeRequestKey = currentRequestedInputMode.second,
-                        hapticEnabled = settings.hapticFeedbackEnabled,
-                        scheduleFloatingEnabled = settings.isFloatingWindowEnabled,
-                        quickMemoFloatingEnabled = settings.voiceInputEnabled,
-                        floatingVoiceLongPressEnabled = settings.floatingVoiceLongPressEnabled,
-                        onClose = { requestClose() },
-                        onManualInput = { text, isQuickMemo, onComplete ->
-                            handleManualInput(text = text, isQuickMemo = isQuickMemo, onComplete = onComplete)
-                        },
-                        onPickImageRequest = { isQuickMemo, onComplete ->
-                            startScreenshotAnalysisFlow(asQuickMemo = isQuickMemo, onComplete = onComplete)
-                        },
-                        onUpdateEvent = { updatedEvent, onComplete ->
-                            serviceScope.launch {
-                                try {
-                                    scheduleCenter.updateEvent(updatedEvent)
-                                    Toast.makeText(applicationContext, "已更新", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to update event", e)
-                                    Toast.makeText(applicationContext, "更新失败", Toast.LENGTH_SHORT).show()
-                                } finally {
-                                    onComplete()
+                        }
+                    } else if (capsuleExpanded) {
+                        val capsuleItems = remember(scheduleItems, quickMemos, today) {
+                            buildCapsuleItems(scheduleItems, quickMemos)
+                        }
+                        com.antgskds.calendarassistant.platform.floating.capsule.CapsulePanel(
+                            items = capsuleItems,
+                            expandedIds = expandedIds,
+                            panelMaxCards = panelMaxCards,
+                            fontSizeStep = fontSizeStep,
+                            onToggleExpanded = { key ->
+                                expandedIds = if (key in expandedIds) expandedIds - key else expandedIds + key
+                            },
+                            onToggleExpandAll = { expand ->
+                                expandedIds = if (expand) capsuleItems.map { it.key }.toSet() else emptySet()
+                            },
+                            onOpenQuickMemo = {
+                                // 照搬 TextAccessibilityService.openInAppQuickMemo 的写法。
+                                // 不在这里 requestClose()：startActivity 后立刻 stopSelf 会
+                                // 把刚建起的窗口事务打断，Activity 收不到 intent。
+                                runCatching {
+                                    startActivity(Intent(this@FloatingScheduleService, MainActivity::class.java).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                        putExtra(MainActivity.EXTRA_OPEN_QUICK_MEMO, true)
+                                    })
+                                }.onFailure { Log.e(TAG, "打开闪记页失败", it) }
+                            },
+                            onStartVoiceCapture = {
+                                capsuleExpanded = false
+                                startVoiceCapture()
+                            },
+                            onItemAction = { item, action ->
+                                handleCapsuleAction(item, action.id)
+                            },
+                            visible = true,
+                            dockLeft = settings.floatingExpandSide == "LEFT",
+                            onDismiss = { capsuleExpanded = false },
+                            onCheckChange = { item, checked ->
+                                handleCapsuleCheck(item, checked)
+                            },
+                            onPaletteSelect = { item, index ->
+                                handleCapsulePaletteSelect(item, index)
+                            },
+                            // 划走：日程归档，闪记也归档（归档后可从归档区恢复，撤销胶囊提供 3 秒快捷撤销）。
+                            onSwipeDismiss = { item ->
+                                if (item.key.startsWith("schedule:")) {
+                                    handleCapsuleCheck(item, true)
+                                } else if (item.key.startsWith("memo:")) {
+                                    val memoId = item.key.removePrefix("memo:").toLongOrNull()
+                                    if (memoId != null) {
+                                        val generation = ++swipeDeleteGeneration
+                                        pendingSwipeDeleteMemoId = null
+                                        undoMessage = null
+                                        serviceScope.launch {
+                                            runCatching { quickMemoCenter.archiveQuickMemo(memoId) }
+                                                .onSuccess {
+                                                    if (generation == swipeDeleteGeneration) {
+                                                        pendingSwipeDeleteMemoId = memoId
+                                                        undoMessage = "已归档"
+                                                    }
+                                                }
+                                                .onFailure {
+                                                    Log.e(TAG, "划走归档闪记失败 id=$memoId", it)
+                                                }
+                                        }
+                                    }
                                 }
-                            }
-                        },
-                        onUpdateScheduleItem = { item, patch, onComplete ->
-                            handleUpdateScheduleItem(item, patch, onComplete)
-                        },
-                        onArchiveScheduleItem = { item ->
-                            serviceScope.launch {
-                                try {
-                                    scheduleCenter.archiveItem(item.action)
-                                    Toast.makeText(applicationContext, "已归档", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to archive item", e)
-                                    Toast.makeText(applicationContext, "归档失败", Toast.LENGTH_SHORT).show()
+                            },
+                            undoMessage = undoMessage,
+                            undoKey = swipeDeleteGeneration,
+                            onToggleTodo = { item ->
+                                val memoId = item.key.removePrefix("memo:").toLongOrNull()
+                                if (memoId != null) {
+                                    serviceScope.launch {
+                                        runCatching { quickMemoCenter.toggleTodoCompletion(memoId) }
+                                            .onFailure { Log.e(TAG, "切换待办完成态失败 id=$memoId", it) }
+                                    }
                                 }
-                            }
-                        },
-                        onStatusAction = { item ->
-                            scheduleCenter.performPrimaryActionOnItemWithUndo(item)
-                        },
-                        pendingStatusKeys = pendingItemStates.keys,
-                        undoPendingLabel = undoPending?.label,
-                        onUndoAction = {
-                            scheduleCenter.undoStatusAction()
-                        },
-                        onMarkQuickMemoTodo = { memo ->
-                            serviceScope.launch { memo.id?.let { quickMemoCenter.markTodoActive(it) } }
-                        },
-                        onRemoveQuickMemoTodo = { memo ->
-                            serviceScope.launch { memo.id?.let { quickMemoCenter.removeTodo(it) } }
-                        },
-                        onToggleQuickMemoTodo = { memo ->
-                            serviceScope.launch { memo.id?.let { quickMemoCenter.toggleTodoCompletion(it) } }
-                        },
-                        onDeleteQuickMemo = { memo, onComplete ->
-                            serviceScope.launch {
-                                try {
-                                    memo.id?.let { quickMemoCenter.deleteQuickMemo(it) }
-                                    Toast.makeText(applicationContext, "已删除", Toast.LENGTH_SHORT).show()
-                                } finally {
-                                    onComplete()
+                            },
+                            onUndoSwipe = { generation ->
+                                val memoId = pendingSwipeDeleteMemoId
+                                if (generation == swipeDeleteGeneration && memoId != null) {
+                                    pendingSwipeDeleteMemoId = null
+                                    undoMessage = null
+                                    serviceScope.launch {
+                                        runCatching { quickMemoCenter.restoreQuickMemoArchived(memoId) }
+                                            .onFailure {
+                                                Log.e(TAG, "撤销归档闪记失败 id=$memoId", it)
+                                                Toast.makeText(applicationContext, "恢复失败", Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
                                 }
-                            }
-                        },
-                        onSaveQuickMemo = { memo, body, onComplete ->
-                            serviceScope.launch {
-                                try {
-                                    memo.id?.let { quickMemoCenter.updateBody(it, body) }
-                                } finally {
-                                    onComplete()
+                            },
+                            onSwipeDeleteCommitted = { generation ->
+                                if (generation == swipeDeleteGeneration) {
+                                    pendingSwipeDeleteMemoId = null
+                                    undoMessage = null
                                 }
-                            }
-                        },
-                        onReorderQuickMemos = { ids ->
-                            serviceScope.launch { quickMemoCenter.updateSortRanks(ids) }
-                        },
-                        onReorderScheduleItems = { keys ->
-                            updateFloatingScheduleOrder(keys)
-                        },
-                        onStartPlainTextDrag = { label, text, onRestoreSource ->
-                            startPlainTextDrag(label, text, onRestoreSource)
-                        },
-                        onConfirmVoiceCapture = { asTodo ->
-                            confirmVoiceCapture(asTodo)
-                        },
-                        onPostVoiceTranscription = { memo ->
-                            postVoiceTranscriptionCapsule(memo)
-                        },
-                        onStartVoiceCapture = {
-                            startVoiceCapture()
-                        },
-                        onStopVoiceCapture = {
-                            stopVoiceCapture()
-                        },
-                        onToggleAudioPlayback = { path ->
-                            serviceScope.launch(Dispatchers.IO) {
-                                runCatching { audioPlaybackCenter.toggle(path) }
-                                    .onFailure { Log.e(TAG, "播放语音随口记失败", it) }
-                            }
-                        },
-                        onLoadingChange = { _ -> }
-                    )
+                            },
+                            // 闹钟预填：先按文字识别，识别不到用下个整点。
+                            resolveInitialTime = { item ->
+                                com.antgskds.calendarassistant.platform.floating.capsule.CapsuleTimeParser
+                                    .parse(item.text)
+                                    ?: com.antgskds.calendarassistant.platform.floating.capsule
+                                        .defaultCapsulePickerTime()
+                            },
+                            onTimeConfirmed = { item, picked, enableAlarm ->
+                                createCapsuleAlarmAt(item.text, picked, enableAlarm)
+                            },
+                            onCreateNote = { text ->
+                                serviceScope.launch {
+                                    runCatching { quickMemoCenter.createTextMemo(bodyText = text) }
+                                        .onFailure { Log.e(TAG, "新建闪记失败", it) }
+                                }
+                            },
+                        )
+                    } else if (edgeLineVisible) {
+                        // 自动隐藏后的贴边竖线：点按即退回把手态
+                        com.antgskds.calendarassistant.platform.floating.capsule.OverlayEdgeLine(
+                            dockLeft = settings.floatingExpandSide == "LEFT",
+                            tapEnabled = settings.floatingEdgeLineTapEnabled,
+                            marginDp = edgeLineMarginDp,
+                            onTap = { edgeLineVisible = false },
+                            onSwipeInward = {
+                                edgeLineVisible = false
+                                capsuleExpanded = true
+                            },
+                        )
+                    } else {
+                        com.antgskds.calendarassistant.platform.floating.capsule.OverlayHandle(
+                            onTap = { capsuleExpanded = true },
+                            onSwipeInward = { capsuleExpanded = true },
+                            onDrag = { deltaY -> moveHandleVertically(deltaY) },
+                            onDragEnd = { persistHandleYOffset() },
+                            dockLeft = settings.floatingExpandSide == "LEFT",
+                            sizePercent = handleSizePercent,
+                            theme = handleTheme,
+                        )
                     }
-                    floatingContent()
                 }
-            }
-        }
-        }
+                }
+                }
+                }
 
         try {
             windowManager.addView(composeView, params)
@@ -592,6 +853,77 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
             isViewAttached = false
             requestClose()
         }
+    }
+
+    /** 把窗口 resize 到指定尺寸（px）。闪念胶囊靠它切换收起把手 / 展开面板。 */
+    private fun resizeWindow(widthPx: Int, heightPx: Int, focusable: Boolean, yOffsetPx: Int = 0) {
+        val view = composeView ?: return
+        val params = windowLayoutParams ?: return
+        if (!isViewAttached || !view.isAttachedToWindow) return
+        try {
+            val dockLeft = settingsQueryApi.settings.value.floatingExpandSide == "LEFT"
+            params.width = widthPx
+            params.height = heightPx
+            // 纵向固定 CENTER_VERTICAL：y 是相对垂直中心的偏移，与 initUI、moveHandleVertically、
+            // handleYOffsetPxClamped 同一套语义。改用 TOP 会让同一个 y 变成距屏幕顶部的距离，把手跳位。
+            // 展开态与媒体态必须传 y=0，否则收起态遗留的偏移会把全高窗口推出屏幕。
+            params.gravity = if (mediaRequest.value != null) {
+                android.view.Gravity.CENTER
+            } else {
+                (if (dockLeft) android.view.Gravity.START else android.view.Gravity.END) or
+                    android.view.Gravity.CENTER_VERTICAL
+            }
+            params.x = 0
+            params.y = yOffsetPx
+            params.flags = if (focusable) {
+                baseWindowFlags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            } else {
+                baseWindowFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            }
+            windowManager.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            Log.w(TAG, "resizeWindow failed", e)
+        }
+    }
+
+    /** 拖动把手调整其在屏幕停靠缘的纵向位置（居中锚点 + 偏移）。 */
+    private fun moveHandleVertically(deltaY: Float) {
+        val view = composeView ?: return
+        val params = windowLayoutParams ?: return
+        if (!isViewAttached) return
+        try {
+            params.y = (params.y + deltaY.toInt()).coerceIn(-maxAbsHandleY(), maxAbsHandleY())
+            windowManager.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            Log.w(TAG, "moveHandleVertically failed", e)
+        }
+    }
+
+    /** 拖动结束：把当前纵向偏移落盘（dp），下次启动恢复。 */
+    private fun persistHandleYOffset() {
+        val params = windowLayoutParams ?: return
+        val density = resources.displayMetrics.density
+        if (density <= 0f) return
+        val offsetDp = (params.y / density).toInt()
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(HANDLE_Y_OFFSET_KEY, offsetDp)
+            .apply()
+    }
+
+    /** 读拖存偏移（dp → px）并 clamp 到窗口完整留在屏内。 */
+    private fun handleYOffsetPxClamped(winHeightPx: Int): Int {
+        val savedDp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getInt(HANDLE_Y_OFFSET_KEY, 0)
+        if (savedDp == 0) return 0
+        val maxAbsY = maxAbsHandleY(winHeightPx)
+        return (savedDp * resources.displayMetrics.density).toInt().coerceIn(-maxAbsY, maxAbsY)
+    }
+
+    /** 偏移上限：保证窗口完整留在屏内。 */
+    private fun maxAbsHandleY(winHeightPx: Int = (OverlayConstants.HANDLE_HEIGHT_DP * resources.displayMetrics.density).toInt()): Int {
+        val screenHeight = resources.displayMetrics.heightPixels
+        return ((screenHeight - winHeightPx) / 2).coerceAtLeast(0)
     }
 
     private fun hideFloatingWindow() {
@@ -611,269 +943,6 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         } catch (e: Exception) {
             Log.w(TAG, "hideFloatingWindow failed", e)
         }
-    }
-
-    private fun updateFloatingScheduleOrder(keys: List<String>) {
-        val sanitized = keys
-            .asSequence()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .take(300)
-            .toList()
-        val current = settingsQueryApi.settings.value
-        if (current.floatingScheduleOrderKeys == sanitized) return
-        app.settingsOperationApi.updateSettings(current.copy(floatingScheduleOrderKeys = sanitized))
-    }
-
-    private fun startPlainTextDrag(label: String, text: String, onRestoreSource: () -> Unit): Boolean {
-        val view = composeView ?: return false
-        val cleanText = text.trim().takeIf { it.isNotBlank() } ?: return false
-        val clipData = ClipData.newPlainText(label.ifBlank { "文本" }, cleanText)
-        plainTextDragCancelHotZoneActive = false
-        plainTextDragDropHandled = false
-        plainTextDragRestoreSourceAction = onRestoreSource
-        view.setOnDragListener { _, event ->
-            when (event.action) {
-                DragEvent.ACTION_DRAG_STARTED -> {
-                    plainTextDragCancelHotZoneActive = false
-                    plainTextDragDropHandled = false
-                    true
-                }
-                DragEvent.ACTION_DROP -> {
-                    plainTextDragDropHandled = true
-                    restoreFloatingWindowAfterTextDrag()
-                    true
-                }
-                DragEvent.ACTION_DRAG_ENDED -> {
-                    handleTextDragEnded(event.result)
-                    true
-                }
-                else -> true
-            }
-        }
-        attachTextDragHotZoneOverlay()
-        val started = view.startDragAndDrop(
-            clipData,
-            PlainTextDragShadowBuilder(cleanText),
-            null,
-            View.DRAG_FLAG_GLOBAL
-        )
-        if (!started) {
-            view.setOnDragListener(null)
-            detachTextDragHotZoneOverlay()
-            plainTextDragRestoreSourceAction = null
-            return false
-        }
-        prepareFloatingWindowForTextDrag()
-        plainTextDragRestoreJob?.cancel()
-        plainTextDragRestoreJob = serviceScope.launch {
-            delay(12_000L)
-            restoreFloatingWindowAfterTextDrag()
-        }
-        return true
-    }
-
-    private fun attachTextDragHotZoneOverlay() {
-        detachTextDragHotZoneOverlay()
-        if (!permissionCenter.canDrawOverlays(this)) return
-        val width = composeView?.width?.takeIf { it > 0 } ?: return
-        val height = composeView?.height?.takeIf { it > 0 } ?: WindowManager.LayoutParams.MATCH_PARENT
-        val settings = settingsQueryApi.settings.value
-        val hotZonePercent = MySettings.normalizeFloatingDragHotZonePercent(settings.floatingDragHotZonePercent)
-        val hotZoneWidth = (width * (hotZonePercent / 100f)).toInt().coerceAtLeast(1)
-        val isLeftSide = settings.floatingExpandSide == "LEFT"
-        val params = WindowManager.LayoutParams(
-            hotZoneWidth,
-            height,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = (if (isLeftSide) Gravity.START else Gravity.END) or Gravity.TOP
-            x = 0
-            y = 0
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-        }
-        val hotZoneView = View(this).apply {
-            alpha = 0f
-            setBackgroundColor(Color.TRANSPARENT)
-            setOnDragListener { _, event ->
-                when (event.action) {
-                    DragEvent.ACTION_DRAG_STARTED -> true
-                    DragEvent.ACTION_DRAG_ENTERED -> {
-                        showFloatingWindowAsTextDragCancelTarget()
-                        true
-                    }
-                    DragEvent.ACTION_DRAG_EXITED -> {
-                        hideFloatingWindowDuringTextDrag()
-                        true
-                    }
-                    DragEvent.ACTION_DROP -> {
-                        plainTextDragDropHandled = true
-                        restoreFloatingWindowAfterTextDrag()
-                        true
-                    }
-                    DragEvent.ACTION_DRAG_ENDED -> {
-                        handleTextDragEnded(event.result)
-                        true
-                    }
-                    else -> true
-                }
-            }
-        }
-        try {
-            windowManager.addView(hotZoneView, params)
-            textDragHotZoneView = hotZoneView
-            textDragHotZoneParams = params
-        } catch (e: Exception) {
-            Log.w(TAG, "attach text drag hot zone failed", e)
-        }
-    }
-
-    private fun prepareFloatingWindowForTextDrag() {
-        val view = composeView ?: return
-        val params = windowLayoutParams ?: return
-        if (!isViewAttached || !view.isAttachedToWindow) return
-        try {
-            animateTextDragWindowVisible(false)
-            params.flags = baseWindowFlags or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            windowManager.updateViewLayout(view, params)
-        } catch (e: Exception) {
-            Log.w(TAG, "prepare text drag failed", e)
-        }
-    }
-
-    private fun hideFloatingWindowDuringTextDrag() {
-        val view = composeView ?: return
-        val params = windowLayoutParams ?: return
-        if (!isViewAttached || !view.isAttachedToWindow) return
-        try {
-            plainTextDragCancelHotZoneActive = false
-            animateTextDragWindowVisible(false)
-            params.flags = baseWindowFlags or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            windowManager.updateViewLayout(view, params)
-        } catch (e: Exception) {
-            Log.w(TAG, "hide text drag cancel target failed", e)
-        }
-    }
-
-    private fun showFloatingWindowAsTextDragCancelTarget() {
-        val view = composeView ?: return
-        val params = windowLayoutParams ?: return
-        if (!isViewAttached || !view.isAttachedToWindow) return
-        try {
-            val wasInactive = !plainTextDragCancelHotZoneActive
-            plainTextDragCancelHotZoneActive = true
-            view.visibility = View.VISIBLE
-            params.flags = baseWindowFlags
-            windowManager.updateViewLayout(view, params)
-            animateTextDragWindowVisible(true)
-            if (wasInactive && settingsQueryApi.settings.value.hapticFeedbackEnabled) performServiceHaptic()
-        } catch (e: Exception) {
-            Log.w(TAG, "show text drag cancel target failed", e)
-        }
-    }
-
-    private fun animateTextDragWindowVisible(visible: Boolean) {
-        val view = composeView ?: return
-        val direction = if (settingsQueryApi.settings.value.floatingExpandSide == "LEFT") -1f else 1f
-        val translation = 72f * direction
-        view.animate().cancel()
-        if (visible) {
-            view.visibility = View.VISIBLE
-            if (view.alpha < 0.5f) view.translationX = translation
-            view.animate()
-                .alpha(1f)
-                .translationX(0f)
-                .setDuration(TEXT_DRAG_WINDOW_ANIMATION_MS)
-                .setInterpolator(DecelerateInterpolator())
-                .start()
-        } else {
-            view.animate()
-                .alpha(0f)
-                .translationX(translation)
-                .setDuration(TEXT_DRAG_WINDOW_ANIMATION_MS)
-                .setInterpolator(DecelerateInterpolator())
-                .start()
-        }
-    }
-
-    private fun detachTextDragHotZoneOverlay() {
-        val view = textDragHotZoneView
-        textDragHotZoneView = null
-        textDragHotZoneParams = null
-        view?.setOnDragListener(null)
-        if (view != null && view.isAttachedToWindow) {
-            try {
-                windowManager.removeView(view)
-            } catch (e: Exception) {
-                Log.w(TAG, "detach text drag hot zone failed", e)
-            }
-        }
-    }
-
-    private fun closeFloatingWindowAfterTextDrag() {
-        plainTextDragRestoreJob?.cancel()
-        plainTextDragRestoreJob = null
-        plainTextDragCancelHotZoneActive = false
-        plainTextDragDropHandled = true
-        plainTextDragRestoreSourceAction = null
-        detachTextDragHotZoneOverlay()
-        composeView?.setOnDragListener(null)
-        requestClose()
-    }
-
-    private fun handleTextDragEnded(dropAccepted: Boolean) {
-        if (plainTextDragDropHandled) return
-        plainTextDragDropHandled = true
-        if (dropAccepted) {
-            closeFloatingWindowAfterTextDrag()
-        } else {
-            restoreFloatingWindowAfterTextDrag()
-        }
-    }
-
-    private fun restoreFloatingWindowAfterTextDrag() {
-        plainTextDragRestoreJob?.cancel()
-        plainTextDragRestoreJob = null
-        plainTextDragCancelHotZoneActive = false
-        plainTextDragDropHandled = true
-        detachTextDragHotZoneOverlay()
-        val view = composeView
-        val params = windowLayoutParams
-        view?.setOnDragListener(null)
-        restorePlainTextDragSource()
-        if (view == null || params == null) return
-        if (!isViewAttached || !view.isAttachedToWindow) return
-        try {
-            view.animate().cancel()
-            view.alpha = 1f
-            view.translationX = 0f
-            params.flags = baseWindowFlags
-            windowManager.updateViewLayout(view, params)
-            view.requestFocus()
-        } catch (e: Exception) {
-            Log.w(TAG, "restore text drag failed", e)
-        }
-    }
-
-    private fun restorePlainTextDragSource() {
-        val action = plainTextDragRestoreSourceAction
-        plainTextDragRestoreSourceAction = null
-        action?.invoke()
     }
 
     private fun detachFloatingWindowForVoice() {
@@ -911,7 +980,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         }
 
         try {
-            view.visibility = View.VISIBLE
+            view.visibility = if (screenOn && !awaitingScreenRestore && !closingOnScreenOff) View.VISIBLE else View.GONE
             view.requestLayout()
             params.flags = baseWindowFlags
             windowManager.updateViewLayout(view, params)
@@ -929,6 +998,13 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
     }
 
     private fun startVoiceCapture() {
+        // 上一条还在保存/转写时不重叠新录音，避免把转写反馈与状态冲掉。
+        if (voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.SAVING ||
+            voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.TRANSCRIBING
+        ) {
+            Toast.makeText(applicationContext, "语音正在处理", Toast.LENGTH_SHORT).show()
+            return
+        }
         voiceConfirmJob?.cancel()
         voiceStartJob?.cancel()
         voiceAutoStopJob?.cancel()
@@ -937,9 +1013,9 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         if (!settingsQueryApi.settings.value.voiceInputEnabled) {
             voiceCaptureState.value = QuickMemoVoiceCaptureState(
                 status = QuickMemoVoiceCaptureStatus.ERROR,
-                message = "请先开启随口记"
+                message = "请先开启闪记"
             )
-            Toast.makeText(applicationContext, "请先开启随口记", Toast.LENGTH_SHORT).show()
+            Toast.makeText(applicationContext, "请先开启闪记", Toast.LENGTH_SHORT).show()
             serviceScope.launch {
                 delay(1400)
                 voiceCaptureState.value = QuickMemoVoiceCaptureState()
@@ -962,7 +1038,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         try {
             startVoiceForeground()
         } catch (e: Exception) {
-            Log.e(TAG, "启动随口记前台录音失败", e)
+            Log.e(TAG, "启动闪记前台录音失败", e)
             val message = if (e is SecurityException) "系统限制后台录音，请重试" else "录音失败"
             voiceCaptureState.value = QuickMemoVoiceCaptureState(
                 status = QuickMemoVoiceCaptureStatus.ERROR,
@@ -990,7 +1066,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                 voiceCaptureState.value = QuickMemoVoiceCaptureState(status = QuickMemoVoiceCaptureStatus.RECORDING)
                 scheduleVoiceAutoStop()
             } catch (e: Exception) {
-                Log.e(TAG, "启动随口记录音失败", e)
+                Log.e(TAG, "启动闪记录音失败", e)
                 stopVoiceForeground()
                 withContext(Dispatchers.IO) { audioRecorder.stopAndDiscard() }
                 voiceCaptureState.value = QuickMemoVoiceCaptureState(
@@ -1010,7 +1086,8 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
             voiceStopRequested = true
             return
         }
-        if (voiceCaptureState.value.status != QuickMemoVoiceCaptureStatus.RECORDING && !audioRecorder.isRecording) return
+        if (voiceCaptureState.value.status != QuickMemoVoiceCaptureStatus.RECORDING) return
+        voiceCaptureState.value = QuickMemoVoiceCaptureState(status = QuickMemoVoiceCaptureStatus.SAVING)
         serviceScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { audioRecorder.stop() }
@@ -1019,6 +1096,12 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                 if (result == null || result.durationMs < QuickMemoAudioRecorder.MIN_RECORDING_MS) {
                     result?.path?.let { path -> withContext(Dispatchers.IO) { File(path).delete() } }
                     voiceCaptureState.value = QuickMemoVoiceCaptureState(status = QuickMemoVoiceCaptureStatus.TOO_SHORT)
+                    if (closeAfterVoiceSave) {
+                        closeAfterVoiceSave = false
+                        delay(400)
+                        finishClose()
+                        return@launch
+                    }
                     delay(1100)
                     voiceCaptureState.value = QuickMemoVoiceCaptureState()
                     return@launch
@@ -1026,10 +1109,12 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                 saveVoiceCapture(
                     audioPath = result.path,
                     durationMs = result.durationMs,
-                    asTodo = false
+                    asTodo = false,
+                    closeAfterSave = closeAfterVoiceSave
                 )
+                closeAfterVoiceSave = false
             } catch (e: Exception) {
-                Log.e(TAG, "停止随口记录音失败", e)
+                Log.e(TAG, "停止闪记录音失败", e)
                 stopVoiceForeground()
                 withContext(Dispatchers.IO) { audioRecorder.stopAndDiscard() }
                 voiceCaptureState.value = QuickMemoVoiceCaptureState(
@@ -1200,12 +1285,19 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                     )
                 }
                 if (!closeAfterSave) showRecentVoiceMemo(memoId)
-                voiceCaptureState.value = QuickMemoVoiceCaptureState()
                 if (closeAfterSave) {
+                    // 关窗路径无需再留在转写反馈态：转写在独立前台服务继续。
+                    voiceCaptureState.value = QuickMemoVoiceCaptureState()
                     finishClose()
+                } else {
+                    voiceCaptureState.value = QuickMemoVoiceCaptureState(
+                        status = QuickMemoVoiceCaptureStatus.TRANSCRIBING,
+                        durationMs = durationMs,
+                        memoId = memoId
+                    )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "保存语音随口记失败", e)
+                Log.e(TAG, "保存语音闪记失败", e)
                 withContext(Dispatchers.IO) { File(audioPath).delete() }
                 voiceCaptureState.value = QuickMemoVoiceCaptureState(
                     status = QuickMemoVoiceCaptureStatus.ERROR,
@@ -1276,7 +1368,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "随口记录音震动反馈失败", e)
+            Log.w(TAG, "闪记录音震动反馈失败", e)
         }
     }
 
@@ -1393,7 +1485,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         withContext(Dispatchers.IO) {
             quickMemoCenter.createImageMemo(imageFile.absolutePath)
         }
-        Toast.makeText(applicationContext, "已保存到随口记", Toast.LENGTH_SHORT).show()
+        Toast.makeText(applicationContext, "已保存到闪记", Toast.LENGTH_SHORT).show()
         finishPendingImagePick()
     }
 
@@ -1478,68 +1570,6 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         }
     }
 
-    private fun handleUpdateScheduleItem(
-        item: ScheduleDisplayItem,
-        patch: EventPatch,
-        onComplete: () -> Unit
-    ) {
-        serviceScope.launch {
-            try {
-                val enrichedPatch = enrichPatchForItem(item, patch)
-                when (val target = item.action) {
-                    is ScheduleDisplayItem.ActionTarget.Single -> {
-                        scheduleCenter.updateSingleFromPatch(target.eventId, enrichedPatch)
-                        Toast.makeText(applicationContext, "已更新", Toast.LENGTH_SHORT).show()
-                    }
-                    is ScheduleDisplayItem.ActionTarget.RecurringOccurrence -> {
-                        scheduleCenter.editRecurringFromPatch(
-                            parentId = target.parentId,
-                            occurrenceTs = target.occurrenceTs,
-                            mode = RecurringMode.THIS,
-                            patch = enrichedPatch
-                        )
-                        Toast.makeText(applicationContext, "已更新本次实例", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to update schedule item", e)
-                Toast.makeText(applicationContext, "更新失败", Toast.LENGTH_SHORT).show()
-            } finally {
-                onComplete()
-            }
-        }
-    }
-
-    private fun enrichPatchForItem(item: ScheduleDisplayItem, patch: EventPatch): EventPatch {
-        val baseEvent = when (val target = item.action) {
-            is ScheduleDisplayItem.ActionTarget.Single -> scheduleCenter.events.value.find { it.id == target.eventId }
-            is ScheduleDisplayItem.ActionTarget.RecurringOccurrence -> scheduleCenter.events.value.find { it.id == target.parentId }
-        }
-        return if (baseEvent == null) {
-            patch
-        } else {
-            patch.copy(
-                tag = baseEvent.tag,
-                color = baseEvent.color,
-                rrule = baseEvent.rrule,
-                reminder1Minutes = baseEvent.reminder1Minutes,
-                reminder2Minutes = baseEvent.reminder2Minutes,
-                reminder3Minutes = baseEvent.reminder3Minutes
-            )
-        }
-    }
-
-    private fun convertToEvent(eventData: RecognitionDraft, sourceImagePath: String?): Event {
-        val settings = settingsQueryApi.settings.value
-        return com.antgskds.calendarassistant.feature.recognition.application.ai.convertDraftToEvent(
-            eventData,
-            sourceImagePath,
-            defaultDurationMinutes = settings.defaultEventDurationMinutes,
-            forceInstantCodeTimeToNow = settings.forceInstantCodeTimeToNow,
-            eventColorPaletteHex = settings.eventColorPaletteHex
-        )
-    }
-
     private fun openMediaSourceInApp(request: FloatingMediaRequest) {
         if (mediaFallbackInProgress) return
         mediaFallbackInProgress = true
@@ -1549,20 +1579,36 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
             request.eventId?.let { putExtra(MainActivity.EXTRA_OPEN_EVENT_ID, it) }
             request.quickMemoId?.let { putExtra(MainActivity.EXTRA_OPEN_QUICK_MEMO_ID, it) }
         })
-        finishClose()
+        // 已经跳进 App 查看源内容，悬浮窗回到把手即可，不必连服务一起杀。
+        dismissMediaCard()
+    }
+
+    /**
+     * 关闭当前媒体卡片并回到把手。媒体卡片是 intent 拉起的独立展示，不是悬浮窗主体：
+     * 用户看完图片关掉它，应当回到收起态把手，而不是把整个悬浮窗服务杀掉。
+     */
+    private fun dismissMediaCard() {
+        mediaRequest.value = null
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         sendBroadcast(Intent(ACTION_FLOATING_SHOWN))
-        applyRequestedInputMode(intent)
         val settings = settingsQueryApi.settings.value
         val action = intent?.action
+        // 主动唤起（action 为空 = 音量键/磁贴/快捷方式）直接展开面板；
+        // 媒体卡片、录音、图片选择等带 action 的入口保持各自视图。
+        expandOnLaunch = action == null
+        initialHasMediaOrVoice = action != null
         val requiresEnabledFloatingFeature = action == null || action == ACTION_START_VOICE_CAPTURE
         if (!settings.isFloatingWindowEnabled && !settings.voiceInputEnabled && requiresEnabledFloatingFeature) {
             requestClose()
             return START_NOT_STICKY
         }
         when (action) {
+            ACTION_REQUEST_CLOSE -> {
+                requestClose()
+                return START_NOT_STICKY
+            }
             ACTION_SHOW_PICKUP_QR_CARD -> {
                 val eventId = intent.getLongExtra(EXTRA_PICKUP_EVENT_ID, -1L).takeIf { it > 0L }
                 if (eventId == null) return START_NOT_STICKY
@@ -1666,37 +1712,15 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         mediaRequest.value = null
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         showFloatingWindow()
+        capsuleExpandRequest.value++
         return START_NOT_STICKY
     }
 
-    private fun applyRequestedInputMode(intent: Intent?) {
-        val settings = settingsQueryApi.settings.value
-        val mode = when (intent?.getStringExtra(EXTRA_INITIAL_INPUT_MODE)) {
-            INPUT_MODE_NOTE -> when {
-                settings.voiceInputEnabled -> FloatingInputMode.NOTE
-                settings.isFloatingWindowEnabled -> FloatingInputMode.SCHEDULE
-                else -> return
-            }
-            INPUT_MODE_SCHEDULE -> when {
-                settings.isFloatingWindowEnabled -> FloatingInputMode.SCHEDULE
-                settings.voiceInputEnabled -> FloatingInputMode.NOTE
-                else -> return
-            }
-            else -> when {
-                settings.isFloatingWindowEnabled -> FloatingInputMode.SCHEDULE
-                settings.voiceInputEnabled -> FloatingInputMode.NOTE
-                else -> return
-            }
-        }
-        requestedInputMode.value = mode to (requestedInputMode.value.second + 1L)
-    }
-
     override fun onDestroy() {
+        instance = null
         isShowing = false
         sendBroadcast(Intent(ACTION_FLOATING_HIDDEN))
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-        plainTextDragRestoreJob?.cancel()
-        plainTextDragRestoreJob = null
         serviceScope.cancel()
         audioPlaybackCenter.stop()
         audioRecorder.stopAndDiscard()
@@ -1710,8 +1734,6 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         ingestSucceededSubscriptionJob = null
         ingestFailedSubscriptionJob?.cancel()
         ingestFailedSubscriptionJob = null
-        plainTextDragRestoreSourceAction = null
-        detachTextDragHotZoneOverlay()
         composeView?.let { view ->
             if (view.isAttachedToWindow) {
                 try { windowManager.removeView(view) } catch (e: Exception) {}
@@ -1730,15 +1752,18 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
             confirmVoiceCapture(asTodo = false, closeAfterSave = true)
             return
         }
-        if (voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.SAVING) {
-            Toast.makeText(applicationContext, "语音正在保存", Toast.LENGTH_SHORT).show()
+        if (voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.SAVING ||
+            voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.TRANSCRIBING
+        ) {
+            Toast.makeText(applicationContext, "语音正在处理", Toast.LENGTH_SHORT).show()
             return
         }
         if (voiceCaptureState.value.status == QuickMemoVoiceCaptureStatus.RECORDING) {
-            voiceAutoStopJob?.cancel()
-            voiceAutoStopJob = null
-            audioRecorder.stopAndDiscard()
-            voiceCaptureState.value = QuickMemoVoiceCaptureState()
+            // 关闭浮窗不能丢掉正在录制的内容：先停录并落库（转写在独立前台服务里继续），
+            // 保存完成后再真正关窗。与声物记“停录即保存”一致。
+            closeAfterVoiceSave = true
+            stopVoiceCapture()
+            return
         }
         finishClose()
     }
@@ -1747,48 +1772,290 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
         sendBroadcast(Intent(ACTION_FLOATING_HIDDEN))
         stopSelf()
     }
-}
 
-private class PlainTextDragShadowBuilder(
-    text: String
-) : View.DragShadowBuilder() {
-    private val previewLines = text
-        .replace("\r\n", "\n")
-        .replace('\r', '\n')
-        .lineSequence()
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-        .take(3)
-        .map { line -> if (line.length > 24) line.take(23) + "..." else line }
-        .toList()
-        .ifEmpty { listOf("文本") }
-    private val width = 520
-    private val height = 76 + previewLines.size * 34
-    private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(248, 248, 248, 253)
-    }
-    private val accentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(255, 92, 112, 146) }
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(44, 48, 56)
-        textSize = 30f
-        isFakeBoldText = true
-    }
-    private val detailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(99, 105, 116)
-        textSize = 25f
-    }
+    /**
+     * 卡片左侧归档勾选框：勾上 = 归档，取消 = 恢复。
+     * 只有日程条目带勾选框（key 前缀 schedule:）。
+     */
+    private fun handleCapsuleCheck(
+        item: com.antgskds.calendarassistant.platform.floating.capsule.CapsuleItem,
+        checked: Boolean
+    ) {
+        if (!item.key.startsWith("schedule:")) return
+        val stableKey = item.key.removePrefix("schedule:")
+        serviceScope.launch {
+            runCatching {
+                val target = scheduleCenter.applyPendingStateOverrides(
+                    com.antgskds.calendarassistant.feature.schedule.domain.ScheduleDisplayHelper.buildDisplayItems(
+                        scheduleCenter.events.value.filter { it.archivedAt == null },
+                        java.time.LocalDate.now().minusDays(7),
+                        java.time.LocalDate.now().plusDays(7),
+                    )
+                ).firstOrNull { it.stableKey == stableKey }
 
-    override fun onProvideShadowMetrics(outShadowSize: Point, outShadowTouchPoint: Point) {
-        outShadowSize.set(width, height)
-        outShadowTouchPoint.set(36, height / 2)
-    }
+                // 取消归档时事件已不在活跃列表里，退回全量按 id 查。
+                // stableKey 形如 single:<id> / recurring:<parentId>:<ts>
+                val resolved: com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem.ActionTarget? =
+                    target?.action ?: run {
+                        val parts = stableKey.split(":")
+                        when {
+                            parts.size == 2 && parts[0] == "single" ->
+                                parts[1].toLongOrNull()?.let {
+                                    com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem.ActionTarget.Single(it)
+                                }
+                            parts.size == 3 && parts[0] == "recurring" -> {
+                                val parentId = parts[1].toLongOrNull()
+                                val ts = parts[2].toLongOrNull()
+                                if (parentId != null && ts != null) {
+                                    com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem.ActionTarget.RecurringOccurrence(parentId, ts)
+                                } else null
+                            }
+                            else -> null
+                        }
+                    }
 
-    override fun onDrawShadow(canvas: Canvas) {
-        canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), 34f, 34f, backgroundPaint)
-        canvas.drawRoundRect(RectF(24f, 28f, 34f, height - 28f), 5f, 5f, accentPaint)
-        previewLines.forEachIndexed { index, line ->
-            val paint = if (index == 0) textPaint else detailPaint
-            canvas.drawText(line, 58f, 54f + index * 34f, paint)
+                when (val action = resolved) {
+                    is com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem.ActionTarget.Single -> {
+                        if (checked) {
+                            scheduleCenter.archiveItem(action)
+                        } else {
+                            scheduleCenter.restoreEvent(action.eventId)
+                        }
+                    }
+                    is com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem.ActionTarget.RecurringOccurrence -> {
+                        if (checked) {
+                            scheduleCenter.archiveItem(action)
+                        } else {
+                            // 取消归档：归档时已物化成子事件，按 parentId + startTS 反查回来
+                            val childId = scheduleCenter.archivedEvents.value
+                                .firstOrNull { it.parentId == action.parentId && it.startTS == action.occurrenceTs }
+                                ?.id
+                            if (childId != null) {
+                                scheduleCenter.restoreEvent(childId)
+                            } else {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(applicationContext, "找不到该日程实例", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                    null -> withContext(Dispatchers.Main) {
+                        Toast.makeText(applicationContext, "找不到该日程", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }.onFailure {
+                Log.e(TAG, "切换日程归档失败 key=$stableKey", it)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(applicationContext, "操作失败", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
+    }
+
+    /** 当前事件色板解析成 Compose Color 列表。 */
+    private fun capsulePalette(): List<androidx.compose.ui.graphics.Color> {
+        val hexes = com.antgskds.calendarassistant.feature.settings.data.model
+            .sanitizeEventColorPaletteHex(settingsQueryApi.settings.value.eventColorPaletteHex)
+        return hexes.map { hex ->
+            androidx.compose.ui.graphics.Color(
+                com.antgskds.calendarassistant.feature.settings.data.model.eventColorHexToArgb(hex)
+            )
+        }
+    }
+
+    /** 事件颜色在色板里的下标；未命中返回 -1（卡片用默认蓝）。 */
+    private fun paletteIndexOf(eventColor: Int): Int {
+        if (eventColor == 0) return -1
+        val hexes = com.antgskds.calendarassistant.feature.settings.data.model
+            .sanitizeEventColorPaletteHex(settingsQueryApi.settings.value.eventColorPaletteHex)
+        return hexes.indexOfFirst { hex ->
+            com.antgskds.calendarassistant.feature.settings.data.model.eventColorHexToArgb(hex) == eventColor
+        }
+    }
+
+    /** 展开态调色板换色：写回日程的 color 字段。 */
+    private fun handleCapsulePaletteSelect(
+        item: com.antgskds.calendarassistant.platform.floating.capsule.CapsuleItem,
+        index: Int
+    ) {
+        if (!item.key.startsWith("schedule:")) return
+        val stableKey = item.key.removePrefix("schedule:")
+        val hexes = com.antgskds.calendarassistant.feature.settings.data.model
+            .sanitizeEventColorPaletteHex(settingsQueryApi.settings.value.eventColorPaletteHex)
+        val hex = hexes.getOrNull(index) ?: return
+        val colorInt = com.antgskds.calendarassistant.feature.settings.data.model
+            .eventColorHexToArgb(hex)
+        val eventId = stableKey.removePrefix("single:").toLongOrNull() ?: return
+
+        serviceScope.launch {
+            runCatching {
+                val event = scheduleCenter.events.value.firstOrNull { it.id == eventId } ?: return@runCatching
+                scheduleCenter.updateEvent(event.copy(color = colorInt))
+            }.onFailure {
+                Log.e(TAG, "胶囊换色失败 key=$stableKey", it)
+            }
+        }
+    }
+
+    /** 卡片操作分发：日程与闪记按 key 前缀区分。 */
+    private fun handleCapsuleAction(
+        item: com.antgskds.calendarassistant.platform.floating.capsule.CapsuleItem,
+        actionId: String
+    ) {
+        when (actionId) {
+            "close" -> requestClose()
+            "delete" -> {
+                if (item.key.startsWith("memo:")) {
+                    item.key.removePrefix("memo:").toLongOrNull()?.let { memoId ->
+                        serviceScope.launch {
+                            runCatching { quickMemoCenter.archiveQuickMemo(memoId) }
+                                .onFailure { Log.e(TAG, "归档闪记失败 memoId=$memoId", it) }
+                        }
+                    }
+                }
+            }
+            "copy" -> copyCapsuleItemText(item.text)
+            "alarm" -> createCapsuleAlarm(item.text)
+            "done" -> {
+                if (item.key.startsWith("schedule:")) {
+                    val stableKey = item.key.removePrefix("schedule:")
+                    // stableKey 形如 single:<id> / recurring:<parentId>:<ts>
+                    val target = scheduleCenter.applyPendingStateOverrides(
+                        com.antgskds.calendarassistant.feature.schedule.domain.ScheduleDisplayHelper.buildDisplayItems(
+                            scheduleCenter.events.value.filter { it.archivedAt == null },
+                            java.time.LocalDate.now().minusDays(7),
+                            java.time.LocalDate.now().plusDays(7),
+                        )
+                    ).firstOrNull { it.stableKey == stableKey }
+                    if (target != null) {
+                        // completeItem 自身就是非 suspend 且内部起协程，不必再包一层
+                        runCatching { scheduleCenter.completeItem(target.action) }
+                            .onFailure { Log.e(TAG, "完成日程失败 key=$stableKey", it) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun copyCapsuleItemText(text: String) {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("闪记", text))
+            Toast.makeText(applicationContext, "已复制", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "复制闪记失败", e)
+        }
+    }
+
+    /** 从卡片文字识别时间并直接建一条日程；识别不到就降级为复制。 */
+    private fun createCapsuleAlarm(text: String) {
+        val target = com.antgskds.calendarassistant.platform.floating.capsule.CapsuleTimeParser.parse(text)
+        if (target == null) {
+            copyCapsuleItemText(text)
+            Toast.makeText(applicationContext, "没识别到时间，内容已复制", Toast.LENGTH_SHORT).show()
+            return
+        }
+        createCapsuleAlarmAt(text, target)
+    }
+
+    /** 按用户选定（或识别出）的时间建日程。enableAlarm=false 则不设提醒。 */
+    private fun createCapsuleAlarmAt(
+        text: String,
+        target: java.time.LocalDateTime,
+        enableAlarm: Boolean = true,
+    ) {
+        val startTs = target.atZone(java.time.ZoneId.systemDefault()).toEpochSecond()
+        serviceScope.launch {
+            runCatching {
+                scheduleCenter.addEventFromPatch(
+                    com.antgskds.calendarassistant.feature.schedule.application.model.EventPatch(
+                        title = text.take(60),
+                        startTS = startTs,
+                        endTS = startTs + 30 * 60,
+                        description = text,
+                        // 0 = 开始时提醒；-1 = 不提醒
+                        reminder1Minutes = if (enableAlarm) 0 else -1,
+                    )
+                )
+            }.onSuccess {
+                withContext(Dispatchers.Main) {
+                    val shown = "%02d:%02d".format(target.hour, target.minute)
+                    Toast.makeText(applicationContext, "已添加到日历 $shown", Toast.LENGTH_SHORT).show()
+                }
+            }.onFailure {
+                Log.e(TAG, "卡片闹钟建日程失败", it)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(applicationContext, "建日程失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /** 把日程与闪记统一成胶囊卡片条目：日程在上，闪记在下，各自保持原有顺序。 */
+    private fun buildCapsuleItems(
+        scheduleItems: List<ScheduleDisplayItem>,
+        quickMemos: List<QuickMemoEntity>
+    ): List<com.antgskds.calendarassistant.platform.floating.capsule.CapsuleItem> {
+        val scheduleCards = scheduleItems.map { item ->
+            com.antgskds.calendarassistant.platform.floating.capsule.CapsuleItem(
+                key = "schedule:${item.stableKey}",
+                text = item.title.ifBlank { "未命名日程" },
+                timeText = formatCapsuleTime(item.startTS, item.endTS),
+                // 事件未设颜色时 color 为 0（透明），回退到卡片默认蓝，避免卡片发灰。
+                color = if (item.color == 0) OverlayConstants.DEFAULT_CARD_COLOR
+                else androidx.compose.ui.graphics.Color(item.color),
+                // 日程条目带归档勾选框（勾选即归档）；闪记条目不带。
+                checkable = true,
+                // 展开态调色板：取自设置的事件色板
+                palette = capsulePalette(),
+                paletteSelectedIndex = paletteIndexOf(item.color),
+                footer = listOf(
+                    com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
+                        "done", "完成", Icons.Rounded.CheckCircle
+                    ),
+                    com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
+                        "copy", "复制", Icons.Rounded.ContentCopy
+                    ),
+                    com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
+                        "alarm", "闹钟", Icons.Rounded.Alarm
+                    ),
+                ),
+            )
+        }
+        val memoCards = quickMemos.map { memo ->
+            com.antgskds.calendarassistant.platform.floating.capsule.CapsuleItem(
+                key = "memo:${memo.id}",
+                text = memo.bodyText.ifBlank { memo.title.ifBlank { "空白闪记" } },
+                timeText = null,
+                archived = false,
+                // 待办闪记：点卡片划线完成/取消完成
+                todo = memo.isTodo,
+                todoDone = memo.isTodoCompleted,
+                footer = listOf(
+                    com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
+                        "copy", "复制", Icons.Rounded.ContentCopy
+                    ),
+                    com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
+                        "alarm", "闹钟", Icons.Rounded.Alarm
+                    ),
+                    com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
+                        "delete", "删除", Icons.Rounded.Delete,
+                        destructive = true
+                    ),
+                ),
+            )
+        }
+        return scheduleCards + memoCards
+    }
+
+    /** 卡片时间行：今天只显示时刻，其余带上日期。 */
+    private fun formatCapsuleTime(startTs: Long, endTs: Long): String {
+        val zone = java.time.ZoneId.systemDefault()
+        val start = java.time.Instant.ofEpochSecond(startTs).atZone(zone)
+        val end = java.time.Instant.ofEpochSecond(endTs).atZone(zone)
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+        val datePrefix = if (start.toLocalDate() == java.time.LocalDate.now()) "" else
+            start.format(java.time.format.DateTimeFormatter.ofPattern("M月d日 "))
+        return "$datePrefix${start.format(formatter)} - ${end.format(formatter)}"
     }
 }

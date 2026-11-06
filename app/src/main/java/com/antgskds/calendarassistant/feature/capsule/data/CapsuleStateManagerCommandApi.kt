@@ -57,14 +57,6 @@ class CapsuleStateManagerCommandApi(
         capsuleStateManager.clearTextQuickMemo()
     }
 
-    override fun showTextFlashNote(noteId: Long, title: String) {
-        capsuleStateManager.showTextFlashNote(noteId, title)
-    }
-
-    override fun clearTextFlashNote() {
-        capsuleStateManager.clearTextFlashNote()
-    }
-
     override fun showQuickMemoRecording(title: String, content: String) {
         capsuleStateManager.showQuickMemoRecording(title, content)
     }

@@ -95,7 +95,7 @@ class VoiceCaptureHandleActivity : ComponentActivity() {
         startIssued = true
         val app = applicationContext as? App
         if (app?.settingsQueryApi?.settings?.value?.voiceInputEnabled != true) {
-            dispatchVoiceError("请先开启随口记")
+            dispatchVoiceError("请先开启闪记")
             finishSoon()
             return
         }
@@ -179,7 +179,7 @@ class VoiceCaptureHandleActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         val message = TextView(this).apply {
-            text = "请继续按住音量+\n松开后保存随口记"
+            text = "请继续按住音量+\n松开后保存闪记"
             textSize = 16f
             setTextColor(Color.rgb(94, 75, 55))
             gravity = Gravity.CENTER

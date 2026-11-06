@@ -205,7 +205,7 @@ class NotificationOrchestrator(
             Log.i("WillDoNotify", "quick memo dispatch result key=${key.value} result=$result")
             return result
         }
-        // 其余提醒沿用现有胶囊与手环门控；随口记已在上方完成真实分流发布。
+        // 其余提醒沿用现有胶囊与手环门控；闪记已在上方完成真实分流发布。
         if (liveCapsuleEnabled && !braceletModeEnabled) {
             Log.d("WillDoNotify", "fire key=${key.value} -> SUPPRESSED_CAPSULE")
             return markSnapshotReady(key, cancelAlarm = true)

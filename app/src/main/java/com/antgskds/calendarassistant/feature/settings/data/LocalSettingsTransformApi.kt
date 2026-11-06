@@ -2,7 +2,6 @@ package com.antgskds.calendarassistant.feature.settings.data
 
 import com.antgskds.calendarassistant.shared.query.SettingsTransformApi
 import com.antgskds.calendarassistant.feature.settings.data.model.FloatingBallGestureAction
-import com.antgskds.calendarassistant.feature.settings.data.model.FloatingEntryStyle
 import com.antgskds.calendarassistant.feature.settings.data.model.LiveNotificationTemplateMode
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.settings.data.model.QuickMemoRecordingDisplayMode
@@ -18,7 +17,6 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         braceletModeEnabled: Boolean?,
         pickupAggregation: Boolean?,
         hapticFeedbackEnabled: Boolean?,
-        edgeBarEnabled: Boolean?,
         networkSpeedCapsule: Boolean?,
         floatingWindow: Boolean?,
         advanceReminderEnabled: Boolean?,
@@ -33,22 +31,24 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         localSemanticEnabled: Boolean?,
         selectedLocalModelId: String?,
         floatingEventRange: Int?,
+        floatingHandleSizePercent: Int?,
+        floatingHandleTheme: String?,
+        floatingPanelMaxCards: Int?,
+        floatingFontSizeStep: Int?,
+        floatingHandleAutoHideSeconds: Int?,
+        floatingEdgeLineEnabled: Boolean?,
+        floatingEdgeLineTapEnabled: Boolean?,
+        floatingEdgeLineMarginDp: Int?,
         floatingExpandSide: String?,
         quickMemoRecordingDisplayMode: Int?,
-        floatingEntryStyle: Int?,
-        floatingBallEnabled: Boolean?,
-        floatingBallXPercent: Float?,
-        floatingBallYPercent: Float?,
-        floatingBallSizeDp: Int?,
-        floatingBallAlpha: Float?,
-        floatingBallSingleTapAction: Int?,
-        floatingBallDoubleTapAction: Int?,
-        floatingBallLongPressAction: Int?,
-        edgeBarSingleTapAction: Int?,
-        edgeBarDoubleTapAction: Int?,
-        edgeBarLongPressAction: Int?,
         volumeUpLongPressEnabled: Boolean?,
         volumeUpLongPressAction: Int?,
+        volumeDownLongPressEnabled: Boolean?,
+        volumeDownLongPressAction: Int?,
+        volumeUpDoubleTapEnabled: Boolean?,
+        volumeUpDoubleTapAction: Int?,
+        volumeDownDoubleTapEnabled: Boolean?,
+        volumeDownDoubleTapAction: Int?,
         smsMonitoring: Boolean?,
         forceInstantCodeTimeToNow: Boolean?,
         predictiveBackEnabled: Boolean?,
@@ -85,7 +85,6 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         if (braceletModeEnabled != null) updated = updated.copy(braceletModeEnabled = braceletModeEnabled)
         if (pickupAggregation != null) updated = updated.copy(isPickupAggregationEnabled = pickupAggregation)
         if (hapticFeedbackEnabled != null) updated = updated.copy(hapticFeedbackEnabled = hapticFeedbackEnabled)
-        if (edgeBarEnabled != null) updated = updated.copy(edgeBarEnabled = edgeBarEnabled)
         if (networkSpeedCapsule != null) updated = updated.copy(isNetworkSpeedCapsuleEnabled = networkSpeedCapsule)
         if (floatingWindow != null) updated = updated.copy(isFloatingWindowEnabled = floatingWindow)
         if (advanceReminderEnabled != null) updated = updated.copy(isAdvanceReminderEnabled = advanceReminderEnabled)
@@ -107,40 +106,44 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         if (localSemanticEnabled != null) updated = updated.copy(isLocalSemanticEnabled = localSemanticEnabled)
         if (selectedLocalModelId != null) updated = updated.copy(selectedLocalModelId = selectedLocalModelId)
         if (floatingEventRange != null) updated = updated.copy(floatingEventRange = floatingEventRange)
+        if (floatingHandleSizePercent != null) updated = updated.copy(
+            floatingHandleSizePercent = if (floatingHandleSizePercent in listOf(100, 75, 50)) floatingHandleSizePercent else 100
+        )
+        if (floatingHandleTheme != null) updated = updated.copy(
+            floatingHandleTheme = if (floatingHandleTheme in listOf("DUO", "BLUE_PURPLE", "PILL3D")) floatingHandleTheme else "DUO"
+        )
+        if (floatingPanelMaxCards != null) updated = updated.copy(
+            floatingPanelMaxCards = floatingPanelMaxCards.coerceIn(6, 10)
+        )
+        if (floatingFontSizeStep != null) updated = updated.copy(
+            floatingFontSizeStep = floatingFontSizeStep.coerceIn(-2, 2)
+        )
+        if (floatingHandleAutoHideSeconds != null) updated = updated.copy(
+            floatingHandleAutoHideSeconds = floatingHandleAutoHideSeconds
+        )
+        if (floatingEdgeLineEnabled != null) updated = updated.copy(
+            floatingEdgeLineEnabled = floatingEdgeLineEnabled
+        )
+        if (floatingEdgeLineTapEnabled != null) updated = updated.copy(
+            floatingEdgeLineTapEnabled = floatingEdgeLineTapEnabled
+        )
+        if (floatingEdgeLineMarginDp != null) updated = updated.copy(
+            floatingEdgeLineMarginDp = if (floatingEdgeLineMarginDp in listOf(0, 4, 8)) floatingEdgeLineMarginDp else 0
+        )
         if (floatingExpandSide != null) updated = updated.copy(floatingExpandSide = sanitizeFloatingSide(floatingExpandSide))
         if (quickMemoRecordingDisplayMode != null) {
             updated = updated.copy(
                 quickMemoRecordingDisplayMode = QuickMemoRecordingDisplayMode.normalize(quickMemoRecordingDisplayMode)
             )
         }
-        if (floatingEntryStyle != null) {
-            updated = updated.copy(floatingEntryStyle = FloatingEntryStyle.normalize(floatingEntryStyle))
-        }
-        if (floatingBallEnabled != null) updated = updated.copy(floatingBallEnabled = floatingBallEnabled)
-        if (floatingBallXPercent != null) updated = updated.copy(floatingBallXPercent = floatingBallXPercent.coerceIn(0f, 100f))
-        if (floatingBallYPercent != null) updated = updated.copy(floatingBallYPercent = floatingBallYPercent.coerceIn(0f, 100f))
-        if (floatingBallSizeDp != null) updated = updated.copy(floatingBallSizeDp = floatingBallSizeDp.coerceIn(40, 80))
-        if (floatingBallAlpha != null) updated = updated.copy(floatingBallAlpha = floatingBallAlpha.coerceIn(0f, 1f))
-        if (floatingBallSingleTapAction != null) {
-            updated = updated.copy(floatingBallSingleTapAction = FloatingBallGestureAction.normalize(floatingBallSingleTapAction))
-        }
-        if (floatingBallDoubleTapAction != null) {
-            updated = updated.copy(floatingBallDoubleTapAction = FloatingBallGestureAction.normalize(floatingBallDoubleTapAction))
-        }
-        if (floatingBallLongPressAction != null) {
-            updated = updated.copy(floatingBallLongPressAction = FloatingBallGestureAction.normalize(floatingBallLongPressAction))
-        }
-        if (edgeBarSingleTapAction != null) {
-            updated = updated.copy(edgeBarSingleTapAction = FloatingBallGestureAction.normalize(edgeBarSingleTapAction))
-        }
-        if (edgeBarDoubleTapAction != null) {
-            updated = updated.copy(edgeBarDoubleTapAction = FloatingBallGestureAction.normalize(edgeBarDoubleTapAction))
-        }
-        if (edgeBarLongPressAction != null) {
-            updated = updated.copy(edgeBarLongPressAction = FloatingBallGestureAction.normalize(edgeBarLongPressAction))
-        }
         if (volumeUpLongPressEnabled != null) updated = updated.copy(volumeUpLongPressEnabled = volumeUpLongPressEnabled)
-        if (volumeUpLongPressAction != null) updated = updated.copy(volumeUpLongPressAction = volumeUpLongPressAction.coerceIn(1, 3))
+        if (volumeUpLongPressAction != null) updated = updated.copy(volumeUpLongPressAction = volumeUpLongPressAction.coerceIn(0, 7))
+        if (volumeDownLongPressEnabled != null) updated = updated.copy(volumeDownLongPressEnabled = volumeDownLongPressEnabled)
+        if (volumeDownLongPressAction != null) updated = updated.copy(volumeDownLongPressAction = volumeDownLongPressAction.coerceIn(0, 7))
+        if (volumeUpDoubleTapEnabled != null) updated = updated.copy(volumeUpDoubleTapEnabled = volumeUpDoubleTapEnabled)
+        if (volumeUpDoubleTapAction != null) updated = updated.copy(volumeUpDoubleTapAction = volumeUpDoubleTapAction.coerceIn(0, 7))
+        if (volumeDownDoubleTapEnabled != null) updated = updated.copy(volumeDownDoubleTapEnabled = volumeDownDoubleTapEnabled)
+        if (volumeDownDoubleTapAction != null) updated = updated.copy(volumeDownDoubleTapAction = volumeDownDoubleTapAction.coerceIn(0, 7))
         if (smsMonitoring != null) updated = updated.copy(isSmsMonitoringEnabled = smsMonitoring)
         if (forceInstantCodeTimeToNow != null) updated = updated.copy(forceInstantCodeTimeToNow = forceInstantCodeTimeToNow)
         if (predictiveBackEnabled != null) updated = updated.copy(predictiveBackEnabled = predictiveBackEnabled)
@@ -173,7 +176,10 @@ class LocalSettingsTransformApi : SettingsTransformApi {
         }
 
         return updated.copy(
-            volumeUpLongPressAction = updated.volumeUpLongPressAction.coerceIn(1, 3)
+            volumeUpLongPressAction = updated.volumeUpLongPressAction.coerceIn(0, 7),
+            volumeDownLongPressAction = updated.volumeDownLongPressAction.coerceIn(0, 7),
+            volumeUpDoubleTapAction = updated.volumeUpDoubleTapAction.coerceIn(0, 7),
+            volumeDownDoubleTapAction = updated.volumeDownDoubleTapAction.coerceIn(0, 7)
         )
     }
 

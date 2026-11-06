@@ -389,7 +389,7 @@ fun MaterialAiSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(16.dp)
+                .padding(horizontal = 18.dp, vertical = 8.dp)
                 .padding(bottom = 24.dp + bottomInset),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

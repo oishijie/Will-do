@@ -14,10 +14,6 @@ object AppRoutes {
     const val QuickMemoDetailArg = "memoId"
     const val QuickMemoDetailPattern = "$QuickMemoDetailBase/{$QuickMemoDetailArg}"
 
-    const val FlashNoteDetailBase = "flash_note_detail"
-    const val FlashNoteDetailArg = "noteId"
-    const val FlashNoteDetailPattern = "$FlashNoteDetailBase/{$FlashNoteDetailArg}"
-
     const val SettingsBase = "settings"
     const val SettingsTypeArg = "type"
     const val SettingsPattern = "$SettingsBase/{$SettingsTypeArg}"
@@ -25,6 +21,4 @@ object AppRoutes {
     fun settings(destinationName: String): String = "$SettingsBase/$destinationName"
 
     fun quickMemoDetail(memoId: Long): String = "$QuickMemoDetailBase/$memoId"
-
-    fun flashNoteDetail(noteId: Long): String = "$FlashNoteDetailBase/$noteId"
 }

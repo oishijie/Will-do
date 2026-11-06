@@ -13,11 +13,9 @@ import com.antgskds.calendarassistant.feature.recognition.ui.connector.RegexRule
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ArchivesPage
 import com.antgskds.calendarassistant.feature.schedule.ui.connector.ScheduleColorSettingsPage
 import com.antgskds.calendarassistant.feature.settings.externalcall.ui.render.material.ExternalCallSettingsPage
-import com.antgskds.calendarassistant.feature.settings.flashnote.ui.FlashNoteSettingsPage
-import com.antgskds.calendarassistant.feature.settings.quickmemo.ui.QuickMemoSettingsPage
-import com.antgskds.calendarassistant.feature.settings.floating.ui.FloatingEntrySettingsPage
+import com.antgskds.calendarassistant.feature.settings.floatingwindow.ui.FloatingSettingsSection
+import com.antgskds.calendarassistant.feature.settings.floatingwindow.ui.FloatingWindowSettingsPage
 import com.antgskds.calendarassistant.feature.settings.schedule.ui.ScheduleNotificationSettingsPage
-import com.antgskds.calendarassistant.feature.settings.shell.ui.render.material.FeatureHubSettingsPage
 import com.antgskds.calendarassistant.feature.settings.about.ui.connector.DonatePage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.ConfigEditorPage
 import com.antgskds.calendarassistant.feature.settings.developer.ui.connector.DeveloperPage
@@ -132,29 +130,19 @@ private fun SettingsPageRouteContent(
             onNavigateToScheduleColors = { onNavigateTo(SettingsDestination.ScheduleColors) },
         )
 
-        SettingsDestination.FeatureHub -> FeatureHubSettingsPage(
-            glassMode = settingsViewModel.settings.value.appBackgroundImagePath.isNotBlank(),
-            onNavigate = onNavigateTo,
-        )
-
         SettingsDestination.ScheduleColors -> ScheduleColorSettingsPage(
             viewModel = settingsViewModel,
             uiSize = uiSize,
         )
 
-        SettingsDestination.QuickMemo -> QuickMemoSettingsPage(
+        SettingsDestination.FloatingWindow -> FloatingWindowSettingsPage(
             viewModel = settingsViewModel,
-            uiSize = uiSize,
+            section = FloatingSettingsSection.TRIGGER,
         )
 
-        SettingsDestination.FlashNote -> FlashNoteSettingsPage(
+        SettingsDestination.FloatingAppearance -> FloatingWindowSettingsPage(
             viewModel = settingsViewModel,
-            uiSize = uiSize,
-        )
-
-        SettingsDestination.FloatingEntry -> FloatingEntrySettingsPage(
-            viewModel = settingsViewModel,
-            uiSize = uiSize,
+            section = FloatingSettingsSection.APPEARANCE,
         )
 
         SettingsDestination.ScheduleNotification -> ScheduleNotificationSettingsPage(

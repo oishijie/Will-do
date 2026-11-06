@@ -16,6 +16,7 @@ fun QuickMemoDetailScreen(
     cardAlphaPercent: Int,
     embedded: Boolean,
     autoStopDurationMs: Long?,
+    onExport: (Long) -> Unit = {},
     onAction: (QuickMemoUiAction) -> Unit
 ) {
     MaterialQuickMemoDetailScreen(
@@ -28,6 +29,7 @@ fun QuickMemoDetailScreen(
         cardAlphaPercent = cardAlphaPercent,
         embedded = embedded,
         autoStopDurationMs = autoStopDurationMs,
+        onExport = onExport,
         onAction = onAction
     )
 }

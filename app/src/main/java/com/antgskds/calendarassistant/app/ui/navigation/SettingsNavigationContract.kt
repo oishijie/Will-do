@@ -20,9 +20,7 @@ enum class SettingsDestination {
     OnboardingGuide,
     RegexRuleEditor,
     WidgetSettings,
-    QuickMemo,
-    FlashNote,
-    FloatingEntry,
+    FloatingWindow,
+    FloatingAppearance,
     ScheduleNotification,
-    FeatureHub,
 }

@@ -214,7 +214,7 @@ private fun WebDavConfigForm(
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             SwitchSettingItem(
                 title = "多设备同步",
-                subtitle = "同步日程、随口记及其附件",
+                subtitle = "同步日程、闪记及其附件",
                 checked = syncEnabled,
                 onCheckedChange = onSyncEnabledChange,
                 cardTitleStyle = cardTitleStyle,

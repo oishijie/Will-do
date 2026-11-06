@@ -134,7 +134,6 @@ data class MySettings(
     val homeAgendaOnlyScheduled: Boolean = true,
     val homeAgendaReverseOrder: Boolean = false, // 日程视图：最后日期默认在底部
     val allEventsListReverseOrder: Boolean = false,   // 全部日程页，现状正序
-    val floatingListReverseOrder: Boolean = true,     // 悬浮窗，现状倒序
     val archivesListReverseOrder: Boolean = true,     // 归档页，现状倒序
 
     // 首页日历视图记忆：开启后首页沿用上次选中的视图（今日/周/月/日程视图）。
@@ -171,24 +170,22 @@ data class MySettings(
     val clipboardCodeRecognitionEnabled: Boolean = false,
     val imagePinEnabled: Boolean = false,
 
-    // 【实验室】随口记总开关
+    // 【实验室】闪记总开关
     val voiceInputEnabled: Boolean = false,
 
-    // 【实验室】悬浮窗已呼出后，长按音量+是否允许进入随口记录音；默认保留旧行为
+    // 【实验室】悬浮窗已呼出后，长按音量+是否允许进入闪记录音；默认保留旧行为
     val floatingVoiceLongPressEnabled: Boolean = true,
-    // 【实验室】悬浮窗文本随口记保存后同步挂到实况通知；默认关闭，避免意外打扰
+    // 【实验室】悬浮窗文本闪记保存后同步挂到实况通知；默认关闭，避免意外打扰
     val floatingTextQuickMemoAutoPinEnabled: Boolean = false,
-    // 【实验室】语音随口记转写完成后同步挂到实况通知；默认关闭，避免意外打扰
+    // 【实验室】语音闪记转写完成后同步挂到实况通知；默认关闭，避免意外打扰
     val voiceQuickMemoAutoPinEnabled: Boolean = false,
-    // 【实验室】语音随口记录音达到指定时长后自动保存
+    // 【实验室】语音闪记录音达到指定时长后自动保存
     val quickMemoAutoStopEnabled: Boolean = false,
     val quickMemoAutoStopSeconds: Int = QUICK_MEMO_AUTO_STOP_DEFAULT_SECONDS,
 
     // 随手记：保存时是否调用模型生成 AI 摘要。
     // 默认关闭——随手记多为随手记下的一两句话，自动摘要既消耗额度又没什么价值；
     // 关闭后条目直接落 SKIPPED 状态，列表不会一直停在「摘要生成中」。
-    val flashNoteAiSummaryEnabled: Boolean = false,
-
     // 【新增】归档配置
     val autoArchiveEnabled: Boolean = false, // 自动归档总开关
     val archiveDaysThreshold: Int = 0, // 归档阈值天数（过期多少天后归档，0=立即归档）
@@ -238,12 +235,6 @@ data class MySettings(
     val floatingEventRange: Int = 1, // 悬浮窗日程范围：0=全部, 1=今日, 2=今日+明日
     val floatingExpandSide: String = "RIGHT", // 悬浮窗展开方向：LEFT/RIGHT
     val quickMemoRecordingDisplayMode: Int = QuickMemoRecordingDisplayMode.LIVE_CAPSULE,
-    val floatingScheduleOrderKeys: List<String> = emptyList(),
-    val floatingDragTextIncludeTitle: Boolean = true,
-    val floatingDragTextIncludeTime: Boolean = false,
-    val floatingDragTextIncludeLocation: Boolean = false,
-    val floatingDragTextIncludeDescription: Boolean = true,
-    val floatingDragHotZonePercent: Int = FLOATING_DRAG_HOT_ZONE_DEFAULT_PERCENT,
 
     // 天气配置
     val weatherEnabled: Boolean = false,
@@ -268,8 +259,6 @@ data class MySettings(
     val weatherLocationStabilityRequiredHits: Int = 2,
     val weatherProvider: String = "qweather",
     val weatherRefreshInterval: Int = 30,
-    val showWeatherInFloating: Boolean = true,
-    val floatingWeatherForecastRange: Int = 0,
     // —— 通知策略（Policy Config：ConfigCatalog 登记、业务读取；默认 = 原硬编码常量）——
     val resultNotificationTimeoutMs: Int = 8000,
     val quickMemoSuggestionTimeoutMs: Int = 60000,
@@ -295,29 +284,30 @@ data class MySettings(
 
     // 长按音量+动作
     val volumeUpLongPressEnabled: Boolean = false,
-    val volumeUpLongPressAction: Int = 1, // 1=识屏, 2=悬浮窗, 3=随口记
+    val volumeUpLongPressAction: Int = 1, // 0=无 1=识屏 2=显示悬浮窗 3=悬浮窗录音 4=App内录音 5=App内笔记 6=悬浮窗笔记 7=按住说话
 
-    // 侧边栏唤起
-    val edgeBarEnabled: Boolean = false,
-    val edgeBarSide: String = "RIGHT",
-    val edgeBarYPercent: Float = 50f,
-    val edgeBarWidthDp: Int = 8,
-    val edgeBarHeightDp: Int = 120,
-    val edgeBarAlpha: Float = 0.4f,
-    val edgeBarSingleTapAction: Int = FloatingBallGestureAction.OPEN_FLOATING_SCHEDULE,
-    val edgeBarDoubleTapAction: Int = FloatingBallGestureAction.QUICK_RECOGNITION,
-    val edgeBarLongPressAction: Int = FloatingBallGestureAction.QUICK_MEMO_RECORDING,
-    val floatingEntryStyle: Int = FloatingEntryStyle.EDGE_BAR,
+    // 长按音量−动作：与音量+ 共用同一套动作编号，默认关闭。
+    val volumeDownLongPressEnabled: Boolean = false,
+    val volumeDownLongPressAction: Int = 1,
 
-    // 悬浮球入口（独立于侧边栏）
-    val floatingBallEnabled: Boolean = false,
-    val floatingBallXPercent: Float = 86f,
-    val floatingBallYPercent: Float = 50f,
-    val floatingBallSizeDp: Int = 56,
-    val floatingBallAlpha: Float = 0.9f,
-    val floatingBallSingleTapAction: Int = FloatingBallGestureAction.OPEN_QUICK_MEMO,
-    val floatingBallDoubleTapAction: Int = FloatingBallGestureAction.QUICK_RECOGNITION,
-    val floatingBallLongPressAction: Int = FloatingBallGestureAction.QUICK_MEMO_RECORDING,
+    // 双击音量+ / 音量−动作：动作编号同上。开启后短按会延迟 300ms
+    // 等第二击确认，且系统「按住连续调音量」改由应用代调。
+    val volumeUpDoubleTapEnabled: Boolean = false,
+    val volumeUpDoubleTapAction: Int = 1,
+    val volumeDownDoubleTapEnabled: Boolean = false,
+    val volumeDownDoubleTapAction: Int = 1,
+
+    // 闪念胶囊把手：尺寸档位（100/75/50）与主题（DUO/BLUE_PURPLE/PILL3D）。
+    val floatingHandleSizePercent: Int = 100,
+    val floatingHandleTheme: String = "DUO",
+    val floatingPanelMaxCards: Int = 10,
+    val floatingFontSizeStep: Int = 0,
+    /** 收起态把手自动隐藏秒数；-1 = 不自动隐藏。 */
+    val floatingHandleAutoHideSeconds: Int = 10,
+    /** 自动隐藏到期后是否缩成贴边竖线（关则彻底隐藏悬浮窗）。 */
+    val floatingEdgeLineEnabled: Boolean = true,
+    val floatingEdgeLineTapEnabled: Boolean = true,
+    val floatingEdgeLineMarginDp: Int = 0,
 
     // 捐赠状态
     val hasDonated: Boolean = false,
@@ -386,9 +376,6 @@ data class MySettings(
         const val APP_BACKGROUND_CARD_ALPHA_MIN_PERCENT = 0
         const val APP_BACKGROUND_CARD_ALPHA_MAX_PERCENT = 100
         const val APP_BACKGROUND_CARD_ALPHA_DEFAULT_PERCENT = 66
-        const val FLOATING_DRAG_HOT_ZONE_MIN_PERCENT = 25
-        const val FLOATING_DRAG_HOT_ZONE_MAX_PERCENT = 70
-        const val FLOATING_DRAG_HOT_ZONE_DEFAULT_PERCENT = 50
 
         fun normalizeScreenshotDelayMs(delayMs: Long): Long {
             return delayMs.coerceIn(SCREENSHOT_DELAY_MIN_MS, SCREENSHOT_DELAY_MAX_MS)
@@ -408,13 +395,6 @@ data class MySettings(
                 APP_BACKGROUND_CARD_ALPHA_MAX_PERCENT
             )
         }
-
-        fun normalizeFloatingDragHotZonePercent(percent: Int): Int {
-            return percent.coerceIn(
-                FLOATING_DRAG_HOT_ZONE_MIN_PERCENT,
-                FLOATING_DRAG_HOT_ZONE_MAX_PERCENT
-            )
-        }
     }
 }
 
@@ -424,15 +404,6 @@ object QuickMemoRecordingDisplayMode {
 
     fun normalize(value: Int): Int {
         return if (value == FLOATING_WINDOW) FLOATING_WINDOW else LIVE_CAPSULE
-    }
-}
-
-object FloatingEntryStyle {
-    const val EDGE_BAR = 0
-    const val FLOATING_BALL = 1
-
-    fun normalize(value: Int): Int {
-        return if (value == FLOATING_BALL) FLOATING_BALL else EDGE_BAR
     }
 }
 
@@ -458,9 +429,9 @@ object FloatingBallGestureAction {
     fun label(value: Int): String {
         return when (normalize(value)) {
             OPEN_FLOATING_SCHEDULE -> "打开日程"
-            OPEN_QUICK_MEMO -> "随口记"
+            OPEN_QUICK_MEMO -> "闪记"
             QUICK_RECOGNITION -> "快速识屏"
-            QUICK_MEMO_RECORDING -> "随口记录音"
+            QUICK_MEMO_RECORDING -> "闪记录音"
             OPEN_APP_HOME -> "打开首页"
             else -> "无操作"
         }

@@ -24,7 +24,7 @@ object SystemNormalDisplay {
 
     fun voiceCaptureRunning(): NormalNotificationContent {
         return NormalNotificationContent(
-            title = "正在录制随口记",
+            title = "正在录制闪记",
             contentText = "松开音量+保存录音"
         )
     }

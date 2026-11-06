@@ -206,8 +206,12 @@ dependencies {
     // 与 AndroidX Test 1.7 的原子依赖组对齐，避免 instrumentation 编译/运行类路径版本冲突。
     implementation("androidx.concurrent:concurrent-futures:1.2.0")
 
-    // Markdown (便签渲染) —— io.noties.markwon 六个 artifact 已随 feature/note 的
-    // MarkdownText 与 editor/markdown 下的 EditHandler 一并移除：编辑器实际使用的是
-    // PlainNoteEditor 自身的实现，这套 Markwon 方案从未接入，属废弃代码。
+    // === Markdown 渲染（闪记详情预览）===
+    // 只用渲染不用 editor：editor 依赖 NoteDocument 段落流，与闪记的 String 正文模型不匹配。
+    implementation("io.noties.markwon:core:4.6.2")
+    implementation("io.noties.markwon:ext-strikethrough:4.6.2")
+    implementation("io.noties.markwon:ext-tables:4.6.2")
+    implementation("io.noties.markwon:ext-tasklist:4.6.2")
+    implementation("io.noties.markwon:linkify:4.6.2")
 
 }

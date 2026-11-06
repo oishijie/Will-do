@@ -191,7 +191,7 @@ class QuickMemoTranscriptionService : Service() {
         return NotificationCompat.Builder(this, App.CHANNEL_ID_POPUP)
             .setSmallIcon(R.drawable.ic_stat_quickmemo)
             .setContentTitle("转写中")
-            .setContentText("随口记")
+            .setContentText("闪记")
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setSilent(true)

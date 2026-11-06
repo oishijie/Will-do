@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,20 +19,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.antgskds.calendarassistant.feature.quickmemo.data.asr.QuickMemoAsrModelStatus
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
-import com.antgskds.calendarassistant.feature.settings.data.model.QuickMemoRecordingDisplayMode
 import com.antgskds.calendarassistant.shared.ui.edition.EditionButton
 import com.antgskds.calendarassistant.shared.ui.edition.EditionSwitchSliderSettingItem
 import com.antgskds.calendarassistant.shared.ui.interaction.HapticValueChangeEffect
-import com.antgskds.calendarassistant.shared.ui.interaction.rememberAppHaptics
 import com.antgskds.calendarassistant.shared.ui.material.component.AppSettingsCard
 import com.antgskds.calendarassistant.shared.ui.material.settings.AppSettingsDivider
 import com.antgskds.calendarassistant.shared.ui.material.settings.SwitchSettingItem
 import kotlin.math.roundToInt
 
 /**
- * 随口记设置卡片。
+ * 闪记设置卡片。
  *
- * 从通用偏好设置抽出，供「随口记」二级页承载；行为与原通用偏好内完全一致，
+ * 从通用偏好设置抽出，供「闪记」二级页承载；行为与原通用偏好内完全一致，
  * 仅将原本私有的二选一控件与状态文案格式化收敛到本文件，避免重复实现。
  */
 @Composable
@@ -44,8 +40,6 @@ fun QuickMemoPreferenceCard(
     cardTitleStyle: TextStyle,
     cardSubtitleStyle: TextStyle,
     onVoiceInputEnabledChange: (Boolean) -> Unit,
-    onFloatingLongPressChange: (Boolean) -> Unit,
-    onRecordingDisplayModeChange: (Int) -> Unit,
     onAutoStopEnabledChange: (Boolean) -> Unit,
     onAutoStopSecondsChange: (Int) -> Unit,
     onTextAutoPinChange: (Boolean) -> Unit,
@@ -54,8 +48,8 @@ fun QuickMemoPreferenceCard(
 ) {
     AppSettingsCard {
         SwitchSettingItem(
-            title = "随口记",
-            subtitle = "随口记功能总开关",
+            title = "闪记",
+            subtitle = "闪记功能总开关",
             checked = settings.voiceInputEnabled,
             onCheckedChange = onVoiceInputEnabledChange,
             cardTitleStyle = cardTitleStyle,
@@ -68,24 +62,6 @@ fun QuickMemoPreferenceCard(
             exit = shrinkVertically() + fadeOut(),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                AppSettingsDivider()
-                SwitchSettingItem(
-                    title = "悬浮窗长按随口记",
-                    subtitle = "呼出悬浮窗后，再次长按音量+开始随口记录音",
-                    checked = settings.floatingVoiceLongPressEnabled,
-                    onCheckedChange = onFloatingLongPressChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle,
-                )
-
-                AppSettingsDivider()
-                QuickMemoRecordingDisplayPreference(
-                    mode = settings.quickMemoRecordingDisplayMode,
-                    onModeChange = onRecordingDisplayModeChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle,
-                )
-
                 AppSettingsDivider()
                 val normalizedSeconds = MySettings.normalizeQuickMemoAutoStopSeconds(
                     settings.quickMemoAutoStopSeconds,
@@ -114,8 +90,8 @@ fun QuickMemoPreferenceCard(
 
                 AppSettingsDivider()
                 SwitchSettingItem(
-                    title = "文本随口记同步挂起",
-                    subtitle = "随口记文本保存后，同步挂起到实况通知",
+                    title = "文本闪记同步挂起",
+                    subtitle = "闪记文本保存后，同步挂起到实况通知",
                     checked = settings.floatingTextQuickMemoAutoPinEnabled,
                     onCheckedChange = onTextAutoPinChange,
                     cardTitleStyle = cardTitleStyle,
@@ -124,8 +100,8 @@ fun QuickMemoPreferenceCard(
 
                 AppSettingsDivider()
                 SwitchSettingItem(
-                    title = "语音随口记同步挂起",
-                    subtitle = "随口记语音转写后，同步挂起到实况通知",
+                    title = "语音闪记同步挂起",
+                    subtitle = "闪记语音转写后，同步挂起到实况通知",
                     checked = settings.voiceQuickMemoAutoPinEnabled,
                     onCheckedChange = onVoiceAutoPinChange,
                     cardTitleStyle = cardTitleStyle,
@@ -156,80 +132,6 @@ fun QuickMemoPreferenceCard(
                     EditionButton(onClick = onImportAsrModel) {
                         Text(if (asrModelStatus.ready) "更换模型" else "导入模型")
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickMemoRecordingDisplayPreference(
-    mode: Int,
-    onModeChange: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-) {
-    val normalizedMode = QuickMemoRecordingDisplayMode.normalize(mode)
-    TwoOptionSettingItem(
-        title = "录音展示",
-        subtitle = if (normalizedMode == QuickMemoRecordingDisplayMode.FLOATING_WINDOW) {
-            "所有入口录音时使用悬浮窗"
-        } else {
-            "所有入口录音时使用实况通知"
-        },
-        selectedValue = normalizedMode,
-        firstValue = QuickMemoRecordingDisplayMode.LIVE_CAPSULE,
-        firstLabel = "实况通知",
-        secondValue = QuickMemoRecordingDisplayMode.FLOATING_WINDOW,
-        secondLabel = "悬浮窗",
-        onValueSelected = onModeChange,
-        cardTitleStyle = cardTitleStyle,
-        cardSubtitleStyle = cardSubtitleStyle,
-    )
-}
-
-@Composable
-private fun TwoOptionSettingItem(
-    title: String,
-    subtitle: String,
-    selectedValue: Int,
-    firstValue: Int,
-    firstLabel: String,
-    secondValue: Int,
-    secondLabel: String,
-    onValueSelected: (Int) -> Unit,
-    cardTitleStyle: TextStyle,
-    cardSubtitleStyle: TextStyle,
-) {
-    val haptics = rememberAppHaptics()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = cardTitleStyle)
-            Text(subtitle, style = cardSubtitleStyle)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (selectedValue == firstValue) {
-                Button(onClick = { haptics.selection(); onValueSelected(firstValue) }) {
-                    Text(firstLabel)
-                }
-            } else {
-                OutlinedButton(onClick = { haptics.selection(); onValueSelected(firstValue) }) {
-                    Text(firstLabel)
-                }
-            }
-            if (selectedValue == secondValue) {
-                Button(onClick = { haptics.selection(); onValueSelected(secondValue) }) {
-                    Text(secondLabel)
-                }
-            } else {
-                OutlinedButton(onClick = { haptics.selection(); onValueSelected(secondValue) }) {
-                    Text(secondLabel)
                 }
             }
         }

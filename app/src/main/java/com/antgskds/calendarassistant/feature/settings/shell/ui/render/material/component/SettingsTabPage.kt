@@ -41,7 +41,7 @@ import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
 /**
  * 设置页（首页底栏「设置」入口的原地内容）。
  *
- * 视觉规范：与随口记/日程页一致的居中小字页头（AppTopBar）
+ * 视觉规范：与闪记/日程页一致的居中小字页头（AppTopBar）
  * + 分组小标签 + 大圆角卡片组；条目 = 粗黑标题 + 灰色描述 + 右侧箭头，不使用前置图标。
  */
 @Composable
@@ -60,7 +60,7 @@ fun SettingsTabPage(
     val chevronTint = MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // 与随口记/日程页一致的居中小字页头
+        // 与闪记/日程页一致的居中小字页头
         AppTopBar(
             title = "设置",
             containerColor = if (glassMode) Color.Transparent else MaterialTheme.colorScheme.background,
@@ -94,12 +94,38 @@ fun SettingsTabPage(
             SettingsSectionLabel("功能设置")
             SettingsSectionCard(cardColor = cardColor, cardShape = cardShape) {
                 SettingsEntryItem(
-                    title = "功能设置",
-                    subtitle = "模型、天气、随口记、随手记、悬浮与日程",
+                    title = "模型与连接",
+                    subtitle = "AI 模型与识别策略",
                     chevronTint = chevronTint,
-                    onClick = { haptics.click(); onNavigate(SettingsDestination.FeatureHub) }
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.AI) }
+                )
+                SettingsEntryItem(
+                    title = "天气",
+                    subtitle = "天气 API 与展示设置",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.Weather) }
+                )
+                SettingsEntryItem(
+                    title = "唤起与快捷操作",
+                    subtitle = "音量键唤起、长按闪记与录音",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.FloatingWindow) }
+                )
+                SettingsEntryItem(
+                    title = "胶囊外观与展示",
+                    subtitle = "把手外观、面板与展示内容",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.FloatingAppearance) }
+                )
+                SettingsEntryItem(
+                    title = "日程与通知",
+                    subtitle = "日历同步、提醒与通知",
+                    chevronTint = chevronTint,
+                    onClick = { haptics.click(); onNavigate(SettingsDestination.ScheduleNotification) }
                 )
             }
+
+            Spacer(modifier = Modifier.height(22.dp))
 
             SettingsSectionLabel("数据")
             SettingsSectionCard(cardColor = cardColor, cardShape = cardShape) {

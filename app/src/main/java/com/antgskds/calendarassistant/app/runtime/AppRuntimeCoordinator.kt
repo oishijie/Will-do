@@ -36,7 +36,6 @@ class AppRuntimeCoordinator(
         scheduleKeepAlive()
         scheduleReminderReconcile()
         startNetworkSpeedMonitoring()
-        startEdgeBarIfNeeded()
     }
 
     fun restoreAfterBoot() {
@@ -45,7 +44,6 @@ class AppRuntimeCoordinator(
         scheduleReminderReconcile()
         startPeriodicSync()
         restoreSmsNotificationListenerIfNeeded()
-        startEdgeBarIfNeeded()
     }
 
     fun startPeriodicSync() {
@@ -92,19 +90,5 @@ class AppRuntimeCoordinator(
         }
     }
 
-    fun startEdgeBarIfNeeded() {
-        try {
-            val settings = settingsQueryApi.settings.value
-            val hasFloatingFeature = settings.isFloatingWindowEnabled || settings.voiceInputEnabled
-            if (hasFloatingFeature && settings.edgeBarEnabled && permissionCenter.canDrawOverlays(appContext)) {
-                floatingCenter.startEdgeBarServiceIfPermitted()
-            }
-            if (hasFloatingFeature && settings.floatingBallEnabled && permissionCenter.canDrawOverlays(appContext)) {
-                floatingCenter.startFloatingBallServiceIfPermitted()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Start edge bar failed", e)
-        }
-    }
-
 }
+

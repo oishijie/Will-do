@@ -165,9 +165,8 @@ private val SHORTCUT_ACTIVITY_CLASS: String = ShortcutHandleActivity::class.java
 
 private val QUICK_COMMANDS: List<ExternalCallEntry> = listOf(
     ExternalCallEntry("截图识别", ShortcutHandleActivity.ACTION_QUICK_CAPTURE),
-    ExternalCallEntry("悬浮窗 · 日程", ShortcutHandleActivity.ACTION_OPEN_FLOATING),
-    ExternalCallEntry("悬浮窗 · 随手记", ShortcutHandleActivity.ACTION_OPEN_FLOATING_NOTE),
-    ExternalCallEntry("语音随口记", ShortcutHandleActivity.ACTION_START_QUICK_MEMO_VOICE),
+    ExternalCallEntry("闪记胶囊", ShortcutHandleActivity.ACTION_OPEN_FLOATING),
+    ExternalCallEntry("语音闪记", ShortcutHandleActivity.ACTION_START_QUICK_MEMO_VOICE),
 )
 
 private val QUICK_ACTIVITIES: List<ExternalCallEntry> = listOf(

@@ -12,7 +12,17 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 import kotlin.math.max
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 data class QuickMemoRecordingResult(
     val path: String,
@@ -26,6 +36,13 @@ class QuickMemoAudioRecorder(
     private var audioRecordSession: AudioRecordSession? = null
     private var outputFile: File? = null
     private var startedAt: Long = 0L
+
+    /** 实时电平（峰值振幅），0f..1f。录音时由写盘线程 / MediaRecorder 轮询更新。 */
+    private val _amplitude = MutableStateFlow(0f)
+    val amplitude: StateFlow<Float> = _amplitude
+
+    private var amplitudePollJob: Job? = null
+    private val amplitudeScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     val isRecording: Boolean get() = recorder != null || audioRecordSession != null
 
@@ -55,6 +72,7 @@ class QuickMemoAudioRecorder(
             recorder = mediaRecorder
             outputFile = file
             startedAt = System.currentTimeMillis()
+            startMediaRecorderAmplitudePolling(mediaRecorder)
             return file.absolutePath
         } catch (e: Exception) {
             Log.w(TAG, "MediaRecorder start failed, falling back to AudioRecord", e)
@@ -83,6 +101,7 @@ class QuickMemoAudioRecorder(
         runCatching { mediaRecorder.stop() }
         runCatching { mediaRecorder.reset() }
         runCatching { mediaRecorder.release() }
+        stopAmplitudePolling()
 
         if (file == null || !file.exists()) return null
         return QuickMemoRecordingResult(file.absolutePath, duration)
@@ -101,6 +120,7 @@ class QuickMemoAudioRecorder(
             runCatching { mediaRecorder.reset() }
             runCatching { mediaRecorder.release() }
         }
+        stopAmplitudePolling()
         if (audioRecordSession != null) stopAudioRecord(audioRecordSession, delete = true)
         if (file != null) runCatching { file.delete() }
     }
@@ -145,6 +165,9 @@ class QuickMemoAudioRecorder(
                         output.write(buffer, 0, read)
                         session.bytesWritten += read.toLong()
                     }
+                    // 实时电平：取本块 PCM16 的峰值，供录音胶囊波形用。
+                    // 在写盘线程里顺带算，不另起线程。
+                    publishAmplitude(peakAmplitudeOf(buffer, read))
                 }
             }
         }, "QuickMemoAudioRecord")
@@ -165,7 +188,46 @@ class QuickMemoAudioRecorder(
         }
     }
 
+    /** 把 PCM16 单声道的峰值振幅归一化到 0f..1f。 */
+    private fun peakAmplitudeOf(buffer: ByteArray, length: Int): Float {
+        var peak = 0
+        var i = 0
+        while (i + 1 < length) {
+            // PCM16 小端
+            val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort().toInt()
+            peak = max(peak, abs(sample))
+            i += 2
+        }
+        return (peak / Short.MAX_VALUE.toFloat()).coerceIn(0f, 1f)
+    }
+
+    private fun publishAmplitude(value: Float) {
+        _amplitude.value = value
+    }
+
+    /**
+     * MediaRecorder 主路径拿不到 PCM，只能轮询 maxAmplitude。
+     * 每 60ms 一次，与波形帧率对齐。
+     */
+    private fun startMediaRecorderAmplitudePolling(recorder: MediaRecorder) {
+        amplitudePollJob?.cancel()
+        amplitudePollJob = amplitudeScope.launch {
+            while (isActive) {
+                val amp = runCatching { recorder.maxAmplitude }.getOrDefault(0)
+                publishAmplitude((amp / 32767f).coerceIn(0f, 1f))
+                delay(60)
+            }
+        }
+    }
+
+    private fun stopAmplitudePolling() {
+        amplitudePollJob?.cancel()
+        amplitudePollJob = null
+        publishAmplitude(0f)
+    }
+
     private fun stopAudioRecord(session: AudioRecordSession, delete: Boolean): QuickMemoRecordingResult? {
+        stopAmplitudePolling()
         val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
         if (audioRecordSession === session) audioRecordSession = null
         outputFile = null

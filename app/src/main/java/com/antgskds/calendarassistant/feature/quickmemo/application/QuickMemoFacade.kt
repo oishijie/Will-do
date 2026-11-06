@@ -38,8 +38,10 @@ import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
@@ -67,6 +69,46 @@ class QuickMemoFacade(
         private const val ASR_PROCESS_SUFFIX = ":quickmemo_asr"
         private const val USE_ISOLATED_ASR_PROCESS = true
         private const val TEXT_QUICK_MEMO_ID_PREFIX = "TEXT_QUICK_MEMO_"
+    }
+
+    val folders = repository.folders.stateIn(appScope, SharingStarted.Eagerly, emptyList())
+
+    suspend fun updateTitle(id: Long, title: String) = withContext(Dispatchers.IO) {
+        repository.updateTitle(id, title)
+    }
+
+    /** 收藏一条链接；已收藏过同一链接时只刷新来源，不新建条目。 */
+    suspend fun createLinkMemo(link: com.antgskds.calendarassistant.feature.quickmemo.domain.QuickMemoLink): Long =
+        withContext(Dispatchers.IO) {
+            repository.createLinkMemo(link)
+        }
+
+    /** 已保存的链接是否还是当前这一版（用于「已在闪记中」提示）。 */
+    suspend fun isSavedLinkCurrent(link: com.antgskds.calendarassistant.feature.quickmemo.domain.QuickMemoLink): Boolean =
+        withContext(Dispatchers.IO) {
+            val saved = repository.findLink(link.dedupKey) ?: return@withContext false
+            !com.antgskds.calendarassistant.feature.quickmemo.domain.QuickMemoLinkRefreshPolicy
+                .needsRefresh(saved.sourceUrl, link)
+        }
+
+    suspend fun createFolder(name: String): String = withContext(Dispatchers.IO) {
+        repository.createFolder(name)
+    }
+
+    suspend fun renameFolder(id: String, name: String) = withContext(Dispatchers.IO) {
+        repository.renameFolder(id, name)
+    }
+
+    suspend fun deleteFolder(id: String) = withContext(Dispatchers.IO) {
+        repository.deleteFolder(id)
+    }
+
+    suspend fun moveToFolder(ids: List<Long>, folderId: String?) = withContext(Dispatchers.IO) {
+        repository.moveToFolder(ids, folderId)
+    }
+
+    suspend fun deleteQuickMemos(ids: Collection<Long>) = withContext(Dispatchers.IO) {
+        ids.distinct().forEach { deleteQuickMemo(it) }
     }
 
     private val _quickMemos = MutableStateFlow<List<QuickMemoEntity>>(emptyList())
@@ -154,8 +196,12 @@ class QuickMemoFacade(
         repository.getRemindersForMemo(memoId)
     }
 
-    suspend fun createTextMemo(bodyText: String, asTodo: Boolean = false): Long = withContext(Dispatchers.IO) {
-        val id = repository.createTextMemo(bodyText, asTodo)
+    suspend fun createTextMemo(
+        bodyText: String,
+        asTodo: Boolean = false,
+        folderId: String? = null
+    ): Long = withContext(Dispatchers.IO) {
+        val id = repository.createTextMemo(bodyText, asTodo, folderId)
         val cleanText = bodyText.trim()
         if (cleanText.isNotBlank()) {
             notifyBraceletQuickMemoResult(id, cleanText)
@@ -169,9 +215,10 @@ class QuickMemoFacade(
         durationMs: Long,
         bodyText: String = "",
         asTodo: Boolean = false,
-        autoPinOnTranscriptionSuccess: Boolean = false
+        autoPinOnTranscriptionSuccess: Boolean = false,
+        folderId: String? = null
     ): Long = withContext(Dispatchers.IO) {
-        val id = repository.createVoiceMemo(audioPath, durationMs, bodyText, asTodo)
+        val id = repository.createVoiceMemo(audioPath, durationMs, bodyText, asTodo, folderId)
         if (autoPinOnTranscriptionSuccess) {
             markAutoPinAfterTranscription(id)
         }
@@ -182,21 +229,30 @@ class QuickMemoFacade(
     suspend fun createImageMemo(
         imagePath: String,
         bodyText: String = "",
-        asTodo: Boolean = false
+        asTodo: Boolean = false,
+        folderId: String? = null
     ): Long = withContext(Dispatchers.IO) {
-        val id = repository.createImageMemo(imagePath, bodyText, asTodo)
+        val id = repository.createImageMemo(imagePath, bodyText, asTodo, folderId)
         val cleanText = bodyText.trim()
         if (cleanText.isNotBlank()) {
             notifyBraceletQuickMemoResult(id, cleanText)
             analyzeTextForSuggestions(id, cleanText)
         } else {
-            notifyBraceletQuickMemoResult(id, "图片随口记")
+            notifyBraceletQuickMemoResult(id, "图片闪记")
         }
         id
     }
 
     suspend fun updateBody(id: Long, bodyText: String) = withContext(Dispatchers.IO) {
         repository.updateBody(id, bodyText)
+        val memo = repository.getQuickMemo(id) ?: return@withContext
+        if (activeTextQuickMemoId() == id) {
+            refreshPinnedTextQuickMemo(memo)
+        }
+    }
+
+    suspend fun updateContent(id: Long, title: String, bodyText: String) = withContext(Dispatchers.IO) {
+        repository.updateContent(id, title, bodyText)
         val memo = repository.getQuickMemo(id) ?: return@withContext
         if (activeTextQuickMemoId() == id) {
             refreshPinnedTextQuickMemo(memo)
@@ -225,7 +281,7 @@ class QuickMemoFacade(
     }
 
     /**
-     * 把一条随口记挂到实况通知。
+     * 把一条闪记挂到实况通知。
      *
      * [pinned] = true 时常驻到用户点通知上的「移除」——输入栏的「实况通知」按钮走这条；
      * false 保持旧行为：到时自动收，供浮窗保存后自动挂起那条实验链路使用。
@@ -243,7 +299,7 @@ class QuickMemoFacade(
         true
     }
 
-    /** 只移除已发出的提醒胶囊，不触碰随口记、挂起状态和未来重复提醒。 */
+    /** 只移除已发出的提醒胶囊，不触碰闪记、挂起状态和未来重复提醒。 */
     suspend fun dismissReminderCapsule(reminderId: Long) {
         notificationApi?.cancel(com.antgskds.calendarassistant.feature.notification.model.NotificationKey.quickMemoReminder(reminderId))
     }
@@ -323,7 +379,7 @@ class QuickMemoFacade(
             reminderScheduler?.schedule(reminderId, reminder.quickMemoId, reminder.triggerAt)
             return
         }
-        val publisher = checkNotNull(reminderNotifications) { "随口记提醒未配置 NotificationApi" }
+        val publisher = checkNotNull(reminderNotifications) { "闪记提醒未配置 NotificationApi" }
         val result = try {
             publisher.publish(memo, reminderId)
         } catch (error: kotlinx.coroutines.CancellationException) {
@@ -402,6 +458,43 @@ class QuickMemoFacade(
         clearPinnedTextQuickMemo(id)
         repository.getRemindersForMemo(id).mapNotNull { it.id }.forEach { reminderScheduler?.cancel(it) }
         repository.deleteQuickMemo(id)
+    }
+
+    suspend fun restoreQuickMemo(id: Long) = withContext(Dispatchers.IO) {
+        repository.restoreQuickMemo(id)
+    }
+
+    /** 归档（可恢复）：保留内容，不出现在主列表。 */
+    suspend fun archiveQuickMemo(id: Long) = withContext(Dispatchers.IO) {
+        repository.archiveQuickMemo(id)
+    }
+
+    /** 从归档恢复到主列表。 */
+    suspend fun restoreQuickMemoArchived(id: Long) = withContext(Dispatchers.IO) {
+        repository.restoreQuickMemoArchived(id)
+    }
+
+    suspend fun purgeQuickMemo(id: Long) = withContext(Dispatchers.IO) {
+        repository.purgeQuickMemo(id)
+    }
+
+    suspend fun purgeAllDeletedQuickMemos(): Int = withContext(Dispatchers.IO) {
+        repository.purgeAllDeletedQuickMemos()
+    }
+
+    suspend fun getArchivedQuickMemos(): List<QuickMemoEntity> = withContext(Dispatchers.IO) {
+        repository.getArchivedQuickMemos()
+    }
+
+    /** 清空已归档：同时取消这些条目已调度的提醒。 */
+    suspend fun purgeAllArchivedQuickMemos(): Int = withContext(Dispatchers.IO) {
+        val reminders = repository.getArchivedQuickMemoReminders()
+        reminders.mapNotNull { it.id }.forEach { reminderScheduler?.cancel(it) }
+        repository.purgeAllArchivedQuickMemos()
+    }
+
+    suspend fun getDeletedQuickMemos(): List<QuickMemoEntity> = withContext(Dispatchers.IO) {
+        repository.getDeletedQuickMemos()
     }
 
     suspend fun clearAllQuickMemos(): Int = withContext(Dispatchers.IO) {
@@ -499,7 +592,7 @@ class QuickMemoFacade(
                     restartForNewAudio = true
                     return@launch
                 }
-                Log.e(TAG, "处理语音随口记失败", e)
+                Log.e(TAG, "处理语音闪记失败", e)
                 clearAutoPinAfterTranscription(id)
                 repository.updateTranscriptionStatus(id, QuickMemoTranscriptionStatus.FAILED)
             } finally {
@@ -540,7 +633,7 @@ class QuickMemoFacade(
         }
     }
 
-    private fun launchTranscriptionWatchdog(id: Long, audioPath: String, startedAt: Long) {
+                private fun launchTranscriptionWatchdog(id: Long, audioPath: String, startedAt: Long) {
         appScope.launch(Dispatchers.IO) {
             var elapsed = 0L
             while (elapsed < ASR_PROCESS_CRASH_CHECK_WINDOW_MS) {
@@ -645,7 +738,7 @@ class QuickMemoFacade(
         if (!requested) return
         if (settingsQueryApi?.settings?.value?.isLiveCapsuleEnabled != true) return
         runCatching { pinQuickMemo(id) }
-            .onFailure { Log.w(TAG, "语音随口记自动挂起失败", it) }
+            .onFailure { Log.w(TAG, "语音闪记自动挂起失败", it) }
     }
 
     private fun refreshPinnedTextQuickMemo(memo: QuickMemoEntity) {
@@ -669,8 +762,8 @@ class QuickMemoFacade(
     private fun QuickMemoEntity.displayTextForCapsule(): String {
         bodyText.trim().takeIf { it.isNotBlank() }?.let { return it }
         return when (type) {
-            QuickMemoType.IMAGE -> "图片随口记"
-            QuickMemoType.VOICE -> "语音随口记"
+            QuickMemoType.IMAGE -> "图片闪记"
+            QuickMemoType.VOICE -> "语音闪记"
             else -> ""
         }
     }
@@ -710,12 +803,12 @@ class QuickMemoFacade(
                         repository.updateAnalysisStatus(id, QuickMemoAnalysisStatus.SUCCESS)
                     }
                     is AnalysisResult.Failure -> {
-                        Log.w(TAG, "随口记日程候选分析失败: ${result.failure.fullMessage()}")
+                        Log.w(TAG, "闪记日程候选分析失败: ${result.failure.fullMessage()}")
                         repository.updateAnalysisStatus(id, QuickMemoAnalysisStatus.FAILED)
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "随口记日程候选分析异常", e)
+                Log.e(TAG, "闪记日程候选分析异常", e)
                 repository.updateAnalysisStatus(id, QuickMemoAnalysisStatus.FAILED)
             }
         }

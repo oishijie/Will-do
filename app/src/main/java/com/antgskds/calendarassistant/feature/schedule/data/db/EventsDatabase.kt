@@ -24,6 +24,7 @@ import com.antgskds.calendarassistant.feature.note.data.local.NoteEntity
 import com.antgskds.calendarassistant.feature.note.data.local.NotesDao
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoDao
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoEntity
+import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoReminderEntity
 import com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoSuggestionEntity
 import java.util.concurrent.Executors
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors
         EventAttachment::class,
         NoteEntity::class,
         QuickMemoEntity::class,
+        QuickMemoFolderEntity::class,
         QuickMemoReminderEntity::class,
         QuickMemoSuggestionEntity::class,
         SyncV2BindingEntity::class,
@@ -43,7 +45,7 @@ import java.util.concurrent.Executors
         SyncV2PeerEntity::class,
         SyncV2MetaEntity::class
     ],
-    version = 22,
+    version = 26,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -66,7 +68,7 @@ abstract class EventsDatabase : RoomDatabase() {
                     context.applicationContext,
                     EventsDatabase::class.java,
                     "events.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_17, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22).addCallback(object : Callback() {
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_17, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26).addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
                         insertRegularEventType(context)
@@ -84,6 +86,41 @@ abstract class EventsDatabase : RoomDatabase() {
                     color = 0xFF3F51B5.toInt()
                 )
                 database.eventTypesDao().insertOrUpdate(defaultType)
+            }
+        }
+
+        // 闪记增加标题与文件夹归属；文件夹采用单层结构，记录按 folder_id 归属。
+        internal val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE quick_memos ADD COLUMN title TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE quick_memos ADD COLUMN folder_id TEXT DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_quick_memos_folder_id ON quick_memos(folder_id)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS quick_memo_folders (id TEXT NOT NULL, name TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(id))")
+            }
+        }
+
+        // 闪记回收站：软删除。deleted_at 非空表示已进回收站，默认查询需过滤掉。
+        internal val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE quick_memos ADD COLUMN deleted_at INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_quick_memos_deleted_at ON quick_memos(deleted_at)")
+            }
+        }
+
+        // 闪记归档（替代回收站语义）：archived_at 非空 = 已归档，不出现在主列表。
+        internal val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE quick_memos ADD COLUMN archived_at INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_quick_memos_archived_at ON quick_memos(archived_at)")
+            }
+        }
+
+        // 链接收藏：来源网址与去重键。link_key 为空表示普通闪记。
+        internal val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE quick_memos ADD COLUMN source_url TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE quick_memos ADD COLUMN link_key TEXT DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_quick_memos_link_key ON quick_memos(link_key)")
             }
         }
 

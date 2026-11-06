@@ -87,9 +87,9 @@ class ImageShareHandleActivity : ComponentActivity() {
                 withContext(Dispatchers.IO) {
                     app.quickMemoCenter.createImageMemo(imageFile.absolutePath)
                 }
-                Toast.makeText(this@ImageShareHandleActivity, "已保存到随口记", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@ImageShareHandleActivity, "已保存到闪记", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                Toast.makeText(this@ImageShareHandleActivity, e.message ?: "保存图片随口记失败", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@ImageShareHandleActivity, e.message ?: "保存图片闪记失败", Toast.LENGTH_SHORT).show()
             } finally {
                 finish()
             }

@@ -127,7 +127,6 @@ class SettingsViewModel(
         braceletModeEnabled: Boolean? = null,
         pickupAggregation: Boolean? = null,
         hapticFeedbackEnabled: Boolean? = null,
-        edgeBarEnabled: Boolean? = null,
         networkSpeedCapsule: Boolean? = null,
         floatingWindow: Boolean? = null,
         advanceReminderEnabled: Boolean? = null,
@@ -142,22 +141,24 @@ class SettingsViewModel(
         localSemanticEnabled: Boolean? = null,
         selectedLocalModelId: String? = null,
         floatingEventRange: Int? = null,
+        floatingHandleSizePercent: Int? = null,
+        floatingHandleTheme: String? = null,
+        floatingPanelMaxCards: Int? = null,
+        floatingFontSizeStep: Int? = null,
+        floatingHandleAutoHideSeconds: Int? = null,
+        floatingEdgeLineEnabled: Boolean? = null,
+        floatingEdgeLineTapEnabled: Boolean? = null,
+        floatingEdgeLineMarginDp: Int? = null,
         floatingExpandSide: String? = null,
         quickMemoRecordingDisplayMode: Int? = null,
-        floatingEntryStyle: Int? = null,
-        floatingBallEnabled: Boolean? = null,
-        floatingBallXPercent: Float? = null,
-        floatingBallYPercent: Float? = null,
-        floatingBallSizeDp: Int? = null,
-        floatingBallAlpha: Float? = null,
-        floatingBallSingleTapAction: Int? = null,
-        floatingBallDoubleTapAction: Int? = null,
-        floatingBallLongPressAction: Int? = null,
-        edgeBarSingleTapAction: Int? = null,
-        edgeBarDoubleTapAction: Int? = null,
-        edgeBarLongPressAction: Int? = null,
         volumeUpLongPressEnabled: Boolean? = null,
         volumeUpLongPressAction: Int? = null,
+        volumeDownLongPressEnabled: Boolean? = null,
+        volumeDownLongPressAction: Int? = null,
+        volumeUpDoubleTapEnabled: Boolean? = null,
+        volumeUpDoubleTapAction: Int? = null,
+        volumeDownDoubleTapEnabled: Boolean? = null,
+        volumeDownDoubleTapAction: Int? = null,
         smsMonitoring: Boolean? = null,
         forceInstantCodeTimeToNow: Boolean? = null,
         predictiveBackEnabled: Boolean? = null,
@@ -188,7 +189,6 @@ class SettingsViewModel(
                 braceletModeEnabled = braceletModeEnabled,
                 pickupAggregation = pickupAggregation,
                 hapticFeedbackEnabled = hapticFeedbackEnabled,
-                edgeBarEnabled = edgeBarEnabled,
                 networkSpeedCapsule = networkSpeedCapsule,
                 floatingWindow = floatingWindow,
                 advanceReminderEnabled = advanceReminderEnabled,
@@ -203,22 +203,24 @@ class SettingsViewModel(
                 localSemanticEnabled = localSemanticEnabled,
                 selectedLocalModelId = selectedLocalModelId,
                 floatingEventRange = floatingEventRange,
+                floatingHandleSizePercent = floatingHandleSizePercent,
+                floatingHandleTheme = floatingHandleTheme,
+                floatingPanelMaxCards = floatingPanelMaxCards,
+                floatingFontSizeStep = floatingFontSizeStep,
+                floatingHandleAutoHideSeconds = floatingHandleAutoHideSeconds,
+                floatingEdgeLineEnabled = floatingEdgeLineEnabled,
+                floatingEdgeLineTapEnabled = floatingEdgeLineTapEnabled,
+                floatingEdgeLineMarginDp = floatingEdgeLineMarginDp,
                 floatingExpandSide = floatingExpandSide,
                 quickMemoRecordingDisplayMode = quickMemoRecordingDisplayMode,
-                floatingEntryStyle = floatingEntryStyle,
-                floatingBallEnabled = floatingBallEnabled,
-                floatingBallXPercent = floatingBallXPercent,
-                floatingBallYPercent = floatingBallYPercent,
-                floatingBallSizeDp = floatingBallSizeDp,
-                floatingBallAlpha = floatingBallAlpha,
-                floatingBallSingleTapAction = floatingBallSingleTapAction,
-                floatingBallDoubleTapAction = floatingBallDoubleTapAction,
-                floatingBallLongPressAction = floatingBallLongPressAction,
-                edgeBarSingleTapAction = edgeBarSingleTapAction,
-                edgeBarDoubleTapAction = edgeBarDoubleTapAction,
-                edgeBarLongPressAction = edgeBarLongPressAction,
                 volumeUpLongPressEnabled = volumeUpLongPressEnabled,
                 volumeUpLongPressAction = volumeUpLongPressAction,
+                volumeDownLongPressEnabled = volumeDownLongPressEnabled,
+                volumeDownLongPressAction = volumeDownLongPressAction,
+                volumeUpDoubleTapEnabled = volumeUpDoubleTapEnabled,
+                volumeUpDoubleTapAction = volumeUpDoubleTapAction,
+                volumeDownDoubleTapEnabled = volumeDownDoubleTapEnabled,
+                volumeDownDoubleTapAction = volumeDownDoubleTapAction,
                 smsMonitoring = smsMonitoring,
                 forceInstantCodeTimeToNow = forceInstantCodeTimeToNow,
                 predictiveBackEnabled = predictiveBackEnabled,
@@ -243,14 +245,13 @@ class SettingsViewModel(
     }
 
     /**
-     * 更新列表排序方向开关（首页 / 全部日程 / 悬浮窗 / 归档）。
+     * 更新列表排序方向开关（首页 / 全部日程 / 归档）。
      * 直接走 copy，不经 transform 层；传 null 表示该项不变。
      */
     fun updateListSortOrder(
         homeListReverseOrder: Boolean? = null,
         allEventsListReverseOrder: Boolean? = null,
         homeAgendaReverseOrder: Boolean? = null,
-        floatingListReverseOrder: Boolean? = null,
         archivesListReverseOrder: Boolean? = null
     ) {
         viewModelScope.launch {
@@ -260,39 +261,7 @@ class SettingsViewModel(
                     homeListReverseOrder = homeListReverseOrder ?: current.homeListReverseOrder,
                     allEventsListReverseOrder = allEventsListReverseOrder ?: current.allEventsListReverseOrder,
                     homeAgendaReverseOrder = homeAgendaReverseOrder ?: current.homeAgendaReverseOrder,
-                    floatingListReverseOrder = floatingListReverseOrder ?: current.floatingListReverseOrder,
                     archivesListReverseOrder = archivesListReverseOrder ?: current.archivesListReverseOrder
-                )
-            )
-        }
-    }
-
-    fun updateFloatingDragTextOptions(
-        includeTitle: Boolean? = null,
-        includeTime: Boolean? = null,
-        includeLocation: Boolean? = null,
-        includeDescription: Boolean? = null
-    ) {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsOperationApi.updateSettings(
-                current.copy(
-                    floatingDragTextIncludeTitle = includeTitle ?: current.floatingDragTextIncludeTitle,
-                    floatingDragTextIncludeTime = includeTime ?: current.floatingDragTextIncludeTime,
-                    floatingDragTextIncludeLocation = includeLocation ?: current.floatingDragTextIncludeLocation,
-                    floatingDragTextIncludeDescription = includeDescription ?: current.floatingDragTextIncludeDescription
-                )
-            )
-        }
-    }
-
-    fun updateFloatingDragHotZonePercent(percent: Int) {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsOperationApi.updateSettings(
-                current.copy(
-                    floatingDragHotZonePercent = com.antgskds.calendarassistant.feature.settings.data.model.MySettings
-                        .normalizeFloatingDragHotZonePercent(percent)
                 )
             )
         }
@@ -319,7 +288,7 @@ class SettingsViewModel(
     }
 
     /**
-     * 把列表排序方向恢复为出厂默认（首页/全部=正序，悬浮窗/归档=倒序）。
+     * 把列表排序方向恢复为出厂默认（首页/全部=正序，归档=倒序）。
      * 取 MySettings() 的默认值，避免硬编码漂移。
      */
     fun resetListSortOrderToDefault() {
@@ -331,7 +300,6 @@ class SettingsViewModel(
                     homeListReverseOrder = defaults.homeListReverseOrder,
                     allEventsListReverseOrder = defaults.allEventsListReverseOrder,
                     homeAgendaReverseOrder = defaults.homeAgendaReverseOrder,
-                    floatingListReverseOrder = defaults.floatingListReverseOrder,
                     archivesListReverseOrder = defaults.archivesListReverseOrder
                 )
             )
@@ -372,15 +340,6 @@ class SettingsViewModel(
             settings.value.copy(quickMemoPinnedFixedTitleEnabled = enabled)
         )
         onUpdated()
-    }
-
-    /**
-     * 随手记 AI 摘要开关。
-     *
-     * 关闭后新保存的随手记直接落 SKIPPED、不排队调模型；已经生成过摘要的旧条目不受影响。
-     */
-    fun setFlashNoteAiSummaryEnabled(enabled: Boolean) = viewModelScope.launch {
-        settingsOperationApi.updateSettings(settings.value.copy(flashNoteAiSummaryEnabled = enabled))
     }
 
     fun setAutoRecordLogs(enabled: Boolean) = viewModelScope.launch {
@@ -433,7 +392,6 @@ class SettingsViewModel(
         apiUrl: String,
         apiKey: String,
         refreshInterval: Int,
-        showInFloating: Boolean,
         locationMode: String,
         manualLocationId: String,
         manualLocationName: String,
@@ -444,8 +402,7 @@ class SettingsViewModel(
         manualLon: Double,
         warningEnabled: Boolean,
         riskWarningEnabled: Boolean,
-        warningLookaheadHours: Int,
-        floatingWeatherForecastRange: Int
+        warningLookaheadHours: Int
     ) {
         val current = settings.value
         val normalizedProvider = if (provider == "caiyun") "caiyun" else "qweather"
@@ -484,8 +441,6 @@ class SettingsViewModel(
                 weatherRiskWarningEnabled = riskWarningEnabled,
                 weatherWarningLookaheadHours = warningLookaheadHours,
                 weatherRefreshInterval = refreshInterval,
-                showWeatherInFloating = showInFloating,
-                floatingWeatherForecastRange = floatingWeatherForecastRange
             )
         )
     }
@@ -741,32 +696,6 @@ class SettingsViewModel(
             large = MySettings.UI_SCALE_LARGE_DEFAULT,
             onUpdated = onUpdated
         )
-    }
-
-    fun updateEdgeBarSettings(
-        enabled: Boolean? = null,
-        side: String? = null,
-        yPercent: Float? = null,
-        widthDp: Int? = null,
-        heightDp: Int? = null,
-        alpha: Float? = null,
-        singleTapAction: Int? = null,
-        doubleTapAction: Int? = null,
-        longPressAction: Int? = null
-    ) {
-        viewModelScope.launch {
-            var current = settings.value
-            if (enabled != null) current = current.copy(edgeBarEnabled = enabled)
-            if (side != null) current = current.copy(edgeBarSide = side)
-            if (yPercent != null) current = current.copy(edgeBarYPercent = yPercent)
-            if (widthDp != null) current = current.copy(edgeBarWidthDp = widthDp)
-            if (heightDp != null) current = current.copy(edgeBarHeightDp = heightDp)
-            if (alpha != null) current = current.copy(edgeBarAlpha = alpha)
-            if (singleTapAction != null) current = current.copy(edgeBarSingleTapAction = FloatingBallGestureAction.normalize(singleTapAction))
-            if (doubleTapAction != null) current = current.copy(edgeBarDoubleTapAction = FloatingBallGestureAction.normalize(doubleTapAction))
-            if (longPressAction != null) current = current.copy(edgeBarLongPressAction = FloatingBallGestureAction.normalize(longPressAction))
-            settingsOperationApi.updateSettings(current)
-        }
     }
 
     // 导出数据

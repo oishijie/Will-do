@@ -43,12 +43,12 @@ object FeatureCatalog {
 
     val features: List<FeatureEntry> = listOf(
         FeatureEntry("截图挂起磁贴", Chain.NOTIFICATION, "platform/tile/ImagePinTileService", "点击后收起控制中心，复用无障碍截图并追加图片挂起；需要实验室图片挂起、实况通知及权限，不调用 AI"),
-        FeatureEntry("图片挂起", Chain.NOTIFICATION, "feature/imagepin/ImagePinController", "实验室默认关闭；分享或快捷多选追加到同一胶囊，单图显示图片挂起、多图显示共 X 张，点击媒体弹窗翻页；不调用识别或创建日程/随口记"),
-        FeatureEntry("界面演示模式", Chain.SUPPORT, "feature/settings/developer/application/DemoModeDataFactory", "开发者开关以只读内存数据替换日程、随口记和天气展示，不写库、不同步、不通知"),
+        FeatureEntry("图片挂起", Chain.NOTIFICATION, "feature/imagepin/ImagePinController", "实验室默认关闭；分享或快捷多选追加到同一胶囊，单图显示图片挂起、多图显示共 X 张，点击媒体弹窗翻页；不调用识别或创建日程/闪记"),
+        FeatureEntry("界面演示模式", Chain.SUPPORT, "feature/settings/developer/application/DemoModeDataFactory", "开发者开关以只读内存数据替换日程、闪记和天气展示，不写库、不同步、不通知"),
         // —— 识别 ——
         FeatureEntry("AI 识别", Chain.RECOGNITION, "feature/recognition/application/RecognitionOrchestrator", "截图/图片统一多模态识别；直接文本与语音转写共用模型配置，旧 OCR 与文本模型模式已下架"),
         FeatureEntry("正则日程识别", Chain.RECOGNITION, "data/node/recognition/RecognitionRegexNode", "文本/语音转写先走可配置正则规则生成日程草稿"),
-        FeatureEntry("随口记", Chain.RECOGNITION, "core/service/voice/VoiceCaptureHandleActivity", "长按音量+或悬浮窗入口录音，转写为随口记/识别输入"),
+        FeatureEntry("闪记", Chain.RECOGNITION, "core/service/voice/VoiceCaptureHandleActivity", "长按音量+或悬浮窗入口录音，转写为闪记/识别输入"),
         FeatureEntry("短信取件码", Chain.RECOGNITION, "feature/recognition/ingest/sms/SmsPickupIngestCoordinator", "监听短信、本地解析取件码"),
         FeatureEntry("剪贴板识别", Chain.RECOGNITION, "feature/recognition/ingest/clipboard/ClipboardCodeIngestCoordinator", "剪贴板取件码识别"),
 
@@ -67,12 +67,12 @@ object FeatureCatalog {
         // —— 日程主体 ——
         FeatureEntry("日程管理", Chain.SCHEDULE, "feature/schedule/application/ScheduleFacade", "事件 CRUD、展示模型、重复日程"),
         FeatureEntry("快捷备忘", Chain.SCHEDULE, "feature/quickmemo/application/QuickMemoFacade", "语音/文字快捷备忘"),
-        FeatureEntry("图片随口记", Chain.SCHEDULE, "feature/quickmemo/application/QuickMemoFacade", "系统图片/分享图片保存为随口记素材"),
-        FeatureEntry("随口记多提醒", Chain.NOTIFICATION, "feature/quickmemo/application/QuickMemoFacade", "维护单条随口记的多个提醒及重复规则，统一调用通知入口"),
-        FeatureEntry("悬浮媒体查看", Chain.SUPPORT, "platform/floating/ui/connector/FloatingMediaCardConnector", "从胶囊查看日程二维码、图片附件或随口记图片，失败时返回详情"),
+        FeatureEntry("图片闪记", Chain.SCHEDULE, "feature/quickmemo/application/QuickMemoFacade", "系统图片/分享图片保存为闪记素材"),
+        FeatureEntry("闪记多提醒", Chain.NOTIFICATION, "feature/quickmemo/application/QuickMemoFacade", "维护单条闪记的多个提醒及重复规则，统一调用通知入口"),
+        FeatureEntry("悬浮媒体查看", Chain.SUPPORT, "platform/floating/ui/connector/FloatingMediaCardConnector", "从胶囊查看日程二维码、图片附件或闪记图片，失败时返回详情"),
         FeatureEntry("便签笔记", Chain.SCHEDULE, "feature/note/application/NoteService", "普通便签已下线；保留旧数据存储及历史数据迁移兼容能力，首页不再提供编辑入口"),
         FeatureEntry("首页日程视图", Chain.SCHEDULE, "feature/home/ui/render/material/HomeAgendaList", "日期侧栏与连续日程；全局搜索、重复日程按七天加载"),
-        FeatureEntry("Agent API", Chain.SCHEDULE, "shared/api/WillDoAgentProvider", "外部 Agent 应用跨进程访问日程与随口记数据"),
+        FeatureEntry("Agent API", Chain.SCHEDULE, "shared/api/WillDoAgentProvider", "外部 Agent 应用跨进程访问日程与闪记数据"),
 
         // —— 横切支撑 ——
         FeatureEntry("设备定位", Chain.SUPPORT, "location/LocationProvider", "独立定位模块，为天气及后续位置功能提供坐标能力"),
@@ -80,7 +80,7 @@ object FeatureCatalog {
         FeatureEntry("背景自定义", Chain.SUPPORT, "feature/appearance/domain/AppBackgroundImageStore", "用户图片背景导入、私有存储与背景取色"),
         FeatureEntry("数据备份", Chain.SUPPORT, "feature/backup/application/BackupCoordinator", "导入导出备份"),
         FeatureEntry("桌面小组件", Chain.SUPPORT, "platform/widget/WidgetController", "日程桌面小组件"),
-        FeatureEntry("悬浮窗/EdgeBar", Chain.SUPPORT, "platform/floating/FloatingServiceController", "悬浮窗与侧边栏快捷入口"),
+        FeatureEntry("悬浮窗/闪记胶囊", Chain.SUPPORT, "platform/floating/FloatingScheduleService", "音量键唤起的闪记胶囊悬浮窗"),
         FeatureEntry("诊断日志", Chain.SUPPORT, "feature/settings/diagnostics/application/DiagnosticLogExporter", "异常日志捕获与导出"),
         FeatureEntry("重复事件清理", Chain.SUPPORT, "feature/schedule/data/maintenance/DuplicateEventCleaner", "重复事件去重"),
     )

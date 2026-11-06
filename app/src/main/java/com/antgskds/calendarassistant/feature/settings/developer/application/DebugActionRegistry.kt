@@ -115,7 +115,7 @@ object DebugActionRegistry {
         DebugAction("test-capsule-recognition-fail", "测试胶囊·识别失败", CATEGORY_CAPSULE) { app -> fireRecognitionFailure(app) },
         DebugAction("test-capsule-model-loading", "测试胶囊·模型加载", CATEGORY_CAPSULE) { app -> fireModelLoading(app) },
         DebugAction("test-capsule-network-speed", "测试胶囊·网速", CATEGORY_CAPSULE) { app -> fireNetworkSpeed(app) },
-        DebugAction("test-capsule-quickmemo-pinned", "测试胶囊·随口记挂起", CATEGORY_CAPSULE) { app -> fireTextQuickMemoPinned(app) },
+        DebugAction("test-capsule-quickmemo-pinned", "测试胶囊·闪记挂起", CATEGORY_CAPSULE) { app -> fireTextQuickMemoPinned(app) },
         DebugAction("test-live-double-action", "测试实况通知·双按钮", CATEGORY_CAPSULE) { app -> fireLiveDoubleAction(app) },
         DebugAction("test-live-daily-today", "测试实况通知·每日提醒今日", CATEGORY_CAPSULE) { app ->
             fireDailySummary(app, isMorning = true, requireLive = true)

@@ -7,7 +7,7 @@ object HomeEntryKey {
     const val SETTINGS = "settings"
 }
 
-/** 常驻底栏的固定入口顺序：今日日程 / 全部日程 / 随口记 / 设置。 */
+/** 常驻底栏的固定入口顺序：今日日程 / 全部日程 / 闪记 / 设置。 */
 val fixedHomeBottomItems: List<String> =
     listOf(HomeEntryKey.TODAY, HomeEntryKey.ALL, HomeEntryKey.NOTE, HomeEntryKey.SETTINGS)
 

@@ -1,10 +1,14 @@
 package com.antgskds.calendarassistant.feature.quickmemo.ui.render.material
 
+import androidx.activity.compose.BackHandler
 import com.antgskds.calendarassistant.shared.ui.material.component.AppSwipeReveal
 import com.antgskds.calendarassistant.shared.ui.material.component.AppPageScaffold
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBarBackButton
 
+import com.antgskds.calendarassistant.app.ui.theme.material.background.LocalAppBackgroundMiuiBlurEnabled
+import com.antgskds.calendarassistant.app.ui.theme.material.background.LocalAppBackgroundStyleEnabled
+import com.antgskds.calendarassistant.shared.ui.edition.EditionCheckbox
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import com.antgskds.calendarassistant.shared.ui.edition.EditionIconButton
 import com.antgskds.calendarassistant.shared.ui.edition.EditionButton
@@ -61,10 +65,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -74,6 +80,8 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -128,8 +136,6 @@ import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarExtraHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarShadowPadding
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.FlashNoteListEntry
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoDetailUiState
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoListUiState
 import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.QuickMemoUiAction
@@ -157,17 +163,6 @@ import kotlinx.coroutines.withContext
 private val quickMemoTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val quickMemoDateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 HH:mm")
 private val quickMemoDateGroupFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINESE)
-/**
- * 聚合列表里的一项：速记与闪记二选一。
- *
- * 两者数据模型差异大（速记是扁平整记录、闪记是展示模型），
- * 故用可空字段区分而不是强行合成一个实体。
- */
-private data class MergedItem(
-    val timestamp: Long,
-    val memo: QuickMemoEntity?,
-    val flashNote: FlashNoteListEntry?
-)
 
 @Composable
 fun MaterialQuickMemoScreen(
@@ -187,10 +182,18 @@ fun MaterialQuickMemoScreen(
     val metrics = quickMemoUiMetrics(uiSize)
     val bottomSafePadding = if (reserveFloatingBarSpace) 112.dp + extraBottomPadding else extraBottomPadding
     val listState = rememberLazyListState()
+    var showMovePicker by remember { mutableStateOf(false) }
+    // 单条闪记的左滑「移动至」：非 null 时弹出文件夹选择器。
+    var pendingMoveMemoId by remember { mutableStateOf<Long?>(null) }
+    // 批量删除先确认，对齐上游：误触一次不会再直接清空选中的多条。
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    // 列表已在 Connector 层按文件夹筛过，这里只做关键词过滤。
     val filteredMemos = remember(quickMemos, searchQuery) {
         quickMemos
             .filter { memo ->
-                searchQuery.isBlank() || memo.bodyText.contains(searchQuery, ignoreCase = true)
+                searchQuery.isBlank() ||
+                    memo.bodyText.contains(searchQuery, ignoreCase = true) ||
+                    memo.title.contains(searchQuery, ignoreCase = true)
             }
             .sortedWith(
                 compareBy<QuickMemoEntity> { it.sortRank }
@@ -200,27 +203,12 @@ fun MaterialQuickMemoScreen(
     }
     val topMemoKey = filteredMemos.firstOrNull()?.let { it.id ?: it.hashCode().toLong() }
 
-    // 聚合列表：速记与闪记按时间倒序混排，同一日期的条目归到同一组。
-    // 按类型筛选后混排；速记用 sortRank/更新时间，闪记用更新时间。
-    val mergedItems = remember(filteredMemos, state.flashNotes, state.segment) {
-        val memos = if (MemoStreamSegment.matches(state.segment, isFlash = false)) {
-            filteredMemos.map { MergedItem(timestamp = it.createdAt, memo = it, flashNote = null) }
-        } else {
-            emptyList()
-        }
-        val flash = if (MemoStreamSegment.matches(state.segment, isFlash = true)) {
-            state.flashNotes.map { MergedItem(timestamp = it.updatedAt, memo = null, flashNote = it) }
-        } else {
-            emptyList()
-        }
-        (memos + flash).sortedByDescending { it.timestamp }
-    }
-
-    val groupedItems = remember(mergedItems) {
-        mergedItems
-            .groupBy { item ->
+    // 列表按创建时间归组，每日一个小标题。
+    val groupedItems = remember(filteredMemos) {
+        filteredMemos
+            .groupBy { memo ->
                 LocalDateTime.ofInstant(
-                    Instant.ofEpochMilli(item.timestamp),
+                    Instant.ofEpochMilli(memo.createdAt),
                     ZoneId.systemDefault()
                 ).toLocalDate()
             }
@@ -239,17 +227,23 @@ fun MaterialQuickMemoScreen(
         }
     }
 
-    // 筛选条已移入右上角操作面板，列表本身只承载条目。
+    if (state.selectionMode) {
+        BackHandler {
+            onAction(QuickMemoUiAction.ExitSelection)
+        }
+    }
 
+    // 筛选条已移入右上角操作面板，列表本身只承载条目。
 
     // 空态也走 LazyColumn，否则筛选条会被空态分支吞掉，
     // 导致「两类都为空时无法切换筛选」。
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 0.dp, bottom = bottomSafePadding + 24.dp)
     ) {
-        if (mergedItems.isEmpty()) {
+        if (filteredMemos.isEmpty()) {
             item(key = "empty") {
                 Column(
                     modifier = Modifier
@@ -259,14 +253,14 @@ fun MaterialQuickMemoScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = if (searchQuery.isBlank()) "还没有记事" else "未找到相关记录",
+                        text = if (searchQuery.isBlank()) "还没有记录" else "未找到相关记录",
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = if (searchQuery.isBlank()) {
-                            "点右上角「⋮」里的「添加随口记 / 添加随手记」记一条，或从浏览器分享内容过来。"
+                            "点右上角「⋮」里的「添加闪记」记一条。"
                         } else {
-                            "换个关键词试试，搜索会匹配随口记与随手记内容。"
+                            "换个关键词试试。"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
@@ -284,13 +278,8 @@ fun MaterialQuickMemoScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            items(dayItems, key = { item ->
-                val memoId = item.memo?.id
-                if (memoId != null) "memo:$memoId" else "flash:${item.flashNote?.key.orEmpty()}"
-            }) { item ->
-                val memo = item.memo
-                if (memo != null) {
-                    QuickMemoListItem(
+            items(dayItems, key = { memo -> "memo:${memo.id ?: memo.hashCode()}" }) { memo ->
+                QuickMemoListItem(
                     memo = memo,
                     suggestions = memo.id?.let { suggestionsByMemo[it] }.orEmpty(),
                     playbackState = playbackState,
@@ -313,9 +302,19 @@ fun MaterialQuickMemoScreen(
                         }
                     },
                     onDelete = { memo.id?.let { onAction(QuickMemoUiAction.Delete(it)) } },
+                    onMoveToFolder = { memo.id?.let { pendingMoveMemoId = it } },
                     onToggleAudio = { path -> onAction(QuickMemoUiAction.ToggleAudio(path)) },
                     onOpenDetail = { memo.id?.let { onAction(QuickMemoUiAction.OpenDetail(it)) } },
-                    onLongPress = { onAction(QuickMemoUiAction.RequestDelete(memo)) },
+                    onLongPress = {
+                        // 长按不再删除闪记（删除只走左滑出的删除按钮），
+                        // 多选模式下长按退出多选。
+                        if (state.selectionMode) {
+                            onAction(QuickMemoUiAction.ExitSelection)
+                        }
+                    },
+                    inSelection = state.selectionMode,
+                    isChecked = memo.id != null && memo.id in state.selectedMemoIds,
+                    onToggleSelect = { memo.id?.let { onAction(QuickMemoUiAction.ToggleMemoSelection(it)) } },
                     hapticEnabled = hapticEnabled,
                     uiSize = uiSize,
                     modifier = Modifier.padding(
@@ -323,25 +322,83 @@ fun MaterialQuickMemoScreen(
                         vertical = metrics.listVerticalPadding
                     )
                 )
-                } else {
-                    item.flashNote?.let { entry ->
-                        FlashNoteListRow(
-                            entry = entry,
-                            hapticEnabled = hapticEnabled,
-                            onClick = { onAction(QuickMemoUiAction.OpenFlashNote(entry.key)) },
-                            onLongPress = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
-                            onDeleteRequest = { onAction(QuickMemoUiAction.RequestDeleteFlashNote(entry.key)) },
-                            uiSize = uiSize,
-                            modifier = Modifier.padding(
-                                horizontal = metrics.listHorizontalPadding,
-                                vertical = metrics.listVerticalPadding
-                            )
-                        )
-                    }
-                }
             }
             }
         }
+    }
+        if (state.selectionMode) {
+            QuickMemoSelectionToolbar(
+                allSelected = state.selectedMemoIds.isNotEmpty() &&
+                    state.selectedMemoIds.size == filteredMemos.size,
+                onSelectAll = {
+                    val ids = filteredMemos.mapNotNull { it.id }
+                    onAction(
+                        if (state.selectedMemoIds.size == ids.size) {
+                            QuickMemoUiAction.SelectAllMemos(emptyList())
+                        } else {
+                            QuickMemoUiAction.SelectAllMemos(ids)
+                        }
+                    )
+                },
+                enabled = state.selectedMemoIds.isNotEmpty(),
+                onMove = { showMovePicker = true },
+                onDelete = { showDeleteConfirm = true },
+                backgroundMode = LocalAppBackgroundStyleEnabled.current,
+                miuiBlurEnabled = LocalAppBackgroundMiuiBlurEnabled.current,
+                // 必须抬高到常驻底栏之上，否则多选工具栏被悬浮栏整块盖住，
+                // 表现为「进了多选却什么都没有」。
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = bottomSafePadding)
+            )
+        }
+    }
+
+    if (showDeleteConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("归档闪记") },
+            text = { Text("确认归档 ${state.selectedMemoIds.size} 条闪记？归档后可在「已归档」里恢复。") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onAction(QuickMemoUiAction.DeleteSelectedMemos)
+                }) { Text("归档") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+
+    if (showMovePicker) {
+        QuickMemoFolderPicker(
+            visible = true,
+            folders = state.folders,
+            isLoading = false,
+            onDismiss = { showMovePicker = false },
+            onSelect = { folderId ->
+                showMovePicker = false
+                onAction(QuickMemoUiAction.MoveSelectedMemos(folderId))
+            },
+            onCreate = { name -> onAction(QuickMemoUiAction.CreateFolder(name)) }
+        )
+    }
+
+    pendingMoveMemoId?.let { memoId ->
+        QuickMemoFolderPicker(
+            visible = true,
+            folders = state.folders,
+            isLoading = false,
+            onDismiss = { pendingMoveMemoId = null },
+            onSelect = { folderId ->
+                pendingMoveMemoId = null
+                onAction(QuickMemoUiAction.MoveMemo(memoId, folderId))
+            },
+            onCreate = { name -> onAction(QuickMemoUiAction.CreateFolder(name)) }
+        )
     }
 }
 
@@ -357,6 +414,8 @@ fun MaterialQuickMemoDetailScreen(
     cardAlphaPercent: Int = MySettings.APP_BACKGROUND_CARD_ALPHA_DEFAULT_PERCENT,
     embedded: Boolean = false,
     autoStopDurationMs: Long? = null,
+    /** 顶栏导出按钮：把当前闪记写成 Markdown 并通过系统分享发出。 */
+    onExport: (Long) -> Unit = {},
     onAction: (QuickMemoUiAction) -> Unit
 ) {
     val memo = state.memo
@@ -374,10 +433,21 @@ fun MaterialQuickMemoDetailScreen(
             edgeToEdgeContent = true,
             topBar = {
                     AppTopBar(
-                        title = "随口记详情",
+                        title = "闪记详情",
                         containerColor = pageContainerColor,
                         navigationIcon = {
                             AppTopBarBackButton(onClick = { haptics.click(); onBack() })
+                        },
+                        actions = {
+                            IconButton(
+                                onClick = { haptics.click(); memo?.id?.let(onExport) },
+                                enabled = memo?.id != null,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Share,
+                                    contentDescription = "导出 Markdown",
+                                )
+                            }
                         },
                     )
             }
@@ -394,7 +464,7 @@ fun MaterialQuickMemoDetailScreen(
                 if (memo == null) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "随口记不存在或已删除",
+                            "闪记不存在或已删除",
                             color = if (backgroundMode) {
                                 MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
                             } else {
@@ -412,6 +482,9 @@ fun MaterialQuickMemoDetailScreen(
                     playbackState = state.playbackState,
                     onSaveBody = { body ->
                         memo.id?.let { onAction(QuickMemoUiAction.UpdateBody(it, body)) }
+                    },
+                    onSaveTitle = { title ->
+                        memo.id?.let { onAction(QuickMemoUiAction.UpdateTitle(it, title)) }
                     },
                     onSaveReminder = { reminderId, reminderAt, reminderRRule ->
                         memo.id?.let {
@@ -431,7 +504,7 @@ fun MaterialQuickMemoDetailScreen(
                     onAttachImage = { imagePath, onResult ->
                         val id = memo.id
                         if (id == null) {
-                            onResult(Result.failure(IllegalStateException("随口记不存在")))
+                            onResult(Result.failure(IllegalStateException("闪记不存在")))
                         } else {
                             onAction(QuickMemoUiAction.AttachImage(id, imagePath, onResult))
                         }
@@ -439,7 +512,7 @@ fun MaterialQuickMemoDetailScreen(
                     onRemoveImage = { onResult ->
                         val id = memo.id
                         if (id == null) {
-                            onResult(Result.failure(IllegalStateException("随口记不存在")))
+                            onResult(Result.failure(IllegalStateException("闪记不存在")))
                         } else {
                             onAction(QuickMemoUiAction.RemoveImage(id, onResult))
                         }
@@ -447,7 +520,7 @@ fun MaterialQuickMemoDetailScreen(
                     onAttachVoice = { audioPath, durationMs, onResult ->
                         val id = memo.id
                         if (id == null) {
-                            onResult(Result.failure(IllegalStateException("随口记不存在")))
+                            onResult(Result.failure(IllegalStateException("闪记不存在")))
                         } else {
                             onAction(
                                 QuickMemoUiAction.AttachVoice(id, audioPath, durationMs, onResult)
@@ -495,10 +568,16 @@ internal fun QuickMemoListItem(
     playbackState: AudioPlaybackState,
     isPinned: Boolean,
     selected: Boolean = false,
+    /** 多选模式下，点击 = 勾选/取消，不再打开详情；长按仍退出多选。 */
+    inSelection: Boolean = false,
+    isChecked: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onToggleTodo: () -> Unit,
     onToggleTodoMode: () -> Unit,
     onTogglePinned: () -> Unit,
     onDelete: () -> Unit,
+    /** 左滑操作条的「移动至」：把这条闪记归到指定文件夹。 */
+    onMoveToFolder: () -> Unit = {},
     onToggleAudio: (String?) -> Unit,
     onOpenDetail: () -> Unit,
     onLongPress: () -> Unit,
@@ -530,8 +609,8 @@ internal fun QuickMemoListItem(
     val bodyText = memo.bodyText.ifBlank {
         when {
             isVoice -> voiceFallbackText(memo)
-            isImage -> "图片随口记"
-            else -> "空白随口记"
+            isImage -> "图片闪记"
+            else -> "空白闪记"
         }
     }
     var isRevealed by remember(memo.id) { mutableStateOf(false) }
@@ -541,9 +620,9 @@ internal fun QuickMemoListItem(
         else -> 56.dp
     }
     val actionMenuWidth = when (uiSize) {
-        1 -> 170.dp
-        2 -> 185.dp
-        else -> 200.dp
+        1 -> 220.dp
+        2 -> 240.dp
+        else -> 260.dp
     }
     AppSwipeReveal(
         isRevealed = isRevealed,
@@ -587,9 +666,20 @@ internal fun QuickMemoListItem(
                     }
                 )
                 QuickMemoSwipeActionIcon(
-                    icon = Icons.Rounded.Delete,
-                    contentDescription = "删除",
-                    backgroundColor = MaterialTheme.colorScheme.error,
+                    icon = Icons.Rounded.DriveFileMove,
+                    contentDescription = "移动至",
+                    backgroundColor = MaterialTheme.colorScheme.tertiary,
+                    size = actionButtonSize,
+                    onClick = {
+                        haptics.confirm()
+                        onMoveToFolder()
+                        close()
+                    }
+                )
+                QuickMemoSwipeActionIcon(
+                    icon = Icons.Rounded.Archive,
+                    contentDescription = "归档",
+                    backgroundColor = MaterialTheme.colorScheme.tertiary,
                     size = actionButtonSize,
                     onClick = {
                         haptics.longPress()
@@ -605,13 +695,19 @@ internal fun QuickMemoListItem(
             modifier = swipeModifier
                 .clip(RoundedCornerShape(12.dp))
                 .background(
-                    if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
+                    if (selected || (inSelection && isChecked)) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        Color.Transparent
+                    }
                 )
                 .combinedClickable(
                     onClick = {
                         haptics.click()
                         if (revealProgress > 0f) {
                             close()
+                        } else if (inSelection) {
+                            onToggleSelect()
                         } else {
                             onOpenDetail()
                         }
@@ -624,6 +720,24 @@ internal fun QuickMemoListItem(
         ) {
             if (isVoice) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    val voiceTitle = memo.title.trim()
+                    if (voiceTitle.isNotEmpty()) {
+                        Text(
+                            text = voiceTitle,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = metrics.listBodyStartPadding,
+                                    end = metrics.listPlayButtonSize + 34.dp
+                                ),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = contentColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -705,6 +819,13 @@ internal fun QuickMemoListItem(
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                             )
                         }
+                        if (inSelection) {
+                            Spacer(Modifier.width(12.dp))
+                            EditionCheckbox(
+                                checked = isChecked,
+                                onCheckedChange = { onToggleSelect() }
+                            )
+                        }
                     }
                 }
             } else {
@@ -721,6 +842,18 @@ internal fun QuickMemoListItem(
                     )
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
+                        val titleText = memo.title.trim()
+                        if (titleText.isNotEmpty()) {
+                            Text(
+                                text = titleText,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = contentColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
                         Text(
                             text = bodyText,
                             style = MaterialTheme.typography.bodyLarge.copy(
@@ -760,6 +893,13 @@ internal fun QuickMemoListItem(
                             onToggleTodo()
                         }
                     }
+                    if (inSelection) {
+                        Spacer(Modifier.width(12.dp))
+                        EditionCheckbox(
+                            checked = isChecked,
+                            onCheckedChange = { onToggleSelect() }
+                        )
+                    }
                 }
             }
         }
@@ -773,6 +913,7 @@ internal fun QuickMemoDetailContent(
     suggestions: List<QuickMemoSuggestionEntity>,
     playbackState: AudioPlaybackState,
     onSaveBody: (String) -> Unit,
+    onSaveTitle: (String) -> Unit,
     onSaveReminder: (Long?, Long?, String) -> Unit,
     onDeleteReminder: (Long) -> Unit,
     onAttachImage: (String, (Result<Unit>) -> Unit) -> Unit,
@@ -798,6 +939,8 @@ internal fun QuickMemoDetailContent(
     val focusManager = LocalFocusManager.current
     val metrics = quickMemoUiMetrics(uiSize)
     var draftBody by remember(memo.id, memo.updatedAt) { mutableStateOf(memo.bodyText) }
+    var draftTitle by remember(memo.id, memo.updatedAt) { mutableStateOf(memo.title) }
+    var bodyPreview by remember(memo.id, memo.updatedAt) { mutableStateOf(false) }
     var bodyEditorBounds by remember { mutableStateOf<Rect?>(null) }
     var isAttachingImage by remember { mutableStateOf(false) }
     var isImageSelected by remember(memo.id, memo.imagePath) { mutableStateOf(false) }
@@ -1005,6 +1148,31 @@ internal fun QuickMemoDetailContent(
 
     }
         val bodySection: @Composable ColumnScope.() -> Unit = {
+            BasicTextField(
+                value = draftTitle,
+                onValueChange = {
+                    draftTitle = it
+                    onSaveTitle(it)
+                },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                textStyle = MaterialTheme.typography.titleLarge.copy(
+                    color = detailPrimaryTextColor,
+                    fontWeight = FontWeight.Bold,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    Box(contentAlignment = Alignment.TopStart) {
+                        if (draftTitle.isBlank()) {
+                            Text(
+                                text = "标题",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = detailSecondaryTextColor.copy(alpha = 0.5f),
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+            )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1015,6 +1183,10 @@ internal fun QuickMemoDetailContent(
                     style = MaterialTheme.typography.titleMedium,
                     color = detailPrimaryTextColor,
                     fontWeight = FontWeight.Bold,
+                )
+                QuickMemoTextButton(
+                    text = if (bodyPreview) "编辑" else "预览",
+                    onClick = { bodyPreview = !bodyPreview }
                 )
                 if (isVoice) {
                     if (memo.transcriptionStatus == QuickMemoTranscriptionStatus.FAILED) {
@@ -1031,6 +1203,20 @@ internal fun QuickMemoDetailContent(
                     }
                 }
             }
+            if (bodyPreview) {
+                MarkdownText(
+                    markdown = draftBody,
+                    textColor = if (isCompleted) {
+                        detailPrimaryTextColor.copy(alpha = 0.58f)
+                    } else {
+                        detailPrimaryTextColor
+                    },
+                    textSizeSp = metrics.detailBodyFontSize.value,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = if (wideLayout) 180.dp else 100.dp),
+                )
+            } else {
             BasicTextField(
                 value = draftBody,
                 onValueChange = {
@@ -1061,6 +1247,7 @@ internal fun QuickMemoDetailContent(
                     }
                 },
             )
+            }
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "${formatQuickMemoTime(memo.createdAt)} 创建",
@@ -1226,7 +1413,7 @@ private fun QuickMemoRecordPermissionCard(onGrantClick: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "开启后才能在随口记里录音和转写。",
+                    text = "开启后才能在闪记里录音和转写。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
                 )
@@ -2215,8 +2402,8 @@ private fun voiceFallbackText(memo: QuickMemoEntity): String {
 }
 
 private fun quickMemoStatusText(memo: QuickMemoEntity): String {
-    if (memo.type == QuickMemoType.IMAGE) return if (memo.isTodo) "图片待办" else "图片随口记"
-    if (memo.type != QuickMemoType.VOICE) return if (memo.isTodo) "文字待办" else "文字随口记"
+    if (memo.type == QuickMemoType.IMAGE) return if (memo.isTodo) "图片待办" else "图片闪记"
+    if (memo.type != QuickMemoType.VOICE) return if (memo.isTodo) "文字待办" else "文字闪记"
     return when (memo.transcriptionStatus) {
         QuickMemoTranscriptionStatus.PENDING -> "等待转写"
         QuickMemoTranscriptionStatus.PROCESSING -> "正在转写"
@@ -2310,7 +2497,7 @@ private fun QuickMemoImageBox(
     ) {
         Image(
             bitmap = bitmap.asImageBitmap(),
-            contentDescription = "随口记图片",
+            contentDescription = "闪记图片",
             modifier = Modifier.fillMaxSize(),
             contentScale = contentScale
         )

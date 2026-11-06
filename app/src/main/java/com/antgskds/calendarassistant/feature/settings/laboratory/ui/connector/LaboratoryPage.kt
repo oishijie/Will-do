@@ -277,6 +277,11 @@ fun LaboratorySettingsContent(
                         cardSubtitleStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         cardValueStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
+
+                    // 电脑访问服务：实验室二级菜单内的开关卡片（从功能设置移入）
+                    com.antgskds.calendarassistant.shared.ui.material.settings.QuickMemoWebServerCard(
+                        cardColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
                 }
             }
 

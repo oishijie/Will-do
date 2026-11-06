@@ -44,11 +44,11 @@ object HelperCatalog {
     )
 
     val helpers: List<HelperEntry> = listOf(
-        HelperEntry("演示数据生成", Chain.SUPPORT, "feature/settings/developer/application/DemoModeDataFactory", "按当天稳定生成只读日程、随口记和完整天气展示数据"),
+        HelperEntry("演示数据生成", Chain.SUPPORT, "feature/settings/developer/application/DemoModeDataFactory", "按当天稳定生成只读日程、闪记和完整天气展示数据"),
         HelperEntry("无障碍诊断快照", Chain.SUPPORT, "platform/accessibility/AccessibilityDiagnosticSnapshot", "有界读取事件源及窗口节点并立即回收，输出不可变 JSON，遮蔽密码字段；汇总服务配置及仅含状态的健康日志"),
         HelperEntry("统一识别结果解析", Chain.RECOGNITION, "feature/recognition/application/ai/RecognitionJsonParser", "分别解析 events 与 bills，坏条目隔离；旧响应兼容，账单缺失字段留待确认"),
         HelperEntry("统一多模态配置", Chain.SUPPORT, "feature/recognition/application/ai/AiModelConfig", "统一图文模型配置；旧设置在 MySettings.migrateToMultimodalConfig 中兼容迁移，不覆盖已有多模态凭据"),
-        HelperEntry("重复实例时间计算", Chain.SCHEDULE, "feature/schedule/domain/model/RepeatOccurrenceCalculator", "共用重复规则推进和下一次时间计算，供日程展示及随口记提醒使用"),
+        HelperEntry("重复实例时间计算", Chain.SCHEDULE, "feature/schedule/domain/model/RepeatOccurrenceCalculator", "共用重复规则推进和下一次时间计算，供日程展示及闪记提醒使用"),
         // —— 识别 ——
         HelperEntry("AI 失败映射", Chain.RECOGNITION, "feature/recognition/application/ai/AiFailureMapper", "区分接口明确拒绝图片输入与鉴权、额度、网络等失败，保留可读接口原因"),
         HelperEntry("识别失败文案映射", Chain.RECOGNITION, "feature/recognition/application/ai/RecognitionFailureMessageMapper", "识别失败类型与详情 → 现有结果反馈；不支持图片时引导更换模型，不新增提醒入口"),
@@ -78,12 +78,12 @@ object HelperCatalog {
         // —— 横切支撑 ——
         HelperEntry("行内摘要标题", Chain.SUPPORT, "shared/ui/material/component/InlineSummaryHeader", "日期与天气图标按文字自然换行，仅以空格和间隔点分隔，标题可独立设置字重"),
         HelperEntry("公共设置分隔线", Chain.SUPPORT, "shared/ui/material/settings/AppSettingsDivider", "设置卡片内统一 16 dp 水平缩进、0.5 dp 线宽与主题分隔色；开发者相关页面暂不迁移"),
-        HelperEntry("公共列表侧滑容器", Chain.SUPPORT, "shared/ui/material/component/AppSwipeReveal", "日程和随口记共用单向拖动、动作区裁切、取消回弹与阈值触感，保留业务内容和既有展开参数"),
+        HelperEntry("公共列表侧滑容器", Chain.SUPPORT, "shared/ui/material/component/AppSwipeReveal", "日程和闪记共用单向拖动、动作区裁切、取消回弹与阈值触感，保留业务内容和既有展开参数"),
         HelperEntry("公共设置行", Chain.SUPPORT, "shared/ui/material/settings/SettingsRowComponents", "设置开关、点击项及滑块等统一展示入口；实验室四项开关复用 SwitchSettingItem"),
-        HelperEntry("平板详情工作区", Chain.SUPPORT, "shared/ui/material/component/AppDetailWorkspace", "日程和随口记共用右侧内容与附件分区；保留手机弹层及既有保存入口"),
+        HelperEntry("平板详情工作区", Chain.SUPPORT, "shared/ui/material/component/AppDetailWorkspace", "日程和闪记共用右侧内容与附件分区；保留手机弹层及既有保存入口"),
         HelperEntry("日历像素布局", Chain.SUPPORT, "feature/schedule/ui/render/material/CalendarLayout", "周月日历的表头、网格与事件复用整数像素边界，消除独立取整引起的错位；保留原半透明配色"),
         HelperEntry("统一页面顶部栏", Chain.SUPPORT, "shared/ui/material/component/AppTopBar", "默认标题居中，平板设置页可左对齐；统一顶部安全区及返回按钮，供页面骨架组合使用"),
-        HelperEntry("统一页面骨架", Chain.SUPPORT, "shared/ui/material/component/AppPageScaffold", "统一背景、系统栏安全区、键盘避让和内容限宽；支持整页滚动及列表自行滚动，供设置、首页、天气、随口记、便签和小组件配置使用"),
+        HelperEntry("统一页面骨架", Chain.SUPPORT, "shared/ui/material/component/AppPageScaffold", "统一背景、系统栏安全区、键盘避让和内容限宽；支持整页滚动及列表自行滚动，供设置、首页、天气、闪记、便签和小组件配置使用"),
         HelperEntry("页面内容安全留白", Chain.SUPPORT, "shared/ui/material/component/AppPageInsets", "骨架向自行滚动的内容提供底部留白，供列表 contentPadding 和浮动操作避让使用，业务无需自行读取导航栏高度"),
         HelperEntry("背景模式样式支持", Chain.SUPPORT, "app/ui/theme/material/background/SettingsBackgroundStyleSupport", "背景壁纸模式下的页面颜色映射"),
         HelperEntry("应用公共 UI 组件", Chain.SUPPORT, "shared/ui/material/component/AppUiComponents", "Material 默认路径下的卡片、弹窗和底部弹层外壳"),

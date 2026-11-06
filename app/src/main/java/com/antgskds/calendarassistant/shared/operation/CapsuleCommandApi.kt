@@ -27,9 +27,6 @@ interface CapsuleCommandApi {
     fun showTextQuickMemo(memoId: Long, title: String, durationMs: Long = 0L, pinned: Boolean = false)
     fun clearTextQuickMemo()
 
-    /** 文本随手记上实况（常驻，用户手动移除）。 */
-    fun showTextFlashNote(noteId: Long, title: String)
-    fun clearTextFlashNote()
     fun showQuickMemoRecording(title: String, content: String = "松开保存")
     fun clearQuickMemoRecording()
     fun showModelLoading(title: String, content: String)

@@ -8,8 +8,7 @@ data class DebugBatchResult(val successCount: Int, val failedMessages: List<Stri
     val failedCount: Int get() = failedMessages.size
 }
 
-enum class DeveloperListKind { HOME, HOME_AGENDA, ALL_EVENTS, FLOATING, ARCHIVES }
-enum class DeveloperDragField { TITLE, TIME, LOCATION, DESCRIPTION }
+enum class DeveloperListKind { HOME, HOME_AGENDA, ALL_EVENTS, ARCHIVES }
 
 sealed interface DeveloperUiAction {
     data class SetEnabled(val enabled: Boolean) : DeveloperUiAction
@@ -21,8 +20,6 @@ sealed interface DeveloperUiAction {
     data class SetScheduleIngestDedup(val enabled: Boolean) : DeveloperUiAction
     data class SetLiveTemplateMode(val mode: String) : DeveloperUiAction
     data class SetListReverse(val kind: DeveloperListKind, val enabled: Boolean) : DeveloperUiAction
-    data class SetDragField(val field: DeveloperDragField, val enabled: Boolean) : DeveloperUiAction
-    data class SetDragHotZone(val percent: Int) : DeveloperUiAction
     data class ApplyUiScale(val small: Float, val medium: Float, val large: Float) : DeveloperUiAction
     data object ResetUiScale : DeveloperUiAction
     data object ResetListOrder : DeveloperUiAction

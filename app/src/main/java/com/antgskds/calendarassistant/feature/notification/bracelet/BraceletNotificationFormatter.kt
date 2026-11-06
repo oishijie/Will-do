@@ -67,9 +67,9 @@ object BraceletNotificationFormatter {
     }
 
     fun quickMemo(text: String, failed: Boolean = false): BraceletNotificationContent {
-        if (failed) return BraceletNotificationContent("随口记", "转写失败")
+        if (failed) return BraceletNotificationContent("闪记", "转写失败")
         val important = extractImportantText(text) ?: text
-        return BraceletNotificationContent("随口记", compact(important))
+        return BraceletNotificationContent("闪记", compact(important))
     }
 
     private fun extractScheduleImportantText(event: Event): String {

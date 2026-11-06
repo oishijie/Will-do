@@ -1,6 +1,5 @@
 package com.antgskds.calendarassistant.feature.note.domain.model
 
-import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSummaryState
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -88,18 +87,6 @@ data class NoteDocument(
     /** 闪记的原文链接；纯文本/图片闪记与普通便签都返回空串。 */
     fun flashSourceUrl(): String = flashSourceParagraph()?.text.orEmpty()
 
-    /**
-     * 摘要是否仍在生成中。列表据此显示「摘要生成中…」。
-     */
-    fun flashSummaryPending(): Boolean =
-        flashSummaryParagraph()?.text == FlashNoteSummaryState.PENDING
-
-    /**
-     * 摘要是否已失败。列表据此显示失败提示，避免 Worker 无限重试。
-     */
-    fun flashSummaryFailed(): Boolean =
-        flashSummaryParagraph()?.text == FlashNoteSummaryState.FAILED
-
     /** 回填摘要文本。非闪记条目返回 null，避免误改普通笔记。 */
     fun withFlashSummary(summary: String): NoteDocument? {
         if (!isFlashNote) return null
@@ -155,7 +142,7 @@ enum class NoteParagraphType {
     DIVIDER,
     TABLE,
 
-    /** 闪记：AI 生成的摘要。内容为 [FlashNoteSummaryState] 定义的占位符或真实摘要。 */
+    /** 闪记：AI 生成的摘要。 */
     SUMMARY,
 
     /** 闪记：原文链接与来源站点。仅承载跳转信息，不参与正文展示。 */

@@ -1,6 +1,5 @@
 package com.antgskds.calendarassistant.feature.home.ui.render.material
 
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
 import com.antgskds.calendarassistant.shared.ui.material.component.AppPageScaffold
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import com.antgskds.calendarassistant.shared.ui.material.component.AppTopBar
@@ -48,6 +47,10 @@ import androidx.compose.material.icons.outlined.CalendarViewMonth
 import androidx.compose.material.icons.outlined.CalendarViewWeek
 import androidx.compose.material.icons.outlined.ViewTimeline
 import androidx.compose.material.icons.rounded.SwapHoriz
+import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.QuickMemoDeleteFolderSheet
+import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.QuickMemoFolderFilterItems
+import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.QuickMemoFolderNameSheet
+import com.antgskds.calendarassistant.feature.quickmemo.ui.render.material.QuickMemoManageFoldersSheet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -156,13 +159,18 @@ fun MaterialHomePage(
     onRequestDeleteItem: (ScheduleDisplayItem) -> Unit = {},
     onRequestClearQuickMemos: () -> Unit = {},
     quickMemoCount: Int = 0,
-    /** 速记/ 闪记列表的筛选值，默认「全部」即两类混排。 */
-    memoSegment: MemoStreamSegment = MemoStreamSegment.ALL,
-    onMemoSegmentChange: (MemoStreamSegment) -> Unit = {},
-    /** 顶栏「⋮ → 添加随口记」：弹出键盘上方的输入栏，内容存进随口记。 */
+    /** 顶栏「⋮ → 添加闪记」：弹出键盘上方的输入栏，内容存进闪记。 */
     onAddQuickMemo: () -> Unit = {},
-    /** 顶栏「⋮ → 添加随手记」：同上，内容存进随手记。 */
-    onAddFlashNote: () -> Unit = {},
+    onOpenQuickMemoArchived: () -> Unit = {},
+    /** 闪记文件夹筛选：null = 全部，空串 = 未分组，其余为文件夹 id。 */
+    quickMemoFolders: List<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity> = emptyList(),
+    selectedQuickMemoFolderId: String? = null,
+    onSelectQuickMemoFolder: (String?) -> Unit = {},
+    onCreateQuickMemoFolder: (String) -> Unit = {},
+    onRenameQuickMemoFolder: (String, String) -> Unit = { _, _ -> },
+    onDeleteQuickMemoFolder: (String) -> Unit = {},
+    /** 顶栏「⋮ → 多选管理」：进入闪记多选模式。 */
+    onStartQuickMemoSelection: () -> Unit = {},
     /** 顶栏「＋」回调：打开日程操作面板（搜索日程 / 图片识别 / 新建日程）。 */
     onVoiceSchedule: () -> Unit = {},
     onScheduleExpandedChange: (Boolean) -> Unit = {},
@@ -621,19 +629,29 @@ fun MaterialHomePage(
                                     haptics.click()
                                     onRequestClearQuickMemos()
                                 },
-                                memoSegment = memoSegment,
-                                onMemoSegmentChange = onMemoSegmentChange,
                                 onAddQuickMemo = {
                                     haptics.click()
                                     onAddQuickMemo()
                                 },
-                                onAddFlashNote = {
-                                    haptics.click()
-                                    onAddFlashNote()
-                                },
+                                onOpenQuickMemoArchived = { onOpenQuickMemoArchived() },
                                 onVoiceSchedule = {
                                     haptics.click()
                                     onVoiceSchedule()
+                                },
+                                quickMemoFolders = quickMemoFolders,
+                                selectedQuickMemoFolderId = selectedQuickMemoFolderId,
+                                onSelectQuickMemoFolder = {
+                                    haptics.click()
+                                    onSelectQuickMemoFolder(it)
+                                },
+                                onCreateQuickMemoFolder = { name -> onCreateQuickMemoFolder(name) },
+                                onRenameQuickMemoFolder = { id, name ->
+                                    onRenameQuickMemoFolder(id, name)
+                                },
+                                onDeleteQuickMemoFolder = { id -> onDeleteQuickMemoFolder(id) },
+                                onStartQuickMemoSelection = {
+                                    haptics.click()
+                                    onStartQuickMemoSelection()
                                 },
                             )
                         }
@@ -752,7 +770,7 @@ fun MaterialHomePage(
                     },
                     placeholder = when {
                         isAllPage -> "搜索标题、备注或地点..."
-                        isNotePage -> "搜索随口记正文..."
+                        isNotePage -> "搜索闪记正文..."
                         else -> "搜索标题、备注或地点..."
                     },
                     onDismiss = { isSearchMode = false },
@@ -979,16 +997,26 @@ private fun RowScope.HomeTopBarActions(
     onSearch: () -> Unit,
     onImage: () -> Unit,
     onClearQuickMemos: () -> Unit,
-    memoSegment: MemoStreamSegment,
-    onMemoSegmentChange: (MemoStreamSegment) -> Unit,
     onAddQuickMemo: () -> Unit,
-    onAddFlashNote: () -> Unit,
+    onOpenQuickMemoArchived: () -> Unit = {},
     onVoiceSchedule: () -> Unit,
+    quickMemoFolders: List<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity> = emptyList(),
+    selectedQuickMemoFolderId: String? = null,
+    onSelectQuickMemoFolder: (String?) -> Unit = {},
+    onCreateQuickMemoFolder: (String) -> Unit = {},
+    onRenameQuickMemoFolder: (String, String) -> Unit = { _,_ -> },
+    onDeleteQuickMemoFolder: (String) -> Unit = {},
+    onStartQuickMemoSelection: () -> Unit = {},
 ) {
     // 日程页「⋮」菜单的展开状态：只服务顶栏自身，不必透传到上层。
     var isScheduleMenuExpanded by remember { mutableStateOf(false) }
-    // 随口记页「⋮」菜单：上面两项是新增入口，下面一组是列表筛选。
+    // 闪记页「⋮」菜单：上面两项是新增入口，下面一组是列表筛选。
     var isNoteMenuExpanded by remember { mutableStateOf(false) }
+    var isCreatingQuickMemoFolder by remember { mutableStateOf(false) }
+    var isManagingQuickMemoFolders by remember { mutableStateOf(false) }
+    var renamingQuickMemoFolder by remember { mutableStateOf<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity?>(null) }
+    var deletingQuickMemoFolder by remember { mutableStateOf<com.antgskds.calendarassistant.feature.quickmemo.data.local.QuickMemoFolderEntity?>(null) }
+    var managedQuickMemoFolderId by remember { mutableStateOf<String?>(null) }
 
     if (isTodayPage) {
         Box {
@@ -1029,13 +1057,64 @@ private fun RowScope.HomeTopBarActions(
     }
 
     if (isNotePage) {
-        // 随口记页：右上角「搜索 + ⋮」，跟日程页同一套。
+        // 文件夹：新建 / 重命名 / 删除的浮层都挂在主页，落在 ⋮ 菜单旁边不影响列表滚动。
+        QuickMemoFolderNameSheet(
+            visible = isCreatingQuickMemoFolder,
+            onDismiss = { isCreatingQuickMemoFolder = false },
+            onSave = { name -> onCreateQuickMemoFolder(name) },
+        )
+        QuickMemoManageFoldersSheet(
+            visible = isManagingQuickMemoFolders &&
+                renamingQuickMemoFolder == null &&
+                deletingQuickMemoFolder == null,
+            folders = quickMemoFolders,
+            selectedId = managedQuickMemoFolderId,
+            onSelect = { managedQuickMemoFolderId = it },
+            onDismiss = { isManagingQuickMemoFolders = false },
+            onRename = {
+                renamingQuickMemoFolder = quickMemoFolders.firstOrNull {
+                    it.id == managedQuickMemoFolderId
+                }
+            },
+            onDelete = {
+                deletingQuickMemoFolder = quickMemoFolders.firstOrNull {
+                    it.id == managedQuickMemoFolderId
+                }
+            },
+        )
+        val renameTarget = renamingQuickMemoFolder
+        QuickMemoFolderNameSheet(
+            visible = renameTarget != null,
+            onDismiss = { renamingQuickMemoFolder = null },
+            onSave = { name ->
+                renameTarget?.let { onRenameQuickMemoFolder(it.id, name) }
+            },
+            title = "重命名文件夹",
+            confirmText = "保存",
+            initialName = renameTarget?.name.orEmpty(),
+        )
+        val deleteTarget = deletingQuickMemoFolder
+        QuickMemoDeleteFolderSheet(
+            visible = deleteTarget != null,
+            folderName = deleteTarget?.name.orEmpty(),
+            onConfirm = {
+                deleteTarget?.let {
+                    onDeleteQuickMemoFolder(it.id)
+                    deletingQuickMemoFolder = null
+                }
+            },
+            onDismiss = { deletingQuickMemoFolder = null },
+        )
+    }
+
+    if (isNotePage) {
+        // 闪记页：右上角「搜索 + ⋮」，跟日程页同一套。
         // ⋮ 里上面两项是新增（点开弹出键盘上方的输入栏），
         // 下面一组三项是列表筛选——筛选挪进菜单后不再占页面空间。
         IconButton(onClick = onSearch) {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "搜索随口记",
+                contentDescription = "搜索闪记",
                 modifier = Modifier.size(topBarIconSize),
             )
         }
@@ -1055,32 +1134,59 @@ private fun RowScope.HomeTopBarActions(
                 contentColor = menuContentColor,
                 items = listOf(
                     AppMenuItem(
-                        text = "添加随口记",
+                        text = "添加闪记",
                         onClick = { onAddQuickMemo() },
                         icon = Icons.Default.Edit,
                     ),
                     AppMenuItem(
-                        text = "添加随手记",
-                        onClick = { onAddFlashNote() },
-                        icon = Icons.Default.Bookmark,
-                    ),
-                    AppMenuItem(
-                        text = "全部",
-                        onClick = { onMemoSegmentChange(MemoStreamSegment.ALL) },
-                        selected = memoSegment == MemoStreamSegment.ALL,
+                        text = "多选管理",
+                        onClick = {
+                            isNoteMenuExpanded = false
+                            onStartQuickMemoSelection()
+                        },
+                        icon = Icons.Default.CheckCircle,
                         dividerBefore = true,
                     ),
-                    AppMenuItem(
-                        text = "随口记",
-                        onClick = { onMemoSegmentChange(MemoStreamSegment.QUICK_MEMO) },
-                        selected = memoSegment == MemoStreamSegment.QUICK_MEMO,
-                    ),
-                    AppMenuItem(
-                        text = "随手记",
-                        onClick = { onMemoSegmentChange(MemoStreamSegment.FLASH_NOTE) },
-                        selected = memoSegment == MemoStreamSegment.FLASH_NOTE,
-                    ),
-                ),
+                ) +
+                    QuickMemoFolderFilterItems(
+                        folders = quickMemoFolders,
+                        selectedFolderId = selectedQuickMemoFolderId,
+                        onSelect = {
+                            isNoteMenuExpanded = false
+                            onSelectQuickMemoFolder(it)
+                        },
+                    ) + listOf(
+                            AppMenuItem(
+                                text = "新建文件夹",
+                                onClick = {
+                                    isNoteMenuExpanded = false
+                                    isCreatingQuickMemoFolder = true
+                                },
+                                icon = Icons.Default.CreateNewFolder,
+                                dividerBefore = true,
+                            ),
+                            AppMenuItem(
+                                text = "管理文件夹",
+                                onClick = {
+                                    isNoteMenuExpanded = false
+                                    managedQuickMemoFolderId = selectedQuickMemoFolderId
+                                        ?.takeIf { id -> quickMemoFolders.any { it.id == id } }
+                                    isManagingQuickMemoFolders = true
+                                },
+                                icon = Icons.Default.Edit,
+                                dividerBefore = true,
+                                enabled = quickMemoFolders.isNotEmpty(),
+                            ),
+                            AppMenuItem(
+                                text = "已归档",
+                                onClick = {
+                                    isNoteMenuExpanded = false
+                                    onOpenQuickMemoArchived()
+                                },
+                                icon = Icons.Default.Delete,
+                                dividerBefore = true,
+                            ),
+                        ),
             )
         }
     } else if (isTodayPage || isAllPage) {

@@ -205,7 +205,7 @@ fun ScheduleNotificationSettingsPage(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
+                    .padding(horizontal = 18.dp, vertical = 8.dp)
                     .padding(bottom = 32.dp + bottomInset),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {

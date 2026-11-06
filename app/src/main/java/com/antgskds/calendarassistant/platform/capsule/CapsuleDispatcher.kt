@@ -62,11 +62,11 @@ class CapsuleDispatcher(
         val duration = QuickMemoCapsuleDurationPolicy.durationMillis(settings.defaultEventDurationMinutes)
         val item = run {
             val memoId = payload.tapTarget?.payload?.get("quickMemoId")?.toLongOrNull()
-                ?: return@synchronized NotificationResult.Failure(payload.key, NotificationFailureReason.VALIDATION_FAILED, "缺少随口记 ID")
+                ?: return@synchronized NotificationResult.Failure(payload.key, NotificationFailureReason.VALIDATION_FAILED, "缺少闪记 ID")
             val reminderId = payload.key.value.removePrefix("quick-memo:reminder:").toLongOrNull()
                 ?: return@synchronized NotificationResult.Failure(payload.key, NotificationFailureReason.VALIDATION_FAILED, "缺少提醒 ID")
             val display = CapsuleMessageComposer.composeTextQuickMemo(
-                title = payload.display.secondaryText.orEmpty().ifBlank { "随口记提醒" },
+                title = payload.display.secondaryText.orEmpty().ifBlank { "闪记提醒" },
                 memoId = memoId,
                 fixedTitleEnabled = settings.quickMemoPinnedFixedTitleEnabled,
                 removeAction = CapsuleActionSpec(

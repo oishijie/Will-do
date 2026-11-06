@@ -9,6 +9,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,94 +41,7 @@ import com.antgskds.calendarassistant.feature.quickmemo.ui.render.QuickMemoScree
 import com.antgskds.calendarassistant.feature.quickmemo.application.QuickMemoAutoStopPolicy
 import com.antgskds.calendarassistant.app.ui.state.MainViewModel
 import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.FlashNoteListEntry
-import com.antgskds.calendarassistant.feature.quickmemo.ui.contract.MemoStreamSegment
-import com.antgskds.calendarassistant.feature.note.data.local.NoteEntity
-import com.antgskds.calendarassistant.feature.note.data.attachment.NoteAttachmentStore
-import com.antgskds.calendarassistant.feature.note.domain.model.NoteParagraph
-import com.antgskds.calendarassistant.feature.note.domain.model.NoteParagraphType
-import com.antgskds.calendarassistant.feature.note.domain.model.plainTextContent
-import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSource
-import com.antgskds.calendarassistant.feature.note.domain.flash.FlashNoteSummaryState
-import com.antgskds.calendarassistant.feature.note.flash.FlashNoteNavigator
 import com.antgskds.calendarassistant.feature.settings.developer.application.DemoModeDataFactory
-
-/**
- * 闪记条目列表：把 notes 表压成列表展示所需的最小信息，并按关键词过滤。
- *
- * 只收录闪记（有 SOURCE_LINK 段落）；历史迁移来的普通便签仍走设置页的独立列表。
- */
-internal data class FlashNoteStream(
-    val entries: List<FlashNoteListEntry>,
-    val idByKey: Map<String, Long>,
-    val byKey: Map<String, FlashNoteListEntry>
-)
-
-internal fun buildFlashNoteStream(
-    notes: List<NoteEntity>,
-    searchQuery: String
-): FlashNoteStream {
-    val flashNotes = notes.filter { it.document().isFlashNote }
-
-    val entries = flashNotes.mapIndexed { index, note ->
-        val document = note.document()
-        val key = note.id?.let { "note:$it" } ?: "transient:${note.updatedAt}:$index"
-        val url = document.flashSourceUrl()
-        val summary = document.flashSummaryParagraph()?.text.orEmpty()
-        val imageParagraph = document.paragraphs.firstOrNull { it.type == NoteParagraphType.IMAGE }
-        val preview = document.paragraphs
-            .asSequence()
-            .filterNot {
-                it.type == NoteParagraphType.SUMMARY ||
-                    it.type == NoteParagraphType.SOURCE_LINK ||
-                    it.type == NoteParagraphType.TODO ||
-                    it.type == NoteParagraphType.IMAGE
-            }
-            .map { it.plainTextContent().trim() }
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-
-        key to FlashNoteListEntry(
-            key = key,
-            title = note.displayTitle,
-            previewText = preview.takeIf { it.isNotBlank() },
-            summaryText = summary.takeIf {
-                it.isNotBlank() && !FlashNoteSummaryState.isPlaceholder(it)
-            },
-            summaryPending = document.flashSummaryPending(),
-            summaryFailed = document.flashSummaryFailed(),
-            siteName = document.flashSourceParagraph()?.attachmentName?.takeIf { it.isNotBlank() },
-            url = url,
-            requiresClipboard = url.isNotBlank() &&
-                FlashNoteSource(url = url).requiresClipboardRelay,
-            pinned = note.pinnedAt != null,
-            updatedAt = note.updatedAt,
-            imageRelativePath = imageParagraph?.attachmentPath.orEmpty(),
-            imageDisplayName = imageParagraph?.attachmentName.orEmpty()
-        )
-    }.sortedByDescending { it.second.updatedAt }
-
-    val filtered = if (searchQuery.isBlank()) {
-        entries
-    } else {
-        entries.filter { (_, entry) ->
-            entry.title.contains(searchQuery, ignoreCase = true) ||
-                entry.previewText?.contains(searchQuery, ignoreCase = true) == true ||
-                entry.summaryText?.contains(searchQuery, ignoreCase = true) == true ||
-                entry.siteName?.contains(searchQuery, ignoreCase = true) == true
-        }
-    }
-
-    return FlashNoteStream(
-        entries = filtered.map { it.second },
-        idByKey = filtered.mapNotNull { (key, entry) ->
-            entry.key.removePrefix("note:").toLongOrNull()?.let { key to it }
-        }.toMap(),
-        byKey = filtered.associate { it }
-    )
-}
 
 private const val TEXT_QUICK_MEMO_ID_PREFIX = "TEXT_QUICK_MEMO_"
 
@@ -135,18 +53,11 @@ fun QuickMemoPage(
     extraBottomPadding: Dp = 0.dp,
     onOpenDetail: (Long) -> Unit = {},
     onPendingDeleteChange: (QuickMemoEntity?) -> Unit = {},
-    onRequestDeleteFlashNote: (String) -> Unit = {},
-    onOpenFlashNoteDetail: (Long) -> Unit = {},
-    /**
-     * 当前分段。为 null 时本组件自持状态；外部传入则由调用方持有，
-     * 这样底栏 FAB 能知道处于哪个分段并给出对应操作。
-     */
-    segment: MemoStreamSegment? = null,
-    onSegmentChange: ((MemoStreamSegment) -> Unit)? = null,
     hapticEnabled: Boolean = true
 ) {
     val quickMemos by viewModel.quickMemos.collectAsState()
-    val notes by viewModel.notes.collectAsState()
+    val quickMemoFolders by viewModel.quickMemoFolders.collectAsState()
+    val quickMemoBrowser by viewModel.quickMemoBrowser.collectAsState()
     val suggestions by viewModel.quickMemoSuggestions.collectAsState()
     val playbackState by viewModel.audioPlaybackState.collectAsState()
     val capsuleUiState by viewModel.capsuleUiState.collectAsState()
@@ -160,32 +71,48 @@ fun QuickMemoPage(
     var demoVoicePlaying by remember(demoModeEnabled) { mutableStateOf(true) }
     val displayedPlayback = if (demoModeEnabled) AudioPlaybackState(DemoModeDataFactory.QUICK_MEMO_AUDIO_PATH, demoVoicePlaying) else playbackState
 
-    // 闪记与速记共用同一个底栏 Tab，用分段切换；分段状态可由外部持有以便 FAB 读取。
-    var internalSegmentKey by rememberSaveable { mutableStateOf(MemoStreamSegment.QUICK_MEMO.name) }
-    val segment = segment ?: MemoStreamSegment.fromKey(internalSegmentKey)
-    val setSegment: (MemoStreamSegment) -> Unit = onSegmentChange ?: { internalSegmentKey = it.name }
-
-    val flashConnection = remember(notes, searchQuery) {
-        buildFlashNoteStream(notes, searchQuery)
+    // 文件夹筛选在 Connector 层算好再下发（对齐上游 visibleMemos）：
+    // 下游只负责渲染，不必再依赖 state 里的 folderId 自己过滤。
+    val visibleMemos = remember(displayedMemos, quickMemoBrowser.folderId) {
+        val folderId = quickMemoBrowser.folderId
+        displayedMemos.filter { memo ->
+            when (folderId) {
+                null -> true
+                "" -> memo.folderId == null
+                else -> memo.folderId == folderId
+            }
+        }
+    }
+    val visibleIds = remember(visibleMemos) { visibleMemos.mapNotNull { it.id }.toSet() }
+    // 选中的条目可能因切换文件夹而移出可见集，剔除它们，避免工具栏计数与实际不符。
+    LaunchedEffect(visibleIds) {
+        val current = viewModel.quickMemoBrowser.value
+        if (current.selectionMode && current.selectedIds.any { it !in visibleIds }) {
+            viewModel.updateQuickMemoBrowser(
+                current.copy(selectedIds = current.selectedIds.intersect(visibleIds))
+            )
+        }
     }
 
+    // quickMemoBrowser 必须进 key：多选模式与文件夹筛选都写在这个流里，
+    // 漏掉它时 remember 会一直返回旧 state，列表既不进多选也不跟着文件夹变。
     val state = remember(
         displayedMemos,
         suggestions,
         displayedPlayback,
         capsuleUiState,
         demoModeEnabled,
-        segment,
-        flashConnection
+        quickMemoBrowser
     ) {
         QuickMemoListUiState(
-            memos = displayedMemos,
+            memos = visibleMemos,
             suggestions = if (demoModeEnabled) emptyList() else suggestions,
             playbackState = displayedPlayback,
             pinnedMemoId = activeTextQuickMemoId(capsuleUiState),
-            segment = segment,
-            flashNotes = flashConnection.entries,
-            flashNoteIds = flashConnection.idByKey
+            folders = quickMemoFolders,
+            selectedFolderId = quickMemoBrowser.folderId,
+            selectionMode = quickMemoBrowser.selectionMode,
+            selectedMemoIds = quickMemoBrowser.selectedIds
         )
     }
 
@@ -197,63 +124,6 @@ fun QuickMemoPage(
             extraBottomPadding = extraBottomPadding,
             hapticEnabled = hapticEnabled,
             onAction = { action ->
-                // 闪记与速记的数据层不同，动作分派前先拦掉这一组。
-                when (action) {
-                    is QuickMemoUiAction.SelectSegment -> {
-                        setSegment(action.segment)
-                        return@QuickMemoScreen
-                    }
-
-                    is QuickMemoUiAction.OpenFlashNote -> {
-                        // 打开详情页：收藏的正文只有这里能看到。
-                        if (!demoModeEnabled) {
-                            flashConnection.idByKey[action.key]?.let { noteId ->
-                                onOpenFlashNoteDetail(noteId)
-                            }
-                        }
-                        return@QuickMemoScreen
-                    }
-
-                    is QuickMemoUiAction.OpenFlashNoteSource -> {
-                        if (!demoModeEnabled) {
-                            val entry = flashConnection.byKey[action.key]
-                            val url = entry?.url.orEmpty()
-                            if (url.isNotBlank()) {
-                                FlashNoteNavigator.open(
-                                    context = context,
-                                    url = url,
-                                    requiresClipboardRelay = entry?.requiresClipboard == true
-                                )
-                            } else if (!entry?.imageRelativePath.isNullOrBlank()) {
-                                val paragraph = NoteParagraph(
-                                    type = NoteParagraphType.IMAGE,
-                                    attachmentPath = entry?.imageRelativePath.orEmpty(),
-                                    attachmentName = entry?.imageDisplayName.orEmpty()
-                                )
-                                NoteAttachmentStore.openAttachmentIntent(context, paragraph)
-                                    ?.let(context::startActivity)
-                            }
-                        }
-                        return@QuickMemoScreen
-                    }
-
-                    is QuickMemoUiAction.RequestDeleteFlashNote -> {
-                        // 交给上层弹确认框，与速记删除走同一套交互。
-                        onRequestDeleteFlashNote(action.key)
-                        return@QuickMemoScreen
-                    }
-
-                    is QuickMemoUiAction.ConfirmDeleteFlashNote -> {
-                        if (!demoModeEnabled) {
-                            flashConnection.idByKey[action.key]?.let { noteId ->
-                                viewModel.deleteNote(noteId)
-                            }
-                        }
-                        return@QuickMemoScreen
-                    }
-
-                    else -> Unit
-                }
                 if (demoModeEnabled && action is QuickMemoUiAction.ToggleAudio) {
                     demoVoicePlaying = !demoVoicePlaying
                     return@QuickMemoScreen
@@ -292,6 +162,8 @@ fun QuickMemoDetailPage(
     val capsuleUiState by viewModel.capsuleUiState.collectAsState()
     val mainUiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val exportFiles = remember(context) { com.antgskds.calendarassistant.platform.quickmemo.QuickMemoExportFiles(context) }
     val demoModeEnabled = mainUiState.settings.developerOptionsEnabled &&
         mainUiState.settings.developerDemoModeEnabled
     val displayedMemos = remember(quickMemos, demoModeEnabled, mainUiState.today) {
@@ -333,6 +205,24 @@ fun QuickMemoDetailPage(
         cardAlphaPercent = cardAlphaPercent,
         embedded = embedded,
         autoStopDurationMs = QuickMemoAutoStopPolicy.durationMillis(mainUiState.settings),
+        onExport = { id ->
+            val memo = displayedMemos.firstOrNull { it.id == id }
+            if (memo == null || demoModeEnabled) return@QuickMemoDetailScreen
+            scope.launch {
+                val snapshot = com.antgskds.calendarassistant.feature.quickmemo.application.QuickMemoExportSnapshot(
+                    memo = memo,
+                    reminders = reminders.filter { it.quickMemoId == id },
+                )
+                try {
+                    val prepared = withContext(Dispatchers.IO) { exportFiles.prepare(snapshot) }
+                    withContext(Dispatchers.Main) { exportFiles.share(prepared) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Toast.makeText(context, error.message ?: "导出失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+        },
         onAction = { action ->
             if (demoModeEnabled && action is QuickMemoUiAction.ToggleAudio) {
                 demoVoicePlaying = !demoVoicePlaying
@@ -361,21 +251,69 @@ private fun handleQuickMemoAction(
     onPendingDeleteChange: (QuickMemoEntity?) -> Unit
 ) {
     when (action) {
-        // 分段与闪记动作在 QuickMemoPage 的 onAction 里已先行处理，
-        // 走到这里说明是演示模式或误入，此处按无操作处理避免误改速记。
-        is QuickMemoUiAction.SelectSegment,
-        is QuickMemoUiAction.OpenFlashNote,
-        is QuickMemoUiAction.OpenFlashNoteSource,
-        is QuickMemoUiAction.RequestDeleteFlashNote,
-        is QuickMemoUiAction.ConfirmDeleteFlashNote -> Unit
         is QuickMemoUiAction.OpenDetail -> onOpenDetail(action.memoId)
         is QuickMemoUiAction.RequestDelete -> onPendingDeleteChange(action.memo)
-        is QuickMemoUiAction.Delete -> viewModel.deleteQuickMemo(action.memoId)
+        is QuickMemoUiAction.Delete -> viewModel.archiveQuickMemo(action.memoId)
         is QuickMemoUiAction.ToggleTodoCompletion -> viewModel.toggleQuickMemoTodoCompletion(action.memoId)
         is QuickMemoUiAction.MarkTodo -> viewModel.markQuickMemoTodo(action.memoId)
         is QuickMemoUiAction.RemoveTodo -> viewModel.removeQuickMemoTodo(action.memoId)
         is QuickMemoUiAction.ToggleAudio -> viewModel.toggleAudioPlayback(action.audioPath)
         is QuickMemoUiAction.UpdateBody -> viewModel.updateQuickMemoBody(action.memoId, action.body)
+        is QuickMemoUiAction.UpdateTitle -> viewModel.updateQuickMemoTitle(action.memoId, action.title)
+        is QuickMemoUiAction.ExitSelection -> viewModel.resetQuickMemoBrowser()
+        is QuickMemoUiAction.SelectFolder ->
+            viewModel.updateQuickMemoBrowser(
+                (viewModel.quickMemoBrowser.value).copy(
+                    folderId = action.folderId,
+                    selectionMode = false,
+                    selectedIds = emptySet()
+                )
+            )
+        is QuickMemoUiAction.EnterSelectionMode ->
+            viewModel.updateQuickMemoBrowser(
+                viewModel.quickMemoBrowser.value.copy(
+                    selectionMode = true,
+                    selectedIds = setOf(action.memoId)
+                )
+            )
+        is QuickMemoUiAction.ToggleMemoSelection -> {
+            val current = viewModel.quickMemoBrowser.value
+            val selected = current.selectedIds
+            val next = if (action.memoId in selected) selected - action.memoId else selected + action.memoId
+            // 保留多选模式（对齐上游）：取消勾选最后一项时工具栏仍在，
+            // 用户可以继续勾选或点全选，不会被意外踢出多选。
+            viewModel.updateQuickMemoBrowser(
+                current.copy(selectionMode = true, selectedIds = next)
+            )
+        }
+        is QuickMemoUiAction.SelectAllMemos ->
+            viewModel.updateQuickMemoBrowser(
+                viewModel.quickMemoBrowser.value.copy(selectedIds = action.memoIds.toSet())
+            )
+        is QuickMemoUiAction.MoveSelectedMemos -> {
+            val ids = viewModel.quickMemoBrowser.value.selectedIds.toList()
+            viewModel.moveQuickMemos(ids, action.folderId) { result ->
+                result.onFailure { error ->
+                    Toast.makeText(context, error.message ?: "移动失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            viewModel.resetQuickMemoBrowser()
+        }
+        is QuickMemoUiAction.MoveMemo -> {
+            viewModel.moveQuickMemos(listOf(action.memoId), action.folderId) { result ->
+                result.onFailure { error ->
+                    Toast.makeText(context, error.message ?: "移动失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        is QuickMemoUiAction.DeleteSelectedMemos -> {
+            val ids = viewModel.quickMemoBrowser.value.selectedIds
+            viewModel.archiveQuickMemos(ids)
+            viewModel.resetQuickMemoBrowser()
+        }
+        is QuickMemoUiAction.CreateFolder -> viewModel.createQuickMemoFolder(action.name)
+        is QuickMemoUiAction.RenameFolder -> viewModel.renameQuickMemoFolder(action.folderId, action.name)
+        is QuickMemoUiAction.DeleteFolder -> viewModel.deleteQuickMemoFolder(action.folderId)
         is QuickMemoUiAction.SaveReminder ->
             viewModel.saveQuickMemoReminder(
                 action.memoId,

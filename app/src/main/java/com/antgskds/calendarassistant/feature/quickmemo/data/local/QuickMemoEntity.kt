@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 
 object QuickMemoType {
     const val TEXT = "TEXT"
+    const val LINK = "LINK"
     const val VOICE = "VOICE"
     const val IMAGE = "IMAGE"
 }
@@ -52,7 +53,10 @@ object QuickMemoSuggestionStatus {
         Index(value = ["updated_at"]),
         Index(value = ["sort_rank"]),
         Index(value = ["todo_state"]),
-        Index(value = ["type"])
+        Index(value = ["type"]),
+        Index(value = ["folder_id"]),
+        Index(value = ["link_key"]),
+        Index(value = ["deleted_at"])
     ]
 )
 data class QuickMemoEntity(
@@ -87,12 +91,27 @@ data class QuickMemoEntity(
     @ColumnInfo(name = "reminder_at")
     val reminderAt: Long? = null,
     @ColumnInfo(name = "reminder_rrule")
-    val reminderRRule: String = ""
+    val reminderRRule: String = "",
+    @ColumnInfo(name = "title", defaultValue = "''")
+    val title: String = "",
+    @ColumnInfo(name = "source_url", defaultValue = "NULL")
+    val sourceUrl: String? = null,
+    @ColumnInfo(name = "link_key", defaultValue = "NULL")
+    val linkKey: String? = null,
+    @ColumnInfo(name = "folder_id", defaultValue = "NULL")
+    val folderId: String? = null,
+    /** 非空 = 已移入回收站（软删除）。默认查询需过滤掉。 */
+    @ColumnInfo(name = "deleted_at", defaultValue = "NULL")
+    val deletedAt: Long? = null,
+    /** 非空 = 已归档（可查看但不出现在主列表活跃区）。 */
+    @ColumnInfo(name = "archived_at", defaultValue = "NULL")
+    val archivedAt: Long? = null
 ) {
     val isVoice: Boolean get() = type == QuickMemoType.VOICE
     val isImage: Boolean get() = type == QuickMemoType.IMAGE
     val isTodo: Boolean get() = todoState == QuickMemoTodoState.ACTIVE || todoState == QuickMemoTodoState.COMPLETED
     val isTodoCompleted: Boolean get() = todoState == QuickMemoTodoState.COMPLETED
+    val isArchived: Boolean get() = archivedAt != null
 }
 
 @Entity(

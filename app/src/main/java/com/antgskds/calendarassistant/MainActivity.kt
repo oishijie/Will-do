@@ -75,7 +75,6 @@ import com.antgskds.calendarassistant.app.ui.navigation.navForwardEnterTransitio
 import com.antgskds.calendarassistant.app.ui.navigation.navForwardExitTransition
 import com.antgskds.calendarassistant.feature.home.ui.connector.HomeScreen
 import com.antgskds.calendarassistant.feature.quickmemo.ui.connector.QuickMemoDetailPage
-import com.antgskds.calendarassistant.feature.quickmemo.ui.connector.FlashNoteDetailRoute
 import com.antgskds.calendarassistant.feature.settings.data.SettingsDataSource
 import com.antgskds.calendarassistant.feature.settings.developer.application.DemoModeDataFactory
 import com.antgskds.calendarassistant.feature.settings.onboarding.ui.connector.OnboardingGuidePage
@@ -110,11 +109,6 @@ private data class PendingQuickMemoDetailLaunch(
     val nonce: Long = System.nanoTime()
 )
 
-private data class PendingFlashNoteDetailLaunch(
-    val noteId: Long,
-    val nonce: Long = System.nanoTime()
-)
-
 private data class PendingEventDialogLaunch(
     val eventId: Long,
     val nonce: Long = System.nanoTime()
@@ -132,12 +126,14 @@ class MainActivity : ComponentActivity() {
     // 取件码时间戳
     private var pickupEventTimestamp = mutableStateOf(0L)
 
+    // 音量键「App 内笔记」拉起的闪记入口时间戳
+    private var openQuickMemoTimestamp = mutableStateOf(0L)
+
     // ViewModel 实例，供 onResume 使用
     private lateinit var mainViewModel: MainViewModel
 
     private val pendingWidgetAction = mutableStateOf<PendingWidgetLaunchAction?>(null)
     private val pendingQuickMemoDetailLaunch = mutableStateOf<PendingQuickMemoDetailLaunch?>(null)
-    private val pendingFlashNoteDetailLaunch = mutableStateOf<PendingFlashNoteDetailLaunch?>(null)
     private val pendingEventDialogLaunch = mutableStateOf<PendingEventDialogLaunch?>(null)
 
     private fun shouldShowOnboardingOnFirstLaunch(): Boolean {
@@ -193,8 +189,8 @@ class MainActivity : ComponentActivity() {
         requestRecordAudioPermissionIfNeeded(intent)
         consumeWidgetAction(intent)
         consumeQuickMemoDetailIntent(intent)
-        consumeFlashNoteDetailIntent(intent)
         consumeEventDialogIntent(intent)
+        consumeOpenQuickMemoIntent(intent)
 
         enableEdgeToEdge()
 
@@ -312,13 +308,13 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val currentBackStackEntry by navController.currentBackStackEntryAsState()
                 val predictiveBackEnabled = settings.predictiveBackEnabled
-                // 常驻底栏固定入口：今日日程 / 全部日程 / 随口记 / 设置
+                // 常驻底栏固定入口：今日日程 / 全部日程 / 闪记 / 设置
                 val homeBottomItems = remember { editionHomeEntries(fixedHomeBottomItems) }
                 var selectedHomePageKey by rememberSaveable { mutableStateOf(HomeEntryKey.TODAY) }
                 var lastPickupEventTimestamp by rememberSaveable { mutableLongStateOf(0L) }
+                var lastOpenQuickMemoTimestamp by rememberSaveable { mutableLongStateOf(0L) }
                 var lastWidgetActionNonce by rememberSaveable { mutableLongStateOf(0L) }
                 var lastQuickMemoDetailNonce by rememberSaveable { mutableLongStateOf(0L) }
-                var lastFlashNoteDetailNonce by rememberSaveable { mutableLongStateOf(0L) }
                 var lastEventDialogNonce by rememberSaveable { mutableLongStateOf(0L) }
                 val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                 // 底栏常驻（一级导航栏已移除），Home 路由的悬浮卡片始终让开底栏高度。
@@ -427,6 +423,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(openQuickMemoTimestamp.value) {
+                    val timestamp = openQuickMemoTimestamp.value
+                    if (timestamp > 0L && timestamp != lastOpenQuickMemoTimestamp) {
+                        selectedHomePageKey = HomeEntryKey.NOTE
+                        lastOpenQuickMemoTimestamp = timestamp
+                    }
+                }
+
                 LaunchedEffect(pendingWidgetAction.value) {
                     val pending = pendingWidgetAction.value ?: return@LaunchedEffect
                     if (pending.nonce == lastWidgetActionNonce) return@LaunchedEffect
@@ -451,13 +455,6 @@ class MainActivity : ComponentActivity() {
                     if (pending.nonce == lastQuickMemoDetailNonce) return@LaunchedEffect
                     lastQuickMemoDetailNonce = pending.nonce
                     navController.navigate(AppRoutes.quickMemoDetail(pending.memoId)) { launchSingleTop = true }
-                }
-
-                LaunchedEffect(pendingFlashNoteDetailLaunch.value) {
-                    val pending = pendingFlashNoteDetailLaunch.value ?: return@LaunchedEffect
-                    if (pending.nonce == lastFlashNoteDetailNonce) return@LaunchedEffect
-                    lastFlashNoteDetailNonce = pending.nonce
-                    navController.navigate(AppRoutes.flashNoteDetail(pending.noteId)) { launchSingleTop = true }
                 }
 
                 LaunchedEffect(pendingEventDialogLaunch.value) {
@@ -595,9 +592,6 @@ class MainActivity : ComponentActivity() {
                                     onOpenQuickMemoDetail = { memoId ->
                                         navController.navigate(AppRoutes.quickMemoDetail(memoId))
                                     },
-                                    onOpenFlashNoteDetail = { noteId ->
-                                        navController.navigate(AppRoutes.flashNoteDetail(noteId))
-                                    },
                                     onNavigateToSettings = { destination ->
                                         if (destination == SettingsDestination.Logout) {
                                             finish()
@@ -645,29 +639,6 @@ class MainActivity : ComponentActivity() {
                                 backgroundMode = settings.appBackgroundImagePath.isNotBlank(),
                                 miuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled,
                                 cardAlphaPercent = settings.appBackgroundCardAlphaPercent
-                            )
-                        }
-
-                        composable(
-                            route = AppRoutes.FlashNoteDetailPattern,
-                            arguments = listOf(navArgument(AppRoutes.FlashNoteDetailArg) { type = NavType.LongType }),
-                            enterTransition = { navForwardEnterTransition() },
-                            exitTransition = { null },
-                            popEnterTransition = { null },
-                            popExitTransition = { navBackwardExitTransition() }
-                        ) { backStackEntry ->
-                            BackHandler(enabled = !predictiveBackEnabled) {
-                                navController.popBackStack()
-                            }
-                            val noteId = backStackEntry.arguments?.getLong(AppRoutes.FlashNoteDetailArg) ?: -1L
-                            val uiState by mainViewModel.uiState.collectAsState()
-                            FlashNoteDetailRoute(
-                                noteId = noteId,
-                                viewModel = mainViewModel,
-                                onBack = { navController.popBackStack() },
-                                hapticEnabled = uiState.settings.hapticFeedbackEnabled,
-                                backgroundMode = settings.appBackgroundImagePath.isNotBlank(),
-                                miuiBlurEnabled = settings.appBackgroundMiuiBlurTestEnabled
                             )
                         }
 
@@ -764,8 +735,8 @@ class MainActivity : ComponentActivity() {
         requestRecordAudioPermissionIfNeeded(intent)
         consumeWidgetAction(intent)
         consumeQuickMemoDetailIntent(intent)
-        consumeFlashNoteDetailIntent(intent)
         consumeEventDialogIntent(intent)
+        consumeOpenQuickMemoIntent(intent)
     }
 
     private fun requestRecordAudioPermissionIfNeeded(intent: Intent?) {
@@ -787,16 +758,16 @@ class MainActivity : ComponentActivity() {
         intent.removeExtra(EXTRA_OPEN_QUICK_MEMO_ID)
     }
 
-    private fun consumeFlashNoteDetailIntent(intent: Intent?) {
-        val noteId = intent?.getLongExtra(EXTRA_OPEN_FLASH_NOTE_ID, -1L)?.takeIf { it > 0L } ?: return
-        pendingFlashNoteDetailLaunch.value = PendingFlashNoteDetailLaunch(noteId)
-        intent.removeExtra(EXTRA_OPEN_FLASH_NOTE_ID)
-    }
-
     private fun consumeEventDialogIntent(intent: Intent?) {
         val eventId = intent?.getLongExtra(EXTRA_OPEN_EVENT_ID, -1L)?.takeIf { it > 0L } ?: return
         pendingEventDialogLaunch.value = PendingEventDialogLaunch(eventId)
         intent.removeExtra(EXTRA_OPEN_EVENT_ID)
+    }
+
+    private fun consumeOpenQuickMemoIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_QUICK_MEMO, false) != true) return
+        openQuickMemoTimestamp.value = System.currentTimeMillis()
+        intent.removeExtra(EXTRA_OPEN_QUICK_MEMO)
     }
 
     override fun onStart() {
@@ -815,7 +786,6 @@ class MainActivity : ComponentActivity() {
         if (::mainViewModel.isInitialized) {
             mainViewModel.refreshData()
         }
-        app.runtimeCenter.startEdgeBarIfNeeded()
         app.runtimeCenter.restoreSmsNotificationListenerIfNeeded()
         app.localModelResidueCenter.checkForResidue()
         AccessibilityGuardian.checkAndRestoreIfNeeded(this, lifecycleScope)
@@ -919,6 +889,7 @@ class MainActivity : ComponentActivity() {
         private const val ONBOARDING_PREFS_NAME = "onboarding_prefs"
         private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         const val EXTRA_REQUEST_RECORD_AUDIO_PERMISSION = "request_record_audio_permission"
+        const val EXTRA_OPEN_QUICK_MEMO = "open_quick_memo_entry"
         const val EXTRA_OPEN_QUICK_MEMO_ID = "open_quick_memo_id"
         const val EXTRA_OPEN_FLASH_NOTE_ID = "open_flash_note_id"
         const val EXTRA_OPEN_EVENT_ID = "open_event_id"

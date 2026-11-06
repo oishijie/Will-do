@@ -63,15 +63,6 @@ class CapsuleController(
         capsuleCommandApi.clearTextQuickMemo()
     }
 
-    /** 文本随手记上实况（常驻，用户手动移除）。 */
-    fun showTextFlashNote(noteId: Long, title: String) {
-        capsuleCommandApi.showTextFlashNote(noteId, title)
-    }
-
-    fun clearTextFlashNote() {
-        capsuleCommandApi.clearTextFlashNote()
-    }
-
     fun showModelLoading(title: String, content: String) {
         capsuleCommandApi.showModelLoading(title, content)
     }

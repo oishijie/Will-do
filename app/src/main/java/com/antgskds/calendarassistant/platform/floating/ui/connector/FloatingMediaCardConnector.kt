@@ -55,9 +55,9 @@ fun QuickMemoMediaFloatingCardRoute(
 ) {
     val state = remember(memoId, bodyText, imagePath) {
         FloatingMediaCardUiState(
-            typeLabel = "随口记图片",
-            title = bodyText.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: "图片随口记",
-            pages = listOf(FloatingMediaPage.ImageFile(imagePath, "随口记图片"))
+            typeLabel = "闪记图片",
+            title = bodyText.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: "图片闪记",
+            pages = listOf(FloatingMediaPage.ImageFile(imagePath, "闪记图片"))
         )
     }
     FloatingMediaCardContent(

@@ -9,6 +9,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -28,6 +29,9 @@ import com.antgskds.calendarassistant.shared.event.events.IngestFailedEvent
 import com.antgskds.calendarassistant.shared.event.events.IngestSucceededEvent
 import com.antgskds.calendarassistant.shared.event.events.RecognitionFailedEvent
 import com.antgskds.calendarassistant.feature.settings.data.model.MySettings
+import com.antgskds.calendarassistant.MainActivity
+import com.antgskds.calendarassistant.core.service.voice.VoiceCaptureHandleActivity
+import com.antgskds.calendarassistant.platform.floating.QuickMemoVoiceCaptureService
 import com.antgskds.calendarassistant.feature.capsule.domain.CapsuleActionSpec
 import com.antgskds.calendarassistant.platform.floating.FloatingScheduleService
 import com.antgskds.calendarassistant.platform.receiver.EventActionReceiver
@@ -98,7 +102,18 @@ class TextAccessibilityService : AccessibilityService() {
     // 标记是否已经触发了长按事件
     private var isLongPressTriggered = false
     private var isVoiceCaptureTriggered = false
+    private var isInAppVoiceTriggered = false
     private var isVolumeUpPressed = false
+    private var isVolumeDownPressed = false
+
+    // 双击判定：第二次 DOWN 距首次 UP 小于该窗口则认作双击
+    private var lastUpAt = 0L
+    private var lastUpKeyCode = 0
+    private var pendingSingleTapJob: Job? = null
+    // 双击已触发动作，随后的抬起不再补调音量
+    private var doubleTapJustFired = false
+    // 双击占用整键时，按住连调音量改由应用代调（系统收不到 DOWN）
+    private var repeatVolumeJob: Job? = null
 
     private val NOTIFICATION_ID_PROGRESS = 1001
     private val NOTIFICATION_ID_RESULT = 2002
@@ -128,10 +143,17 @@ class TextAccessibilityService : AccessibilityService() {
         @Volatile private var lastDisconnectedAt: Long = 0L
         private val isAnalyzing = AtomicBoolean(false)
         private const val LONG_PRESS_THRESHOLD = 400L
+        private const val DOUBLE_TAP_WINDOW_MS = 300L
+        private const val VOLUME_REPEAT_INITIAL_MS = 500L
+        private const val VOLUME_REPEAT_INTERVAL_MS = 100L
         private const val ACTION_VOLUME_LONG_PRESS_NONE = 0
         private const val ACTION_VOLUME_LONG_PRESS_SCREENSHOT = 1
         private const val ACTION_VOLUME_LONG_PRESS_FLOATING = 2
         private const val ACTION_VOLUME_LONG_PRESS_VOICE = 3
+        private const val ACTION_VOLUME_LONG_PRESS_QUICK_RECORD = 4
+        private const val ACTION_VOLUME_LONG_PRESS_IN_APP_NOTE = 5
+        private const val ACTION_VOLUME_LONG_PRESS_FLOATING_NOTE = 6
+        private const val ACTION_VOLUME_LONG_PRESS_PTT_RECORD = 7
 
         fun isConnected(): Boolean = instance != null
 
@@ -164,7 +186,6 @@ class TextAccessibilityService : AccessibilityService() {
         subscribeRecognitionFailedEvents()
         subscribeIngestEvents()
         logServiceHealth("connected_ready")
-        app.runtimeCenter.startEdgeBarIfNeeded()
         Log.d(TAG, "无障碍服务已连接")
     }
 
@@ -187,14 +208,12 @@ class TextAccessibilityService : AccessibilityService() {
             }
             val baseFlags = AccessibilityDiagnosticSnapshot.connectionBaseFlags(baseAccessibilityFlags, info.flags)
             baseAccessibilityFlags = baseFlags
-            val shouldFilterKeys = shouldFilterVolumeUpKeys()
+            val shouldFilterKeys = shouldFilterVolumeUpKeys() || shouldFilterVolumeDownKeys() ||
+                shouldFilterVolumeUpDoubleTap() || shouldFilterVolumeDownDoubleTap()
             val keyFlags = if (shouldFilterKeys) {
                 baseFlags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
             } else {
-                volumeLongPressJob?.cancel()
-                isLongPressTriggered = false
-                isVoiceCaptureTriggered = false
-                isVolumeUpPressed = false
+                cancelVolumeLongPressState()
                 baseFlags
             }
             // 窗口能力固定启用；诊断开始和结束不再重新配置系统连接。
@@ -214,11 +233,65 @@ class TextAccessibilityService : AccessibilityService() {
 
     private fun shouldFilterVolumeUpKeys(): Boolean {
         val settings = settingsQueryApi.settings.value
-        if (!settings.volumeUpLongPressEnabled) return false
-        return when (settings.volumeUpLongPressAction.coerceIn(1, 3)) {
+        return isLongPressActionEnabled(settings.volumeUpLongPressEnabled, settings.volumeUpLongPressAction, settings)
+    }
+
+    private fun shouldFilterVolumeDownKeys(): Boolean {
+        val settings = settingsQueryApi.settings.value
+        return isLongPressActionEnabled(settings.volumeDownLongPressEnabled, settings.volumeDownLongPressAction, settings)
+    }
+
+    private fun shouldFilterVolumeUpDoubleTap(): Boolean {
+        val settings = settingsQueryApi.settings.value
+        return isLongPressActionEnabled(settings.volumeUpDoubleTapEnabled, settings.volumeUpDoubleTapAction, settings)
+    }
+
+    private fun shouldFilterVolumeDownDoubleTap(): Boolean {
+        val settings = settingsQueryApi.settings.value
+        return isLongPressActionEnabled(settings.volumeDownDoubleTapEnabled, settings.volumeDownDoubleTapAction, settings)
+    }
+
+    /** 双击占用整键后，按住连调改由应用代调（系统收不到 DOWN 事件）。 */
+    private fun startVolumeRepeat(isVolumeUp: Boolean) {
+        repeatVolumeJob?.cancel()
+        repeatVolumeJob = serviceScope.launch {
+            delay(VOLUME_REPEAT_INITIAL_MS)
+            while (true) {
+                try {
+                    audioManager.adjustSuggestedStreamVolume(
+                        if (isVolumeUp) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+                        AudioManager.USE_DEFAULT_STREAM_TYPE,
+                        AudioManager.FLAG_SHOW_UI
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "代调音量失败", e)
+                    break
+                }
+                delay(VOLUME_REPEAT_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopVolumeRepeat() {
+        repeatVolumeJob?.cancel()
+        repeatVolumeJob = null
+    }
+
+    private fun isLongPressActionEnabled(
+        enabled: Boolean,
+        action: Int,
+        settings: MySettings
+    ): Boolean {
+        if (!enabled) return false
+        return when (action.coerceIn(0, 7)) {
+            ACTION_VOLUME_LONG_PRESS_NONE -> false
             ACTION_VOLUME_LONG_PRESS_SCREENSHOT -> true
             ACTION_VOLUME_LONG_PRESS_FLOATING -> settings.isFloatingWindowEnabled || settings.voiceInputEnabled
             ACTION_VOLUME_LONG_PRESS_VOICE -> settings.voiceInputEnabled
+            ACTION_VOLUME_LONG_PRESS_QUICK_RECORD -> settings.voiceInputEnabled
+            ACTION_VOLUME_LONG_PRESS_IN_APP_NOTE -> true  // App 内笔记功能总是可用
+            ACTION_VOLUME_LONG_PRESS_FLOATING_NOTE -> settings.isFloatingWindowEnabled
+            ACTION_VOLUME_LONG_PRESS_PTT_RECORD -> settings.voiceInputEnabled && settings.isFloatingWindowEnabled
             else -> false
         }
     }
@@ -289,127 +362,240 @@ class TextAccessibilityService : AccessibilityService() {
             return super.onKeyEvent(event)
         }
 
-        val longPressAction = currentSettings.volumeUpLongPressAction.coerceIn(1, 3)
-        val shouldHandleLongPress = shouldFilterVolumeUpKeys()
+        val isVolumeUp = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP
+        val isVolumeDown = event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+        if (!isVolumeUp && !isVolumeDown) return super.onKeyEvent(event)
 
-        if (!shouldHandleLongPress) {
-            volumeLongPressJob?.cancel()
-            isLongPressTriggered = false
-            isVoiceCaptureTriggered = false
-            isVolumeUpPressed = false
+        val enabled = if (isVolumeUp) shouldFilterVolumeUpKeys() else shouldFilterVolumeDownKeys()
+        val doubleTapEnabled = if (isVolumeUp) shouldFilterVolumeUpDoubleTap() else shouldFilterVolumeDownDoubleTap()
+        if (!enabled && !doubleTapEnabled) {
+            cancelVolumeLongPressState()
             return false
         }
+
+        val longPressAction = (if (isVolumeUp) currentSettings.volumeUpLongPressAction
+            else currentSettings.volumeDownLongPressAction).coerceIn(0, 7)
+        val doubleTapAction = (if (isVolumeUp) currentSettings.volumeUpDoubleTapAction
+            else currentSettings.volumeDownDoubleTapAction).coerceIn(0, 7)
+        val keyLabel = if (isVolumeUp) "音量+" else "音量−"
 
         if (FloatingScheduleService.isShowing && longPressAction == ACTION_VOLUME_LONG_PRESS_SCREENSHOT) {
-            Log.d(TAG, "悬浮窗已显示，识屏长按放行")
+            Log.d(TAG, "悬浮窗已显示，$keyLabel 识屏长按放行")
             return false
         }
 
-        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            when (event.action) {
-                KeyEvent.ACTION_DOWN -> {
-                    if (event.repeatCount > 0) {
-                        return true
-                    }
-
-                    isVolumeUpPressed = true
-                    isLongPressTriggered = false
-                    isVoiceCaptureTriggered = false
-                    volumeLongPressJob?.cancel()
-
-                    volumeLongPressJob = serviceScope.launch {
-                        delay(LONG_PRESS_THRESHOLD)
-                        isLongPressTriggered = true
-                        val actionLabel = when (longPressAction) {
-                            ACTION_VOLUME_LONG_PRESS_SCREENSHOT -> "识屏"
-                            ACTION_VOLUME_LONG_PRESS_FLOATING -> "悬浮窗"
-                            ACTION_VOLUME_LONG_PRESS_VOICE -> "语音"
-                            else -> "无操作"
-                        }
-                        Log.d(TAG, "长按音量+ 已确认，触发 $actionLabel")
-
-                        performHapticFeedback()
-
-                        when (longPressAction) {
-                            ACTION_VOLUME_LONG_PRESS_SCREENSHOT -> {
-                                startAnalysis(MySettings.normalizeScreenshotDelayMs(currentSettings.screenshotDelayMs).milliseconds)
-                            }
-                            ACTION_VOLUME_LONG_PRESS_FLOATING -> {
-                                if (FloatingScheduleService.isShowing) {
-                                    if (currentSettings.voiceInputEnabled && currentSettings.floatingVoiceLongPressEnabled) {
-                                        isVoiceCaptureTriggered = true
-                                        startVoiceCaptureService()
-                                    }
-                                } else {
-                                    startFloatingService()
-                                    serviceScope.launch {
-                                        delay(240)
-                                        if (
-                                            isVolumeUpPressed &&
-                                            currentSettings.voiceInputEnabled &&
-                                            currentSettings.floatingVoiceLongPressEnabled
-                                        ) {
-                                            isVoiceCaptureTriggered = true
-                                            startVoiceCaptureService()
-                                        }
-                                    }
-                                }
-                            }
-                            ACTION_VOLUME_LONG_PRESS_VOICE -> {
-                                if (FloatingScheduleService.isShowing && !currentSettings.floatingVoiceLongPressEnabled) {
-                                    Log.d(TAG, "悬浮窗长按随口记已关闭，忽略音量+语音触发")
-                                    return@launch
-                                }
-                                isVoiceCaptureTriggered = true
-                                startVoiceCaptureService()
-                            }
-                        }
-                    }
-
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                if (event.repeatCount > 0) {
+                    // 双击占用整键时，系统收不到 DOWN，按住连调由应用代调
+                    if (doubleTapEnabled && repeatVolumeJob == null) startVolumeRepeat(isVolumeUp)
                     return true
                 }
 
-                KeyEvent.ACTION_UP -> {
-                    isVolumeUpPressed = false
-                    volumeLongPressJob?.cancel()
+                if (isVolumeUp) isVolumeUpPressed = true else isVolumeDownPressed = true
+                isLongPressTriggered = false
+                isVoiceCaptureTriggered = false
+                volumeLongPressJob?.cancel()
 
-                    if (isLongPressTriggered) {
-                        Log.d(TAG, "音量+ 抬起 (长按处理完毕)")
-                        if (isVoiceCaptureTriggered) {
-                            stopVoiceCaptureService()
-                        }
+                // 双击判定：与上一次 UP 间隔在窗口内、且同键 → 消费掉待执行的单击
+                // lastUpAt 为 0（从未按过）时直接视为非双击，避免 Long 减法溢出
+                val now = SystemClock.uptimeMillis()
+                val isDoubleTap = doubleTapEnabled &&
+                    lastUpAt != 0L &&
+                    lastUpKeyCode == event.keyCode &&
+                    now - lastUpAt <= DOUBLE_TAP_WINDOW_MS &&
+                    pendingSingleTapJob?.isActive == true
+
+                if (isDoubleTap) {
+                    pendingSingleTapJob?.cancel()
+                    pendingSingleTapJob = null
+                    lastUpAt = 0L
+                    lastUpKeyCode = 0
+                    doubleTapJustFired = true
+                    Log.d(TAG, "$keyLabel 双击触发（动作$doubleTapAction）")
+                    performHapticFeedback()
+                    serviceScope.launch { executeLongPressAction(doubleTapAction, currentSettings, keyLabel) }
+                    return true
+                }
+
+                volumeLongPressJob = serviceScope.launch {
+                    delay(LONG_PRESS_THRESHOLD)
+                    isLongPressTriggered = true
+                    val actionLabel = when (longPressAction) {
+                        ACTION_VOLUME_LONG_PRESS_SCREENSHOT -> "识屏"
+                        ACTION_VOLUME_LONG_PRESS_FLOATING -> "悬浮窗"
+                        ACTION_VOLUME_LONG_PRESS_VOICE -> "语音"
+                        ACTION_VOLUME_LONG_PRESS_QUICK_RECORD -> "快速录音"
+                        ACTION_VOLUME_LONG_PRESS_IN_APP_NOTE -> "App内笔记"
+                        ACTION_VOLUME_LONG_PRESS_FLOATING_NOTE -> "悬浮窗笔记"
+                        ACTION_VOLUME_LONG_PRESS_PTT_RECORD -> "按住说话"
+                        else -> "无操作"
+                    }
+                    Log.d(TAG, "长按$keyLabel 已确认，触发 $actionLabel")
+
+                    performHapticFeedback()
+                    executeLongPressAction(longPressAction, currentSettings, keyLabel)
+                }
+                return true
+            }
+
+            KeyEvent.ACTION_UP -> {
+                if (isVolumeUp) isVolumeUpPressed = false else isVolumeDownPressed = false
+                volumeLongPressJob?.cancel()
+                stopVolumeRepeat()
+
+                if (isLongPressTriggered) {
+                    Log.d(TAG, "$keyLabel 抬起 (长按处理完毕)")
+                    if (isVoiceCaptureTriggered) stopVoiceCaptureService()
+                    if (isInAppVoiceTriggered) VoiceCaptureHandleActivity.stopActiveCapture()
+                } else if (doubleTapEnabled) {
+                    // 双击占用整键：先挂起单击补调，等 300ms 确认无第二击再补。
+                    // 刚被双击消费过的抬起不再补调，否则双击触发动作的同时音量会多跳一下。
+                    if (doubleTapJustFired) {
+                        doubleTapJustFired = false
+                        Log.d(TAG, "$keyLabel 双击后的抬起，不补调音量")
                     } else {
-                        Log.d(TAG, "音量+ 抬起 (短按)，模拟系统音量增加")
-                        try {
-                            audioManager.adjustSuggestedStreamVolume(
-                                AudioManager.ADJUST_RAISE,
-                                AudioManager.USE_DEFAULT_STREAM_TYPE,
-                                AudioManager.FLAG_SHOW_UI
-                            )
-                        } catch (e: Exception) {
-                            Log.e(TAG, "模拟调节音量失败", e)
+                        lastUpAt = SystemClock.uptimeMillis()
+                        lastUpKeyCode = event.keyCode
+                        pendingSingleTapJob?.cancel()
+                        pendingSingleTapJob = serviceScope.launch {
+                            delay(DOUBLE_TAP_WINDOW_MS)
+                            Log.d(TAG, "$keyLabel 单点（无第二击），模拟音量调节")
+                            try {
+                                audioManager.adjustSuggestedStreamVolume(
+                                    if (isVolumeUp) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+                                    AudioManager.USE_DEFAULT_STREAM_TYPE,
+                                    AudioManager.FLAG_SHOW_UI
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "模拟调节音量失败", e)
+                            }
                         }
                     }
-
-                    isLongPressTriggered = false
-                    isVoiceCaptureTriggered = false
-                    return true
-                }
-
-                else -> {
-                    isVolumeUpPressed = false
-                    volumeLongPressJob?.cancel()
-                    if (isVoiceCaptureTriggered) {
-                        stopVoiceCaptureService()
+                } else {
+                    Log.d(TAG, "$keyLabel 抬起 (短按)，模拟系统音量调节")
+                    try {
+                        audioManager.adjustSuggestedStreamVolume(
+                            if (isVolumeUp) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+                            AudioManager.USE_DEFAULT_STREAM_TYPE,
+                            AudioManager.FLAG_SHOW_UI
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "模拟调节音量失败", e)
                     }
-                    isLongPressTriggered = false
-                    isVoiceCaptureTriggered = false
-                    return true
                 }
+
+                isLongPressTriggered = false
+                isVoiceCaptureTriggered = false
+                isInAppVoiceTriggered = false
+                return true
+            }
+
+            else -> {
+                cancelVolumeLongPressState()
+                return true
             }
         }
+    }
 
-        return super.onKeyEvent(event)
+    /** 长按确认后的动作分发；音量+ 与音量− 共用。 */
+    private suspend fun executeLongPressAction(
+        longPressAction: Int,
+        currentSettings: MySettings,
+        keyLabel: String
+    ) {
+        when (longPressAction) {
+            ACTION_VOLUME_LONG_PRESS_SCREENSHOT -> {
+                startAnalysis(MySettings.normalizeScreenshotDelayMs(currentSettings.screenshotDelayMs).milliseconds)
+            }
+            ACTION_VOLUME_LONG_PRESS_FLOATING -> {
+                // toggle 语义（对齐声物记 showOverlay）：
+                // 已显示 -> 立即隐藏；未显示 -> 显示并自动展开面板。
+                if (FloatingScheduleService.isShowing) {
+                    floatingCenter.hideFloatingService()
+                } else {
+                    startFloatingService()
+                }
+            }
+            ACTION_VOLUME_LONG_PRESS_VOICE -> {
+                if (FloatingScheduleService.isShowing && !currentSettings.floatingVoiceLongPressEnabled) {
+                    Log.d(TAG, "悬浮窗长按闪记已关闭，忽略$keyLabel 语音触发")
+                    return
+                }
+                // 悬浮窗录音为开关制：录音中再触发即停止，避免与「按住说话」的松手停录语义重叠
+                if (QuickMemoVoiceCaptureService.instance?.isCapturingNow() == true ||
+                    FloatingScheduleService.instance?.isCapturingNow() == true) {
+                    stopVoiceCaptureService()
+                } else {
+                    startVoiceCaptureService()
+                }
+            }
+            ACTION_VOLUME_LONG_PRESS_QUICK_RECORD -> {
+                isInAppVoiceTriggered = true
+                launchInAppVoiceCapture()
+            }
+            ACTION_VOLUME_LONG_PRESS_IN_APP_NOTE -> {
+                openInAppQuickMemo()
+            }
+            ACTION_VOLUME_LONG_PRESS_FLOATING_NOTE -> {
+                startFloatingService()
+            }
+            ACTION_VOLUME_LONG_PRESS_PTT_RECORD -> {
+                if (FloatingScheduleService.isShowing && !currentSettings.floatingVoiceLongPressEnabled) {
+                    Log.d(TAG, "悬浮窗长按闪记已关闭，忽略$keyLabel 按住说话")
+                    return
+                }
+                isVoiceCaptureTriggered = true
+                startVoiceCaptureService()
+            }
+        }
+    }
+
+    /** 拉起 App 内全屏录音页；松手时由 onKeyEvent 的 ACTION_UP 停录。 */
+    private fun launchInAppVoiceCapture() {
+        if (!settingsQueryApi.settings.value.voiceInputEnabled) {
+            Log.w(TAG, "闪记未开启，无法启动 App 内录音")
+            showResultNotification("闪记未开启", "请先在实验室中开启闪记")
+            return
+        }
+        try {
+            VoiceCaptureHandleActivity.prepareForLaunch()
+            startActivity(
+                Intent(this, VoiceCaptureHandleActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "启动 App 内录音页失败", e)
+        }
+    }
+
+    /** 拉起主 App 并切到闪记入口，供用户在 App 内新建笔记。 */
+    private fun openInAppQuickMemo() {
+        try {
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra(MainActivity.EXTRA_OPEN_QUICK_MEMO, true)
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "拉起 App 内闪记失败", e)
+        }
+    }
+
+    private fun cancelVolumeLongPressState() {
+        volumeLongPressJob?.cancel()
+        isLongPressTriggered = false
+        isVoiceCaptureTriggered = false
+        isInAppVoiceTriggered = false
+        isVolumeUpPressed = false
+        isVolumeDownPressed = false
+        pendingSingleTapJob?.cancel()
+        pendingSingleTapJob = null
+        stopVolumeRepeat()
+        lastUpAt = 0L
+        lastUpKeyCode = 0
     }
 
     private fun performHapticFeedback() {
@@ -445,12 +631,12 @@ class TextAccessibilityService : AccessibilityService() {
 
     private fun startVoiceCaptureService() {
         if (!settingsQueryApi.settings.value.voiceInputEnabled) {
-            Log.w(TAG, "随口记未开启，无法启动随口记录音")
-            showResultNotification("随口记未开启", "请先在实验室中开启随口记")
+            Log.w(TAG, "闪记未开启，无法启动闪记录音")
+            showResultNotification("闪记未开启", "请先在实验室中开启闪记")
             return
         }
         if (!floatingCenter.canDrawOverlays(this)) {
-            Log.w(TAG, "悬浮窗权限未授予，无法启动随口记录音")
+            Log.w(TAG, "悬浮窗权限未授予，无法启动闪记录音")
             app.notificationCenter.showFloatingPermissionDeniedNotification(NOTIFICATION_ID_RESULT)
             return
         }

@@ -2,7 +2,6 @@ package com.antgskds.calendarassistant.feature.weather.ui.connector
 
 import com.antgskds.calendarassistant.shared.ui.material.component.LocalAppPageBottomPadding
 import com.antgskds.calendarassistant.shared.ui.edition.EditionCategoricalPreference
-import com.antgskds.calendarassistant.shared.ui.edition.EditionOptionalCategoricalSettingItem
 
 import com.antgskds.calendarassistant.shared.ui.material.settings.*
 import android.Manifest
@@ -133,14 +132,13 @@ fun WeatherSettingsPage(
             viewModel.updateWeatherSettings(
                 enabled = draft.weatherEnabled, provider = draft.weatherProvider,
                 apiUrl = draft.weatherApiUrl, apiKey = draft.weatherApiKey,
-                refreshInterval = draft.weatherRefreshInterval, showInFloating = draft.showWeatherInFloating,
+                refreshInterval = draft.weatherRefreshInterval,
                 locationMode = draft.weatherLocationMode, manualLocationId = draft.weatherManualLocationId,
                 manualLocationName = draft.weatherManualLocationName, manualAdm1 = draft.weatherManualAdm1,
                 manualAdm2 = draft.weatherManualAdm2, manualCountry = draft.weatherManualCountry,
                 manualLat = draft.weatherManualLat, manualLon = draft.weatherManualLon,
                 warningEnabled = draft.weatherWarningEnabled, riskWarningEnabled = draft.weatherRiskWarningEnabled,
-                warningLookaheadHours = draft.weatherWarningLookaheadHours,
-                floatingWeatherForecastRange = draft.floatingWeatherForecastRange
+                warningLookaheadHours = draft.weatherWarningLookaheadHours
             )
             WeatherSyncWorker.syncForSettings(appContext, draft)
         },
@@ -234,10 +232,6 @@ fun MaterialWeatherSettingsScreen(
     }
     var refreshInterval by remember(settings.weatherRefreshInterval) {
         mutableIntStateOf(WeatherRepository.normalizeRefreshIntervalMinutes(settings.weatherRefreshInterval))
-    }
-    var showInFloating by remember(settings.showWeatherInFloating) { mutableStateOf(settings.showWeatherInFloating) }
-    var floatingWeatherRange by remember(settings.floatingWeatherForecastRange) {
-        mutableIntStateOf(settings.floatingWeatherForecastRange.coerceIn(0, 2))
     }
     var warningEnabled by remember(settings.weatherWarningEnabled) { mutableStateOf(settings.weatherWarningEnabled) }
     var riskWarningEnabled by remember(settings.weatherRiskWarningEnabled) { mutableStateOf(settings.weatherRiskWarningEnabled) }
@@ -368,8 +362,6 @@ fun MaterialWeatherSettingsScreen(
             weatherRiskWarningEnabled = riskWarningEnabled,
             weatherWarningLookaheadHours = warningLookaheadHours.coerceIn(1, 168),
             weatherRefreshInterval = WeatherRepository.normalizeRefreshIntervalMinutes(refreshInterval),
-            showWeatherInFloating = showInFloating,
-            floatingWeatherForecastRange = floatingWeatherRange.coerceIn(0, 2)
         )
     }
 
@@ -408,16 +400,12 @@ fun MaterialWeatherSettingsScreen(
 
     fun persistDisplaySettings(
         nextRefreshInterval: Int = refreshInterval,
-        nextShowInFloating: Boolean = showInFloating,
-        nextFloatingWeatherRange: Int = floatingWeatherRange,
         nextWarningEnabled: Boolean = warningEnabled,
         nextRiskWarningEnabled: Boolean = riskWarningEnabled,
         nextWarningLookaheadHours: Int = warningLookaheadHours,
     ) {
         val displayDraft = settings.copy(
             weatherRefreshInterval = WeatherRepository.normalizeRefreshIntervalMinutes(nextRefreshInterval),
-            showWeatherInFloating = nextShowInFloating,
-            floatingWeatherForecastRange = nextFloatingWeatherRange.coerceIn(0, 2),
             weatherWarningEnabled = nextWarningEnabled,
             weatherRiskWarningEnabled = nextRiskWarningEnabled,
             weatherWarningLookaheadHours = nextWarningLookaheadHours.coerceIn(1, 168),
@@ -438,7 +426,7 @@ fun MaterialWeatherSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 18.dp, vertical = 8.dp)
                 .padding(bottom = 120.dp + bottomInset),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -664,29 +652,6 @@ fun MaterialWeatherSettingsScreen(
                         titleTextStyle = cardTitleStyle,
                         summaryTextStyle = cardSubtitleStyle,
                         valueTextStyle = cardValueStyle,
-                    )
-
-                    AppSettingsDivider()
-
-                    EditionOptionalCategoricalSettingItem(
-                        title = "悬浮窗显示天气",
-                        subtitle = "在悬浮窗顶部显示天气摘要卡片",
-                        checked = showInFloating,
-                        onCheckedChange = {
-                            showInFloating = it
-                            persistDisplaySettings(nextShowInFloating = it)
-                        },
-                        optionTitle = "悬浮窗天气范围",
-                        optionSummary = floatingWeatherRangeLabel(floatingWeatherRange),
-                        options = listOf("24小时", "3天", "5天"),
-                        selectedIndex = floatingWeatherRange.coerceIn(0, 2),
-                        onSelectedIndexChange = {
-                            floatingWeatherRange = it
-                            persistDisplaySettings(nextFloatingWeatherRange = it)
-                        },
-                        cardTitleStyle = cardTitleStyle,
-                        cardSubtitleStyle = cardSubtitleStyle,
-                        cardValueStyle = cardValueStyle,
                     )
 
                     AppSettingsDivider()
@@ -1247,14 +1212,6 @@ private fun normalizeWeatherLocationMode(mode: String): String {
     return when (mode) {
         WeatherRepository.LOCATION_MODE_MANUAL -> WeatherRepository.LOCATION_MODE_MANUAL
         else -> WeatherRepository.LOCATION_MODE_AUTO
-    }
-}
-
-private fun floatingWeatherRangeLabel(range: Int): String {
-    return when (range.coerceIn(0, 2)) {
-        0 -> "展开后显示未来 24 小时天气"
-        1 -> "展开后显示未来 3 天天气"
-        else -> "展开后显示未来 5 天天气"
     }
 }
 

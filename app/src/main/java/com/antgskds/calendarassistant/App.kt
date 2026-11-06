@@ -95,6 +95,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 
 class App : Application() {
@@ -104,7 +105,8 @@ class App : Application() {
         const val CHANNEL_ID_LIVE = "calendar_assistant_live_channel_v3"
         const val CHANNEL_ID_WEATHER = "calendar_assistant_weather_channel_v1"
         const val CHANNEL_ID_BRACELET = "calendar_assistant_bracelet_channel_v1"
-        const val CHANNEL_ID_VOICE_CAPTURE = "calendar_assistant_voice_capture_v1"
+        // 渠道名只在创建时生效一次，改名必须换 id 才会重建，否则老用户仍看到旧名。
+        const val CHANNEL_ID_VOICE_CAPTURE = "calendar_assistant_voice_capture_v2"
         private const val TAG = "App"
         lateinit var instance: App
             private set
@@ -144,7 +146,7 @@ class App : Application() {
     /**
      * 全应用共享的语音转写器。
      *
-     * 随口记语音、随手记语音、日程页「语音识别」都用同一套 ASR：模型常驻内存、
+     * 闪记语音、随手记语音、日程页「语音识别」都用同一套 ASR：模型常驻内存、
      * 加载代价高，而 [SherpaParaformerTranscriber] 内部已缓存 recognizer 并用锁
      * 保护并发调用，所以全应用只保留一个实例，不再各自新建一份。
      */
@@ -160,12 +162,6 @@ class App : Application() {
         NoteService(
             repository = noteRepository,
             appScope = appScope,
-            // 闪记语音转写复用速记的 ASR；转写结果落 notes 表且不触发日程建议。
-            speechTranscriber = speechTranscriber,
-            // 随手记的「上实况通知」走胶囊命令口；与随口记共用同一套胶囊状态管理器。
-            capsuleCommandApi = capsuleCommandApi,
-            // 新建随手记时据此决定摘要段落落 PENDING（排队生成）还是 SKIPPED（不生成）。
-            settingsQueryApi = settingsQueryApi
         )
     }
 
@@ -567,7 +563,7 @@ class App : Application() {
         // 注册内容源
         ContentRegistry.register(ContentDefinition(ContentSourceType.SCHEDULE, "日程", true, true))
         ContentRegistry.register(ContentDefinition(ContentSourceType.WEATHER, "天气", true, true))
-        ContentRegistry.register(ContentDefinition(ContentSourceType.VOICE_CAPTURE, "随口记", true, false))
+        ContentRegistry.register(ContentDefinition(ContentSourceType.VOICE_CAPTURE, "闪记", true, false))
         ContentRegistry.register(ContentDefinition(ContentSourceType.IMAGE_SHARE, "图片分享", false, false))
 
         // CalDAVUpdateListener 通过 JobScheduler 自动监听系统日历变化
@@ -592,6 +588,15 @@ class App : Application() {
                 .collect { WebDavSyncV2Worker.scheduleForSettings(applicationContext, settingsRepository.settingsFlow.value) }
         }
         AppLogger.i(TAG, "main app routines started")
+        // 电脑访问服务冷启动恢复：上次开着就静默拉起（延迟等启动热路径跑完）
+        appScope.launch {
+            kotlinx.coroutines.delay(1500)
+            runCatching {
+                com.antgskds.calendarassistant.platform.web.QuickMemoWebController
+                    .get(applicationContext)
+                    .autoStartIfEnabled()
+            }.onFailure { AppLogger.w(TAG, "电脑访问服务自动恢复失败", it) }
+        }
     }
 
     private fun currentProcessName(): String? {
@@ -620,7 +625,7 @@ class App : Application() {
             }
             val voiceCaptureChannel = NotificationChannel(
                 CHANNEL_ID_VOICE_CAPTURE,
-                "随口记录音服务",
+                "闪记录音服务",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "后台录音时 Android 要求保留的运行状态"
@@ -632,6 +637,36 @@ class App : Application() {
             notificationManager.createNotificationChannels(
                 listOf(popupChannel, liveChannel, weatherChannel, braceletChannel, voiceCaptureChannel)
             )
+        }
+    }
+
+    /**
+     * 系统分享/选取文字入口：识别为链接则按平台归类收藏，否则存为普通闪记。
+     *
+     * 分享接收页会立即 finish，保存放在 appScope 里，不随页面销毁取消。
+     */
+    fun saveSharedTextToQuickMemo(text: String) {
+        appScope.launch {
+            val link = com.antgskds.calendarassistant.feature.quickmemo.domain.QuickMemoLinkParser.parse(text)
+            val message = try {
+                if (link != null) {
+                    quickMemoCenter.createLinkMemo(link)
+                } else {
+                    quickMemoCenter.createTextMemo(text)
+                }
+                "已保存到闪记"
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                "保存失败，请重新分享"
+            }
+            withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    applicationContext,
+                    message,
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 

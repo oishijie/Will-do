@@ -325,12 +325,10 @@ fun OnboardingGuidePage(
         enabled: Boolean = settings.weatherEnabled,
         warningEnabled: Boolean = settings.weatherWarningEnabled,
         riskWarningEnabled: Boolean = settings.weatherRiskWarningEnabled,
-        showInFloating: Boolean = settings.showWeatherInFloating,
         apiUrl: String = settings.weatherApiUrl,
         apiKey: String = settings.weatherApiKey,
         refreshInterval: Int = settings.weatherRefreshInterval,
         warningLookaheadHours: Int = settings.weatherWarningLookaheadHours,
-        floatingWeatherForecastRange: Int = settings.floatingWeatherForecastRange,
     ) {
         settingsViewModel.updateWeatherSettings(
             enabled = enabled,
@@ -338,7 +336,6 @@ fun OnboardingGuidePage(
             apiUrl = apiUrl,
             apiKey = apiKey,
             refreshInterval = refreshInterval,
-            showInFloating = showInFloating,
             locationMode = settings.weatherLocationMode,
             manualLocationId = settings.weatherManualLocationId,
             manualLocationName = settings.weatherManualLocationName,
@@ -350,7 +347,6 @@ fun OnboardingGuidePage(
             warningEnabled = warningEnabled,
             riskWarningEnabled = riskWarningEnabled,
             warningLookaheadHours = warningLookaheadHours,
-            floatingWeatherForecastRange = floatingWeatherForecastRange,
         )
     }
 
@@ -1057,12 +1053,6 @@ private fun FloatingQuickMemoConfigStep(
     onOpenPermission: (PermissionKey) -> Unit,
     onFloatingEventRangeChange: (Int) -> Unit,
     onFloatingExpandSideChange: (String) -> Unit,
-    onEdgeBarEnabledChange: (Boolean) -> Unit,
-    onEdgeBarHeightChange: (Int) -> Unit,
-    onEdgeBarAlphaChange: (Float) -> Unit,
-    onFloatingBallEnabledChange: (Boolean) -> Unit,
-    onFloatingBallSizeChange: (Int) -> Unit,
-    onFloatingBallAlphaChange: (Float) -> Unit,
     onFloatingTextQuickMemoAutoPinChange: (Boolean) -> Unit,
     onVoiceQuickMemoAutoPinChange: (Boolean) -> Unit,
 ) {
@@ -1105,8 +1095,8 @@ private fun FloatingQuickMemoConfigStep(
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             SwitchSettingItem(
-                title = "随口记",
-                subtitle = "文字/语音随口记入口",
+                title = "闪记",
+                subtitle = "文字/语音闪记入口",
                 checked = settings.voiceInputEnabled,
                 onCheckedChange = { onFeatureChange(FeatureKey.QUICK_MEMO, it) },
                 cardTitleStyle = cardTitleStyle,
@@ -1116,101 +1106,8 @@ private fun FloatingQuickMemoConfigStep(
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             SwitchSettingItem(
-                title = "侧边栏",
-                subtitle = "屏幕边缘滑动呼出悬浮入口",
-                checked = settings.edgeBarEnabled,
-                onCheckedChange = onEdgeBarEnabledChange,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                enabled = snapshot.overlay && (settings.isFloatingWindowEnabled || settings.voiceInputEnabled),
-                onDisabledClick = if (snapshot.overlay) null else ({ onOpenPermission(PermissionKey.OVERLAY) }),
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            EditionCategoricalPreference(
-                title = "展开方向",
-                summary = "悬浮窗从哪一侧滑入",
-                options = listOf("左侧", "右侧"),
-                selectedIndex = if (settings.floatingExpandSide == "RIGHT") 1 else 0,
-                onSelectedIndexChange = { onFloatingExpandSideChange(if (it == 1) "RIGHT" else "LEFT") },
-                enabled = settings.isFloatingWindowEnabled || settings.voiceInputEnabled,
-                titleTextStyle = cardTitleStyle,
-                summaryTextStyle = cardSubtitleStyle,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            SliderSettingItem(
-                title = "侧栏高度",
-                subtitle = "调整侧边栏触发区域高度",
-                value = settings.edgeBarHeightDp.toFloat(),
-                onValueChange = { onEdgeBarHeightChange(it.roundToInt()) },
-                valueRange = 80f..220f,
-                steps = 13,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-                showValueAsNumber = true,
-                valueUnit = " dp",
-                enabled = settings.edgeBarEnabled,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            SliderSettingItem(
-                title = "侧栏透明",
-                subtitle = "调整侧边栏可见程度",
-                value = settings.edgeBarAlpha * 100f,
-                onValueChange = { onEdgeBarAlphaChange((it / 100f).coerceIn(0.1f, 1f)) },
-                valueRange = 10f..100f,
-                steps = 8,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-                showValueAsNumber = true,
-                valueUnit = "%",
-                enabled = settings.edgeBarEnabled,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            SwitchSettingItem(
-                title = "悬浮球",
-                subtitle = "桌面常驻圆形快捷入口",
-                checked = settings.floatingBallEnabled,
-                onCheckedChange = onFloatingBallEnabledChange,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                enabled = snapshot.overlay && (settings.isFloatingWindowEnabled || settings.voiceInputEnabled),
-                onDisabledClick = if (snapshot.overlay) null else ({ onOpenPermission(PermissionKey.OVERLAY) }),
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            SliderSettingItem(
-                title = "悬浮球大小",
-                subtitle = "调整悬浮球显示尺寸",
-                value = settings.floatingBallSizeDp.toFloat(),
-                onValueChange = { onFloatingBallSizeChange(it.roundToInt()) },
-                valueRange = 40f..80f,
-                steps = 7,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-                showValueAsNumber = true,
-                valueUnit = " dp",
-                enabled = settings.floatingBallEnabled,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            SliderSettingItem(
-                title = "悬浮球透明",
-                subtitle = "调整悬浮球可见程度",
-                value = settings.floatingBallAlpha * 100f,
-                onValueChange = { onFloatingBallAlphaChange((it / 100f).coerceIn(0.1f, 1f)) },
-                valueRange = 10f..100f,
-                steps = 8,
-                cardTitleStyle = cardTitleStyle,
-                cardSubtitleStyle = cardSubtitleStyle,
-                cardValueStyle = cardValueStyle,
-                showValueAsNumber = true,
-                valueUnit = "%",
-                enabled = settings.floatingBallEnabled,
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            SwitchSettingItem(
                 title = "文本挂起",
-                subtitle = "文本随口记保存后同步挂到实况通知",
+                subtitle = "文本闪记保存后同步挂到实况通知",
                 checked = settings.floatingTextQuickMemoAutoPinEnabled,
                 onCheckedChange = onFloatingTextQuickMemoAutoPinChange,
                 cardTitleStyle = cardTitleStyle,
@@ -1220,7 +1117,7 @@ private fun FloatingQuickMemoConfigStep(
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             SwitchSettingItem(
                 title = "语音挂起",
-                subtitle = "语音随口记转写完成后同步挂到实况通知",
+                subtitle = "语音闪记转写完成后同步挂到实况通知",
                 checked = settings.voiceQuickMemoAutoPinEnabled,
                 onCheckedChange = onVoiceQuickMemoAutoPinChange,
                 cardTitleStyle = cardTitleStyle,
@@ -1230,7 +1127,7 @@ private fun FloatingQuickMemoConfigStep(
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             SwitchSettingItem(
                 title = "音量键快捷",
-                subtitle = "通过无障碍监听音量键长按触发随口记",
+                subtitle = "通过无障碍监听音量键长按触发闪记",
                 checked = settings.volumeUpLongPressEnabled,
                 onCheckedChange = { onFeatureChange(FeatureKey.VOLUME_SHORTCUT, it) },
                 cardTitleStyle = cardTitleStyle,
@@ -1248,10 +1145,8 @@ private fun WeatherConfigStep(
     snapshot: PermissionSnapshot,
     onWeatherEnabledChange: (Boolean) -> Unit,
     onWeatherWarningChange: (Boolean) -> Unit,
-    onShowInFloatingChange: (Boolean) -> Unit,
     onRefreshIntervalChange: (Int) -> Unit,
     onWarningLookaheadChange: (Int) -> Unit,
-    onFloatingForecastRangeChange: (Int) -> Unit,
     onSaveWeatherConfig: (String, String) -> Unit,
     onRequestLocationPermission: () -> Unit,
 ) {
@@ -1290,16 +1185,6 @@ private fun WeatherConfigStep(
                     enabled = settings.weatherEnabled,
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                SwitchSettingItem(
-                    title = "悬浮窗显示天气",
-                    subtitle = "在悬浮窗内显示天气信息",
-                    checked = settings.showWeatherInFloating,
-                    onCheckedChange = onShowInFloatingChange,
-                    cardTitleStyle = cardTitleStyle,
-                    cardSubtitleStyle = cardSubtitleStyle,
-                    enabled = settings.weatherEnabled,
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 SliderSettingItem(
                     title = "刷新间隔",
                     subtitle = "天气数据自动刷新频率",
@@ -1328,18 +1213,6 @@ private fun WeatherConfigStep(
                     showValueAsNumber = true,
                     valueUnit = " 小时",
                     enabled = settings.weatherEnabled && (settings.weatherWarningEnabled || settings.weatherRiskWarningEnabled),
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                EditionCategoricalPreference(
-                    title = "预测范围",
-                    summary = floatingWeatherForecastRangeLabel(settings.floatingWeatherForecastRange),
-                    options = listOf("24小时", "3天", "5天"),
-                    selectedIndex = settings.floatingWeatherForecastRange.coerceIn(0, 2),
-                    onSelectedIndexChange = onFloatingForecastRangeChange,
-                    enabled = settings.weatherEnabled && settings.showWeatherInFloating,
-                    titleTextStyle = cardTitleStyle,
-                    summaryTextStyle = cardSubtitleStyle,
-                    valueTextStyle = cardValueStyle,
                 )
             }
         }
@@ -1565,12 +1438,6 @@ private fun floatingEventRangeLabel(range: Int): String = when (range.coerceIn(0
     else -> "今日和明日"
 }
 
-private fun floatingWeatherForecastRangeLabel(range: Int): String = when (range.coerceIn(0, 2)) {
-    0 -> "当前天气"
-    1 -> "今日预测"
-    else -> "今日和明日"
-}
-
 private fun onboardingPermissionItems(snapshot: PermissionSnapshot): List<PermissionItem> = listOf(
     PermissionItem(PermissionKey.NOTIFICATION, "基础权限", "通知权限", "普通提醒、每日提醒、天气提醒和手环模式依赖它", RequirementLevel.REQUIRED, snapshot.notification, "去授权"),
     PermissionItem(
@@ -1587,9 +1454,9 @@ private fun onboardingPermissionItems(snapshot: PermissionSnapshot): List<Permis
             PermissionUiState.SYSTEM_ALLOWED
         },
     ),
-    PermissionItem(PermissionKey.OVERLAY, "随口记与悬浮窗", "悬浮窗权限", "悬浮窗、悬浮球、侧边栏和浮窗随口记依赖它", RequirementLevel.REQUIRED, snapshot.overlay, "去授权"),
-    PermissionItem(PermissionKey.MICROPHONE, "随口记与悬浮窗", "麦克风权限", "语音随口记、录音和转写前录音依赖它", RequirementLevel.REQUIRED, snapshot.microphone, "去授权"),
-    PermissionItem(PermissionKey.ACCESSIBILITY, "随口记与悬浮窗", "无障碍服务", "音量键长按、部分系统级快捷入口依赖它", RequirementLevel.REQUIRED, snapshot.accessibility, "去授权"),
+    PermissionItem(PermissionKey.OVERLAY, "闪记与悬浮窗", "悬浮窗权限", "悬浮窗、悬浮球、侧边栏和浮窗闪记依赖它", RequirementLevel.REQUIRED, snapshot.overlay, "去授权"),
+    PermissionItem(PermissionKey.MICROPHONE, "闪记与悬浮窗", "麦克风权限", "语音闪记、录音和转写前录音依赖它", RequirementLevel.REQUIRED, snapshot.microphone, "去授权"),
+    PermissionItem(PermissionKey.ACCESSIBILITY, "闪记与悬浮窗", "无障碍服务", "音量键长按、部分系统级快捷入口依赖它", RequirementLevel.REQUIRED, snapshot.accessibility, "去授权"),
     PermissionItem(PermissionKey.CALENDAR, "日程与提醒", "日历读写权限", "系统日历同步、导入后写入系统日历依赖它", RequirementLevel.RECOMMENDED, snapshot.calendar, "去授权"),
     PermissionItem(
         PermissionKey.EXACT_ALARM,
@@ -1611,7 +1478,7 @@ private fun onboardingPermissionItems(snapshot: PermissionSnapshot): List<Permis
 
 private fun onboardingFeatureItems(settings: MySettings, syncEnabled: Boolean, snapshot: PermissionSnapshot): List<FeatureItem> = listOf(
     FeatureItem(FeatureKey.FLOATING_WINDOW, "悬浮窗", "桌面悬浮窗、侧边栏、悬浮球入口", settings.isFloatingWindowEnabled, snapshot.overlay, "需要先开启悬浮窗权限"),
-    FeatureItem(FeatureKey.QUICK_MEMO, "随口记", "文字/语音随口记入口，语音能力需要麦克风", settings.voiceInputEnabled, snapshot.microphone && snapshot.overlay, "需要先开启麦克风权限和悬浮窗权限"),
+    FeatureItem(FeatureKey.QUICK_MEMO, "闪记", "文字/语音闪记入口，语音能力需要麦克风", settings.voiceInputEnabled, snapshot.microphone && snapshot.overlay, "需要先开启麦克风权限和悬浮窗权限"),
     FeatureItem(FeatureKey.LIVE_NOTIFICATION, "实况通知", "日程、识别、天气等以胶囊/灵动形态显示", settings.isLiveCapsuleEnabled, liveNotificationRequirementMet(snapshot), "需要先开启通知权限，并确认实况通知权限已开启"),
     FeatureItem(FeatureKey.DAILY_SUMMARY, "每日提醒", "今日提醒和明日预告", settings.isDailySummaryEnabled, snapshot.notification, "需要先开启通知权限"),
     FeatureItem(FeatureKey.CALENDAR_SYNC, "日历同步", "与系统日历同步日程", syncEnabled, snapshot.calendar, "需要先开启日历读写权限"),
@@ -1620,7 +1487,7 @@ private fun onboardingFeatureItems(settings: MySettings, syncEnabled: Boolean, s
     FeatureItem(FeatureKey.WEATHER_ALERT, "天气预警", "天气预警和风险提醒通知", settings.weatherWarningEnabled || settings.weatherRiskWarningEnabled, snapshot.notification && settings.weatherEnabled, "需要先开启通知权限和天气服务"),
     FeatureItem(FeatureKey.BRACELET_MODE, "手环模式", "开启后，将同步发送一条普通通知以同步到手环", settings.braceletModeEnabled, snapshot.notification, "需要先开启通知权限"),
     FeatureItem(FeatureKey.SMS_RECOGNITION, "短信识别", "短信取件码/验证码类识别，敏感功能默认关闭", settings.isSmsMonitoringEnabled, snapshot.sms, "需要先开启短信权限"),
-    FeatureItem(FeatureKey.VOLUME_SHORTCUT, "音量键快捷随口记", "通过无障碍监听音量键长按触发快捷功能", settings.volumeUpLongPressEnabled, snapshot.accessibility, "需要先开启无障碍服务"),
+    FeatureItem(FeatureKey.VOLUME_SHORTCUT, "音量键快捷闪记", "通过无障碍监听音量键长按触发快捷功能", settings.volumeUpLongPressEnabled, snapshot.accessibility, "需要先开启无障碍服务"),
 )
 
 private fun missingFeatureRequirement(featureKey: FeatureKey, snapshot: PermissionSnapshot): String? = when (featureKey) {
@@ -1914,15 +1781,15 @@ private enum class OnboardingStep(
 ) {
     PERMISSIONS(
         "配置基础权限",
-        "开启必要权限，确保随口记、提醒、日历同步和实况通知稳定运行。"
+        "开启必要权限，确保闪记、提醒、日历同步和实况通知稳定运行。"
     ),
     SCHEDULE_REMINDER(
         "日程和提醒",
         "配置每日提醒、提前提醒、日历同步、实况通知和手环模式。",
     ),
     FLOATING_QUICK_MEMO(
-        "悬浮窗和随口记",
-        "配置日程悬浮、随口记、音量键快捷和相关入口。",
+        "悬浮窗和闪记",
+        "配置日程悬浮、闪记、音量键快捷和相关入口。",
     ),
     MODEL(
         "模型与连接",
