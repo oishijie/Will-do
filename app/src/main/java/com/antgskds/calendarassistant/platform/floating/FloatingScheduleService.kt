@@ -809,11 +809,13 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                             onTimeConfirmed = { item, picked, enableAlarm ->
                                 createCapsuleAlarmAt(item.text, picked, enableAlarm)
                             },
-                            onCreateNote = { text ->
-                                serviceScope.launch {
-                                    runCatching { quickMemoCenter.createTextMemo(bodyText = text) }
-                                        .onFailure { Log.e(TAG, "新建闪记失败", it) }
-                                }
+                            onInputSubmit = { text, mode ->
+                                // 闪记存 quick_memos；日程走识别链路建日程。
+                                // 分发沿用已有的 handleManualInput，不再另写一套。
+                                handleManualInput(
+                                    text = text,
+                                    isQuickMemo = mode == com.antgskds.calendarassistant.platform.floating.capsule.FloatingInputMode.NOTE,
+                                )
                             },
                         )
                     } else if (edgeLineVisible) {

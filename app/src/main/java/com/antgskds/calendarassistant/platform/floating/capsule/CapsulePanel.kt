@@ -79,8 +79,8 @@ fun CapsulePanel(
     panelMaxCards: Int = OverlayConstants.PANEL_MAX_CARDS_DEFAULT,
     fontSizeStep: Int = 0,
     onDismiss: () -> Unit = {},
-    /** 顶部工具条的「+」新建完成：把输入的文字落成一条闪记。 */
-    onCreateNote: (String) -> Unit = {},
+    /** 顶部工具条的「+」新建完成：按当前输入模式落库（闪记存为闪记，日程走识别）。 */
+    onInputSubmit: (String, FloatingInputMode) -> Unit = { _, _ -> },
     /** 勾选/取消勾选卡片左侧的归档框。 */
     onCheckChange: (CapsuleItem, Boolean) -> Unit = { _, _ -> },
     /** 展开态点调色板换色。 */
@@ -113,6 +113,8 @@ fun CapsulePanel(
     // 新建输入栏：点「+」展开，提交后收起。不走 App 内页，保持悬浮窗不丢焦点。
     var noteInputVisible by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
+    // 输入模式：默认闪记（保持「+ 就是记闪记」的既有习惯），可点输入栏左侧图标切到日程。
+    var noteMode by remember { mutableStateOf(FloatingInputMode.NOTE) }
     // 日期时间选择浮层：点卡片的「闹钟」时先弹它，确认后才建日程。
     var timePickerItem by remember { mutableStateOf<CapsuleItem?>(null) }
 
@@ -252,12 +254,14 @@ fun CapsulePanel(
                 if (noteInputVisible) {
                     CapsuleNoteInput(
                         text = noteText,
+                        mode = noteMode,
                         fontSizeStep = fontSizeStep,
                         onTextChange = { noteText = it },
+                        onModeChange = { noteMode = it },
                         onSubmit = {
                             val trimmed = noteText.trim()
                             if (trimmed.isNotEmpty()) {
-                                onCreateNote(trimmed)
+                                onInputSubmit(trimmed, noteMode)
                                 noteText = ""
                                 noteInputVisible = false
                             }
@@ -388,10 +392,14 @@ fun CapsulePanel(
 @Composable
 private fun CapsuleNoteInput(
     text: String,
+    mode: FloatingInputMode,
     fontSizeStep: Int,
     onTextChange: (String) -> Unit,
+    onModeChange: (FloatingInputMode) -> Unit,
     onSubmit: () -> Unit,
 ) {
+    // 与「保存」同色的绿：模式图标沿用它在原版输入条里的选中色与浅底色。
+    val accent = Color(0xFF2E9F5C)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -400,6 +408,33 @@ private fun CapsuleNoteInput(
             .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // 左侧模式切换：点按在「闪记 / 日程」之间切换，图标与占位文字随之变化。
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(accent.copy(alpha = 0.15f), CircleShape)
+                .clickable {
+                    onModeChange(
+                        if (mode == FloatingInputMode.NOTE) FloatingInputMode.SCHEDULE
+                        else FloatingInputMode.NOTE
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(
+                painter = androidx.compose.ui.res.painterResource(
+                    id = if (mode == FloatingInputMode.NOTE) {
+                        com.antgskds.calendarassistant.R.drawable.ic_stat_quickmemo
+                    } else {
+                        com.antgskds.calendarassistant.R.drawable.ic_stat_event
+                    }
+                ),
+                contentDescription = if (mode == FloatingInputMode.NOTE) "闪记" else "日程",
+                tint = accent,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
         androidx.compose.foundation.text.BasicTextField(
             value = text,
             onValueChange = onTextChange,
@@ -413,7 +448,7 @@ private fun CapsuleNoteInput(
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (text.isEmpty()) {
                         Text(
-                            text = "记点什么…",
+                            text = if (mode == FloatingInputMode.NOTE) "记点什么…" else "一句话安排日程…",
                             style = androidx.compose.ui.text.TextStyle(
                                 fontSize = (13 + fontSizeStep).sp,
                                 color = Color(0xFF999999),
@@ -568,6 +603,9 @@ private fun CapsuleFooterButton(
         Text(text = label, style = TextStyle(fontSize = (12 + fontSizeStep).sp, color = tint))
     }
 }
+
+/** 输入模式：闪记（存 quick_memos）或日程（走识别建日程）。 */
+enum class FloatingInputMode { SCHEDULE, NOTE }
 
 /** 面板条目：闪记与日程统一成这一种形态。 */
 data class CapsuleItem(
