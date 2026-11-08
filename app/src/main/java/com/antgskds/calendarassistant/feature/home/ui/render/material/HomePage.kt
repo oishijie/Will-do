@@ -106,6 +106,12 @@ import com.antgskds.calendarassistant.shared.management.catalog.ConfigCatalog
 import com.antgskds.calendarassistant.app.ui.theme.material.SectionTitleTextStyle
 import com.antgskds.calendarassistant.feature.schedule.presentation.model.ScheduleDisplayItem
 import com.antgskds.calendarassistant.platform.accessibility.TextAccessibilityService
+import com.antgskds.calendarassistant.feature.home.ui.render.material.component.HomeAddFab
+import com.antgskds.calendarassistant.feature.home.ui.render.material.component.HomeAddFabBottomOffset
+import com.antgskds.calendarassistant.feature.home.ui.render.material.component.HomeAddFabEndPadding
+import com.antgskds.calendarassistant.feature.home.ui.render.material.component.HomeAddFabGap
+import com.antgskds.calendarassistant.feature.home.ui.render.material.component.HomeAddFabListGap
+import com.antgskds.calendarassistant.feature.home.ui.render.material.component.HomeAddFabSize
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarBottomSpacing
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarHeight
 import com.antgskds.calendarassistant.feature.home.ui.render.material.component.IntegratedFloatingBarVisualHeight
@@ -669,11 +675,15 @@ fun MaterialHomePage(
                     modifier = Modifier
                         .fillMaxSize()
                 ) {
-                    val contentBottomPadding = if (showSearchBar) {
-                        floatingBarContentPadding + searchBarOffset
-                    } else {
-                        floatingBarContentPadding
-                    }
+                    // 「+」按钮顶边距屏幕底部的高度（含系统导航栏）。
+                    // 三个页面列表的底部留白起点不同（今日页用 floatingBarContentPadding、
+                    // 全部日程页用底栏高 + inset、闪记页用固定 112dp 起点），下面分别补足到按钮之上。
+                    val addFabListBottom = HomeAddFabBottomOffset + HomeAddFabSize +
+                        HomeAddFabListGap + bottomInset
+                    val contentBottomPadding = (
+                        if (showSearchBar) floatingBarContentPadding + searchBarOffset
+                        else floatingBarContentPadding
+                        ).coerceAtLeast(addFabListBottom)
 
                     AnimatedContent(
                         targetState = currentPageKey,
@@ -741,14 +751,41 @@ fun MaterialHomePage(
                     } else if (animatedIsAllPage) {
                         allEventsContent(
                             allSearchQuery,
-                            if (showSearchBar) searchBarOffset else 0.dp,
+                            // 全部日程页原有留白=底栏高+inset，补足到「+」按钮之上。
+                            (
+                                addFabListBottom - IntegratedFloatingBarHeight - bottomInset
+                                ).coerceAtLeast(0.dp) +
+                                (if (showSearchBar) searchBarOffset else 0.dp),
                         )
                     } else {
                         quickMemoContent(
                             noteSearchQuery,
-                            if (showSearchBar) searchBarOffset else 0.dp,
+                            // 闪记页原有留白的固定起点小于按钮顶边，直接多留按钮本身的高度。
+                            HomeAddFabSize + HomeAddFabGap + HomeAddFabListGap + bottomInset +
+                                (if (showSearchBar) searchBarOffset else 0.dp),
                         )
                     }
+                    }
+
+                    // 「+」主新建入口：浮在底部导航栏正上方，层级压过列表内容。
+                    // 搜索浮层会盖住这块区域，搜索态下隐藏；它自己另开窗口，无法叠在下面。
+                    if (!isSearchMode) {
+                        HomeAddFab(
+                            onClick = {
+                                // 复用三个页面各自原有的新建入口：闪记页是「添加闪记」，日程页是新建日程。
+                                if (isNotePage) onAddQuickMemo() else onAddEventClick()
+                            },
+                            backgroundMode = calendarMenuBackgroundMode,
+                            miuiBlurEnabled = state.settings.appBackgroundMiuiBlurTestEnabled,
+                            cardAlphaPercent = state.settings.appBackgroundCardAlphaPercent,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(
+                                    end = HomeAddFabEndPadding,
+                                    bottom = HomeAddFabBottomOffset + bottomInset,
+                                )
+                                .zIndex(2f),
+                        )
                     }
 
                 }
