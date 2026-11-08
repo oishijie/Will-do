@@ -39,7 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -1906,7 +1906,8 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
     ) {
         when (actionId) {
             "close" -> requestClose()
-            "delete" -> {
+            // 归档（可恢复）：不提供彻底删除，避免误触丢掉内容。
+            "archive" -> {
                 if (item.key.startsWith("memo:")) {
                     item.key.removePrefix("memo:").toLongOrNull()?.let { memoId ->
                         serviceScope.launch {
@@ -2041,8 +2042,7 @@ class FloatingScheduleService : Service(), LifecycleOwner, SavedStateRegistryOwn
                         "alarm", "闹钟", Icons.Rounded.Alarm
                     ),
                     com.antgskds.calendarassistant.platform.floating.capsule.CapsuleAction(
-                        "delete", "删除", Icons.Rounded.Delete,
-                        destructive = true
+                        "archive", "归档", Icons.Rounded.Archive
                     ),
                 ),
             )
